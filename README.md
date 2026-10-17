@@ -159,6 +159,14 @@ calls the real API router.
 It clicks through the main areas (map, trips, logbook, more) and fails on
 browser console errors.
 
+## Versioning
+
+The version comes from `package.json` (`1.0.0` is shown as "1.0"). Every build also
+carries a build number — the number of commits — and the short commit hash, shown
+with the build date in the app (More → Status → App), e.g. "Build 142 · a1b2c3d".
+Docker builds have no `.git`, so pass `BUILD_NUMBER` and `BUILD_COMMIT` as build
+arguments (like `CARTO_API_KEY`); without them the app shows a content hash instead.
+
 ## Map tiles
 
 The map uses CARTO basemap tiles, which need a free API key

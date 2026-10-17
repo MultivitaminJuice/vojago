@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { build as esbuild } from "esbuild";
 import { deflateSync } from "node:zlib";
+import { versionAnzeige, ermittleBuild, buildAnzeige } from "./build-info.mjs";
 
 const out = new URL("../public/", import.meta.url);
 mkdirSync(out, { recursive: true });
@@ -15,7 +16,7 @@ const APP_NAME = "VOJAĜO";
 const APP_DESC = "Explore & Track — dein Camper-Begleiter";
 const THEME = "#e8802b";
 const BG = "#0c1a1c";
-const VERSION = "0.1.0";
+const VERSION = versionAnzeige(JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
 
 /* ---------- Icon: schlichtes PNG (Akzentfläche mit Vogel-Schwinge) ---------- */
 function png(size) {
@@ -116,7 +117,8 @@ const BUILD = kurzHash("app.js") + kurzHash("app.css");
 /* ---------- index.html ---------- */
 const shell = readFileSync(new URL("../src/shell.html", import.meta.url), "utf8")
   .replaceAll("__APP_VERSION__", VERSION)
-  .replaceAll("__BUILD_VERSION__", BUILD);
+  .replaceAll("__BUILD_VERSION__", buildAnzeige(ermittleBuild(), BUILD))
+  .replaceAll("__BUILD_DATE__", new Date().toISOString().slice(0, 10));
 const html = `<!doctype html>
 <html lang="de">
 <head>

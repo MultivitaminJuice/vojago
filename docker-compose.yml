@@ -29,6 +29,9 @@ services:
         # Kartenschlüssel fürs Bauen der Web-App (Stack-Umgebungsvariable in
         # Portainer bzw. .env neben dieser Datei) — nicht im Repository.
         CARTO_API_KEY: ${CARTO_API_KEY:-}
+        # Anzeige "Build 142 · a1b2c3d" in der App (optional; ohne Wert der Hash).
+        BUILD_NUMBER: ${BUILD_NUMBER:-}
+        BUILD_COMMIT: ${BUILD_COMMIT:-}
     container_name: vojago-app
     restart: unless-stopped
     ports:

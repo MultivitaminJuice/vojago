@@ -23,6 +23,11 @@ COPY scripts ./scripts
 # Quelltext (siehe README, "Map tiles"). Ohne Wert zeigt die Karte Wasserzeichen.
 ARG CARTO_API_KEY=""
 ENV CARTO_API_KEY=${CARTO_API_KEY}
+# Build-Nummer und Commit für die Anzeige in der App (im Image gibt es kein
+# .git, siehe scripts/build-info.mjs). Ohne Werte zeigt die App den Hash.
+ARG BUILD_NUMBER=""
+ARG BUILD_COMMIT=""
+ENV BUILD_NUMBER=${BUILD_NUMBER} BUILD_COMMIT=${BUILD_COMMIT}
 RUN npm run build
 
 # Verzeichnistiefe im Image bewusst identisch zum lokalen Checkout gehalten
