@@ -1,0 +1,28 @@
+{
+  "name": "vojago",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "VOJAĜO — selbstgehosteter Camper-Tracker und Reisebegleiter",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build-site.mjs",
+    "dev": "wrangler pages dev public",
+    "deploy": "npm run build && wrangler pages deploy public --project-name=vojago --branch=main",
+    "test": "node --no-warnings --test api/test/*.test.js src/test/*.test.js",
+    "test:smoke": "npm run build && playwright test",
+    "setup-local": "node scripts/setup-local.mjs",
+    "check:sensitive": "node scripts/check-sensitive.mjs --tree",
+    "anonymize": "node scripts/anonymize-fixture.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.123.0"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.14.0"
+  }
+}

@@ -1,0 +1,16 @@
+# Vorlage — kopieren nach wrangler.toml und eigene Werte eintragen
+# Cloudflare Pages: App und API unter derselben Adresse.
+name = "vojago"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vojago"
+database_id = "HIER-DIE-EIGENE-DATABASE-ID-EINTRAGEN"
+
+# Fotos zu Orten/Notizen (R2 muss einmalig im Cloudflare-Dashboard aktiviert
+# werden, dann: npx wrangler r2 bucket create <eigener-name>)
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "HIER-DEN-EIGENEN-BUCKET-NAMEN-EINTRAGEN"

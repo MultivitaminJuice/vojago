@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.output/
+.wrangler/
+public/
+test-results/
+playwright-report/
+
+# Env & secrets
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Lokale Infrastruktur-Konfiguration (enthält eigene Kennungen)
+worker/wrangler.toml
+
+# Pages-Konfiguration mit eigener Datenbank-Kennung
+wrangler.toml
+
+# Nur lokal: echte Daten, privates Arbeitstagebuch, Deploy-Notizen, Sperrliste
+# (siehe docs/local-setup.md) — gelangt nie ins Repository.
+local/
+.env.local
+.claude/

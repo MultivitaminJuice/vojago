@@ -1,0 +1,17 @@
+{
+  "name": "vojago-app-backend",
+  "description": "VOJAĜO — selbstgehosteter App+API-Container. Führt api/router.js auf Node aus, mit D1-/R2-Shims statt echter Cloudflare-Dienste.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --no-warnings --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}

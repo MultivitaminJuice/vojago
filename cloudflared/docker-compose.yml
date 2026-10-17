@@ -1,0 +1,28 @@
+# VOJAĜO — Cloudflare Tunnel
+# Macht die selbstgehostete App von außen erreichbar, OHNE einen Port im
+# Heimrouter zu öffnen: cloudflared baut eine ausgehende Verbindung auf.
+#
+# Vorher in Cloudflare Zero Trust → Networks → Tunnels einen Tunnel anlegen und
+# das Token hier (bzw. in einer .env-Datei daneben) eintragen.
+#
+# Öffentlicher Name im Tunnel:  app.DEINE-DOMAIN  →  http://vojago-app:8080
+#
+# Wichtig: Der Tunnel muss den app-Container erreichen. Am einfachsten ist es,
+# beide im selben Docker-Netz laufen zu lassen (siehe unten).
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Token aus Cloudflare Zero Trust (Tunnel → Install connector)
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - vojago
+
+networks:
+  vojago:
+    external: true
+    name: vojago

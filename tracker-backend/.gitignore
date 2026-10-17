@@ -1,0 +1,4 @@
+# Die eigentliche Datenbank (Positionen echter Fahrten) gehört nicht ins Repo.
+data/*.db
+data/*.db-*
+.env

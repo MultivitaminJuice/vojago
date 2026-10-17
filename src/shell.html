@@ -1,0 +1,563 @@
+<div class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c4 0 6-3 9-3s5 3 9 3"/><path d="M3 15c3.5 0 5.5-6 9-6"/></svg></span>
+      <span class="nameline"><b>VOJAĜO</b><em>– Explore &amp; Track</em></span>
+    </div>
+    <h2 id="gate-title">Anmelden</h2>
+    <p class="sub" id="gate-sub">Melde dich an, um deine Reisen und Orte zu sehen.</p>
+    <div class="field"><label>Benutzername</label><input id="gate-user" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username"></div>
+    <div class="field" id="gate-password-wrap"><label id="gate-password-label">Passwort</label>
+      <div class="pw-wrap"><input id="gate-password" type="password" autocomplete="current-password"><button type="button" class="pw-toggle" id="gate-eye" aria-label="Passwort anzeigen">anzeigen</button></div>
+    </div>
+    <div class="field" id="gate-repeat-wrap" hidden><label>Passwort wiederholen</label><input id="gate-repeat" type="password" autocomplete="new-password"></div>
+    <div class="field" id="gate-email-wrap" hidden><label>E-Mail <span class="hint">(optional, für „Passwort vergessen")</span></label><input id="gate-email" type="email" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="email"></div>
+    <div class="gate-error" id="gate-error" hidden></div>
+    <div class="gate-info" id="gate-info" hidden></div>
+    <button class="btn primary" id="gate-submit" style="width:100%">Anmelden</button>
+    <button class="reset-btn gate-secondary" id="gate-forgot">Passwort vergessen?</button>
+    <button class="reset-btn gate-secondary" id="gate-demo">Nur Beispieldaten ansehen</button>
+  </div>
+</div>
+
+<div class="gate" id="reset-gate" hidden>
+  <div class="gate-card">
+    <div class="gate-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c4 0 6-3 9-3s5 3 9 3"/><path d="M3 15c3.5 0 5.5-6 9-6"/></svg></span>
+      <span class="nameline"><b>VOJAĜO</b><em>– Explore &amp; Track</em></span>
+    </div>
+    <h2>Neues Passwort setzen</h2>
+    <p class="sub">Der Link war 30 Minuten gültig — falls er abgelaufen ist, fordere unten einen neuen an.</p>
+    <div class="field"><label>Neues Passwort</label>
+      <div class="pw-wrap"><input id="reset-password" type="password" autocomplete="new-password"><button type="button" class="pw-toggle" id="reset-eye" aria-label="Passwort anzeigen">anzeigen</button></div>
+    </div>
+    <div class="field"><label>Neues Passwort wiederholen</label><input id="reset-repeat" type="password" autocomplete="new-password"></div>
+    <div class="gate-error" id="reset-error" hidden></div>
+    <button class="btn primary" id="reset-submit" style="width:100%">Passwort setzen</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="phone">
+    <div class="screen">
+      <div class="appbar">
+        <button class="brand" id="home-btn" title="Zur Live-Karte der aktuellen Reise">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15c4 0 6-3 9-3s5 3 9 3"/><path d="M3 15c3.5 0 5.5-6 9-6"/></svg></span>
+          <div class="txt">
+            <span class="nameline"><b>VOJAĜO</b><em>– Explore &amp; Track</em></span>
+            <span class="vehline" id="vehline" role="button" tabindex="0"></span>
+          </div>
+	        </button>
+	        <div class="spacer"></div>
+	      </div>
+
+      <div class="app-status" id="app-status" role="status" aria-live="polite" hidden>
+        <span class="as-icon" id="as-icon"></span>
+        <span class="as-text" id="as-text"></span>
+        <button class="as-action" id="as-action" hidden></button>
+      </div>
+
+      <div class="views">
+        <section class="view" id="view-map" role="tabpanel">
+          <div class="trip-context-bar map-context-bar">
+            <button class="trip-context-card" id="trip-context-map" aria-label="Reise auswählen"></button>
+            <button class="map-context-toggle" id="map-context-toggle" type="button" aria-label="Obere Auswahl einklappen" title="Obere Auswahl einklappen"></button>
+          </div>
+          <div class="maparea" id="maparea">
+            <div id="map" class="map-canvas" aria-label="Karte"></div>
+
+            <div class="map-topbar">
+              <div class="map-focusbar" id="map-focusbar" hidden>
+                <button id="map-focus-back" type="button">Zurück</button>
+                <b id="map-focus-label"></b>
+              </div>
+              <button class="layers-btn" id="metric-btn" aria-label="Darstellung" title="Darstellung" aria-expanded="false" aria-controls="metric-menu">
+                <span id="metric-label">Tag</span>
+              </button>
+              <button class="layers-btn" id="layers-btn" aria-label="Ebenen" title="Ebenen" aria-expanded="false" aria-controls="layers-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5M2 17l10 5 10-5"/></svg>
+              </button>
+            </div>
+
+            <div class="menu-card metric-menu" id="metric-menu" role="menu">
+              <button data-metric="none" aria-pressed="false">Einfarbig</button>
+              <button data-metric="trip" aria-pressed="false">Reisen</button>
+              <button data-metric="day" aria-pressed="true">Tag</button>
+              <button data-metric="speed" aria-pressed="false">Tempo</button>
+              <button data-metric="elev" aria-pressed="false">Höhe</button>
+              <button data-metric="dist" aria-pressed="false">Strecke</button>
+            </div>
+
+            <div class="menu-card layers-menu" id="layers-menu" role="menu">
+              <div class="lm-row"><span class="lm-dot" style="background:var(--indigo)"></span><span class="lm-l">Übernachtungen</span><button class="switch sm" id="lc-overnight" role="switch" aria-checked="true"></button></div>
+              <div class="lm-row"><span class="lm-dot" style="background:var(--accent)"></span><span class="lm-l">Orte</span><button class="switch sm" id="lc-places" role="switch" aria-checked="true"></button></div>
+              <div class="lm-row"><span class="lm-dot" style="background:var(--ink-soft)"></span><span class="lm-l">Notizen</span><button class="switch sm" id="lc-notes" role="switch" aria-checked="true"></button></div>
+              <div class="lm-row"><span class="lm-dot" style="background:var(--ink-faint)"></span><span class="lm-l">Kilometer</span><button class="switch sm" id="lc-km" role="switch" aria-checked="false"></button></div>
+            </div>
+
+            <div class="legend" id="legend"></div>
+
+            <div class="maptools">
+              <div class="zoomgroup"><button id="zoom-in" aria-label="Vergrößern">+</button><button id="zoom-out" aria-label="Verkleinern">−</button></div>
+              <button class="fab" id="recenter" title="Reise einpassen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg></button>
+            </div>
+
+            <div class="popover" id="popover">
+              <button class="close" id="pop-close" aria-label="Schließen">×</button>
+              <div class="prow">
+                <div class="photo" id="pop-photo"></div>
+                <div class="pinfo">
+                  <div class="ph"><span class="swatch" id="pop-swatch"></span><b id="pop-title"></b></div>
+                  <div class="cat-name" id="pop-cat"></div>
+                  <p id="pop-note"></p>
+                </div>
+              </div>
+              <div class="meta"><span id="pop-coords"></span><span id="pop-date"></span></div>
+              <div class="pact">
+                <button class="primary" id="pop-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Bearbeiten</button>
+                <button id="pop-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Teilen</button>
+	              </div>
+	            </div>
+
+	          </div>
+	        </section>
+
+        <section class="view" id="view-reise" role="tabpanel">
+          <div class="pad">
+            <div class="trip-context-bar in-flow">
+              <button class="trip-context-card" id="trip-context-reise" aria-label="Reise auswählen"></button>
+            </div>
+            <div id="current-trip"></div>
+            <div class="trip-mode-toolbar">
+              <div class="segment-tabs" role="tablist" aria-label="Reiseabschnitt">
+                <button data-trip-mode="gesamt" aria-pressed="true">Gesamt</button>
+                <button data-trip-mode="tage" aria-pressed="false">Tage</button>
+                <button data-trip-mode="fahrten" aria-pressed="false">Fahrten</button>
+              </div>
+              <div class="route-filter">
+                <button class="quick-add route-filter-btn" id="route-filter-btn" aria-label="Fahrten filtern" aria-expanded="false"></button>
+              </div>
+            </div>
+            <div class="travel-layout">
+              <div id="trip-list"></div>
+              <div class="travel-detail">
+                <div id="route-summary-panel"></div>
+                <div id="trip-segment"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="view" id="view-logbuch" role="tabpanel">
+          <div class="pad">
+            <div class="trip-context-bar in-flow">
+              <button class="trip-context-card" id="trip-context-logbuch" aria-label="Reise auswählen"></button>
+            </div>
+            <div class="log-create">
+              <div class="log-toolbar">
+                <div class="log-filter" id="log-filter" role="group" aria-label="Einträge filtern">
+                  <button data-log-filter="night" aria-pressed="true">Übernachtungen</button>
+                  <button data-log-filter="place" aria-pressed="true">Orte</button>
+                  <button data-log-filter="note" aria-pressed="true">Notizen</button>
+                </div>
+                <button class="quick-add" id="log-add" aria-label="Eintrag hinzufügen">＋</button>
+              </div>
+            </div>
+            <div id="journal"></div>
+
+            <details class="fold places-fold">
+              <summary>Orte & Kategorien verwalten</summary>
+            <div class="searchbar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input id="place-search" type="text" placeholder="Orte durchsuchen …" aria-label="Orte durchsuchen">
+            </div>
+            <div class="filterbar">
+              <span class="fsel"><select id="f-trip" aria-label="Reise"></select></span>
+              <span class="fsel"><select id="f-source" aria-label="Quelle"></select></span>
+              <span class="fsel"><select id="f-ref" aria-label="Bezugspunkt"></select></span>
+              <span class="fsel"><select id="f-radius" aria-label="Umkreis"></select></span>
+            </div>
+            <div class="sec-title">Kategorie</div>
+            <div class="catchips" id="catchips"></div>
+            <div class="sec-title result-head">Ergebnisse <span class="hint" id="result-count"></span><button class="reset-btn" id="filter-reset" hidden>Filter zurücksetzen</button></div>
+            <div id="place-list"></div>
+            </details>
+          </div>
+        </section>
+
+        <section class="view" id="view-mehr" role="tabpanel">
+          <div class="pad">
+            <div class="segment-tabs more-tabs more-tabs-top" id="more-tabs" role="tablist" aria-label="Mehr">
+              <button data-more-panel="wache" aria-pressed="true">Wache</button>
+              <button data-more-panel="status" aria-pressed="false">Status</button>
+              <button data-more-panel="settings" aria-pressed="false">Einstellungen</button>
+            </div>
+
+            <div class="more-panel" data-more-panel="wache">
+              <div class="guard-hero armed" id="guard-hero">
+                <div class="shield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+                <div class="gh"><b id="guard-title">Wache scharf</b><div id="guard-sub">Fahrzeug gesichert · Stellplatz Weinberg</div></div>
+                <button class="switch" id="guard-switch" role="switch" aria-checked="true" aria-label="Wache scharf/unscharf"></button>
+              </div>
+
+              <div class="gcard" id="guard-info">
+                <h3>Was wird überwacht?</h3>
+                <div id="guard-info-body"></div>
+                <button class="btn" style="width:100%;margin-top:6px;display:none" id="guard-show-map" type="button">Auf Karte zeigen</button>
+              </div>
+
+              <div class="gcard">
+                <h3>Überwachungsradius</h3>
+                <p class="sub">Beim Scharfschalten wird die letzte gemeldete Position des Fahrzeugs gemerkt — verlässt das Fahrzeug diesen Radius, löst das einen Alarm aus (wie eine Auto-Alarmanlage, keine vorher anzulegende Zone). Unter etwa 25 m sind Fehlalarme durch GPS-Rauschen möglich.</p>
+                <div class="field" style="margin:0">
+                  <label for="guard-radius">Radius (Meter)</label>
+                  <input id="guard-radius" type="number" min="10" max="50000" value="50">
+                </div>
+              </div>
+
+              <div class="gcard">
+                <h3>Push-Benachrichtigung</h3>
+                <p class="sub" id="push-hint">Bekomme sofort eine Benachrichtigung auf diesem Gerät, wenn die Wache den überwachten Bereich verlassen/wieder betreten meldet.</p>
+                <div class="set-row" style="padding:0">
+                  <div class="si"><b id="push-status">Aus</b><div id="push-status-sub">Auf diesem Gerät nicht aktiviert</div></div>
+                  <button class="switch sm" id="push-switch" role="switch" aria-checked="false" aria-label="Push-Benachrichtigungen auf diesem Gerät"></button>
+                </div>
+              </div>
+
+              <div class="gcard">
+                <h3>Alarm-Typen</h3>
+                <p class="sub">Was löst eine Push-Benachrichtigung aus?</p>
+                <div id="alarm-types"></div>
+              </div>
+
+              <div class="gcard">
+                <h3>Alarm-Protokoll</h3>
+                <p class="sub">Letzte Ereignisse</p>
+                <div id="alarm-log"></div>
+              </div>
+            </div>
+
+            <div class="more-panel" data-more-panel="status" hidden>
+              <div class="gcard">
+                <h3>App</h3>
+                <div class="info-list">
+                  <div><span>Name</span><b>VOJAĜO</b></div>
+                  <div><span>Version</span><b>__APP_VERSION__</b></div>
+                  <div><span>Build</span><b>__BUILD_VERSION__</b></div>
+                </div>
+              </div>
+
+              <div class="set-group">
+                <h3>Diagnose</h3>
+                <div class="set-row"><div class="si"><b>Debug-Log</b><div id="debug-count">0 Einträge</div></div><button class="switch sm" id="debug-toggle" role="switch" aria-checked="false"></button></div>
+                <div class="set-row"><div class="si"><b>Exakte GPS-Daten im Export</b><div>Nur einschalten, wenn der Export bewusst geteilt wird.</div></div><button class="switch sm" id="debug-precise" role="switch" aria-checked="false"></button></div>
+                <p class="debug-note" id="debug-note">Standardmäßig entfernt der Export GPS-Pfade, Koordinaten, Ortsnamen, Notizen und Adressen.</p>
+                <div style="display:flex;gap:8px">
+                  <button class="btn grow" id="debug-export">Exportieren</button>
+                  <button class="btn grow" id="debug-clear">Leeren</button>
+                </div>
+              </div>
+
+              <div class="set-group" id="local-data-group" hidden>
+                <h3>Lokale Daten</h3>
+                <p class="sub">Für sofortigen Start und Offline-Nutzung liegt ein Zwischenstand deiner Reisedaten und Einstellungen auf diesem Gerät — verlässt es nicht von selbst. Löschen lädt die App bei bestehender Verbindung einfach neu.</p>
+                <button class="btn" style="width:100%" id="local-data-clear">Lokale Daten löschen</button>
+              </div>
+            </div>
+
+            <div class="more-panel" data-more-panel="settings" hidden>
+              <div class="set-group" id="vehicles-group" hidden>
+                <h3>Fahrzeuge</h3>
+                <p class="sub">Aktives Fahrzeug wählen oder weitere hinzufügen.</p>
+                <div id="veh-list"></div>
+                <button class="btn" style="width:100%;margin-top:10px" id="veh-add">＋ Fahrzeug hinzufügen</button>
+                <div class="set-row"><div class="si"><b>Name in der Kopfzeile</b><div>Bei nur einem Fahrzeug meist überflüssig.</div></div><button class="switch sm" id="veh-show" role="switch" aria-checked="true"></button></div>
+              </div>
+              <div class="set-group" id="categories-group" hidden>
+                <h3>Kategorien</h3>
+                <p class="sub">Für Orte &amp; Übernachtungen — hinzufügen, umbenennen (tippen) oder löschen.</p>
+                <div id="cat-list"></div>
+                <div class="swatches" id="cat-swatches"></div>
+                <div style="display:flex;gap:8px;margin-top:6px">
+                  <input id="cat-new-name" type="text" placeholder="Neue Kategorie …" style="flex:1;font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 12px">
+                  <button class="btn primary" id="cat-add">Hinzufügen</button>
+                </div>
+                <p class="sub" style="margin:12px 0 0">Kategorien und Fahrzeuge liegen im verbundenen Betrieb zentral, sonst auf diesem Gerät. <button class="reset-btn" id="cat-reset" style="margin:0">Auf Standard zurücksetzen</button></p>
+              </div>
+              <div class="set-group" id="traccar-link-group" hidden>
+                <h3>Verbindungsstatus</h3>
+                <p class="sub">Welches Gerät abgefragt wird, legst du über das aktive Fahrzeug unter „Fahrzeuge" fest (Geräte-ID dort eintragen, dann als aktiv markieren).</p>
+                <div class="conn-state" id="conn-state">
+                  <span class="cdot" id="conn-dot"></span>
+                  <div class="si"><b id="conn-title">Nicht angemeldet</b><div id="conn-sub">—</div></div>
+                </div>
+                <button class="btn grow" id="cfg-test" style="width:100%">Verbindung prüfen</button>
+              </div>
+              <div class="set-group" id="ingest-group" hidden>
+                <h3>Tracker-Empfang</h3>
+                <p class="sub">Unbekannte Geräte werden abgewiesen. Zum Koppeln kurz den Lernmodus aktivieren, Gerät senden lassen und die Geräte-ID danach einem Fahrzeug zuordnen.</p>
+                <div class="set-row"><div class="si"><b id="ingest-title">Lernmodus aus</b><div id="ingest-sub">—</div></div><button class="btn" id="ingest-learn">10 min lernen</button></div>
+                <div id="ingest-devices"></div>
+              </div>
+              <div class="set-group">
+                <h3>Konto</h3>
+                <p class="sub">Deine Anmeldung gilt auf allen Geräten — Einstellungen, Orte und Reisen liegen zentral.</p>
+                <div class="set-row"><div class="si"><b>Passwort ändern</b><div>Meldet alle anderen Geräte ab.</div></div><button class="btn" id="cfg-password">Ändern</button></div>
+                <div class="password-panel" id="password-panel" hidden>
+                  <div class="field"><label>Bisheriges Passwort</label><input id="pw-old" type="password" autocomplete="current-password"></div>
+                  <div class="field"><label>Neues Passwort</label><input id="pw-new" type="password" autocomplete="new-password"></div>
+                  <div class="field"><label>Neues Passwort wiederholen</label><input id="pw-repeat" type="password" autocomplete="new-password"></div>
+                  <div class="password-actions">
+                    <button class="btn grow" id="pw-cancel" type="button">Abbrechen</button>
+                    <button class="btn primary grow" id="pw-save" type="button">Speichern</button>
+                  </div>
+                </div>
+                <div class="set-row"><div class="si"><b>E-Mail</b><div id="cfg-email-status">Keine hinterlegt — nötig für „Passwort vergessen".</div></div><button class="btn" id="cfg-email-btn">Hinterlegen</button></div>
+                <div class="password-panel" id="email-panel" hidden>
+                  <div class="field"><label>E-Mail-Adresse</label><input id="email-new" type="email" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="email"></div>
+                  <div class="field"><label>Passwort bestätigen</label><input id="email-pw-confirm" type="password" autocomplete="current-password"></div>
+                  <div class="password-actions">
+                    <button class="btn grow" id="email-cancel" type="button">Abbrechen</button>
+                    <button class="btn primary grow" id="email-save" type="button">Speichern</button>
+                  </div>
+                </div>
+                <div class="set-row"><div class="si"><b>Abmelden</b><div>Auf diesem Gerät.</div></div><button class="btn" id="cfg-logout">Abmelden</button></div>
+                <div class="set-row"><div class="si"><b>Beispieldaten verwenden</b><div>Zeigt eine Demo-Reise statt der echten Daten.</div></div><button class="switch sm" id="cfg-demo" role="switch" aria-checked="true"></button></div>
+              </div>
+              <div class="set-group" id="users-group" hidden>
+                <h3>Benutzer</h3>
+                <p class="sub">Jeder Nutzer meldet sich mit eigenem Namen und Passwort an — alle sehen dieselben Reisen, Orte und Notizen. Nur Admins verwalten Konten.</p>
+                <div id="users-list"></div>
+                <button class="btn" style="width:100%;margin-top:10px" id="user-add">＋ Nutzer anlegen</button>
+                <div class="password-panel" id="user-panel" hidden>
+                  <div class="field"><label>Benutzername</label><input id="user-new-name" type="text" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                  <div class="field"><label>Start-Passwort</label><input id="user-new-pw" type="password" autocomplete="new-password"></div>
+                  <div class="set-row"><div class="si"><b>Admin</b><div>Darf selbst Nutzer verwalten.</div></div><button class="switch sm" id="user-new-admin" role="switch" aria-checked="false"></button></div>
+                  <div class="password-actions">
+                    <button class="btn grow" id="user-cancel" type="button">Abbrechen</button>
+                    <button class="btn primary grow" id="user-create" type="button">Anlegen</button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <h3>Reisen teilen</h3>
+                <p class="sub">Schreibgeschützter Link ohne Anmeldung — für alle, die eine Reise (oder alle) mitverfolgen sollen.</p>
+                <div id="shares-list"></div>
+                <button class="btn" style="width:100%;margin-top:10px" id="share-add">＋ Link erstellen</button>
+                <div class="password-panel" id="share-panel" hidden>
+                  <div class="field"><label>Reise</label><select id="share-trip"><option value="">Alle Reisen</option></select></div>
+                  <div class="field"><label>Umfang</label>
+                    <select id="share-scope">
+                      <option value="karte">Nur Karte</option>
+                      <option value="karte_logbuch">Karte und Logbuch</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>Bezeichnung <span class="hint">(optional, z. B. „für Oma")</span></label><input id="share-label" type="text"></div>
+                  <div class="field"><label>Ablauf</label>
+                    <select id="share-expiry">
+                      <option value="30" selected>30 Tage</option>
+                      <option value="90">90 Tage</option>
+                      <option value="365">1 Jahr</option>
+                      <option value="">Kein Ablauf</option>
+                    </select>
+                  </div>
+                  <div class="password-actions">
+                    <button class="btn grow" id="share-cancel" type="button">Abbrechen</button>
+                    <button class="btn primary grow" id="share-create" type="button">Link erstellen</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="sheet" id="trip-sheet">
+        <div class="sheet-bar">
+          <button class="back" id="sheet-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <b id="sheet-title">Reise</b><div class="sp"></div>
+          <button class="btn" data-share><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Teilen</button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+        <div class="confirm-bar" id="trip-confirm"><span>Nicht gespeicherte Änderungen</span><button class="discard">Verwerfen</button><button class="save">Speichern</button></div>
+      </div>
+
+      <div class="trip-picker" id="trip-picker" hidden>
+        <div class="trip-picker-panel" role="dialog" aria-modal="true" aria-labelledby="trip-picker-title">
+          <div class="trip-picker-head">
+            <b id="trip-picker-title">Reise auswählen</b>
+            <button class="iconbtn" id="trip-picker-close" aria-label="Schließen">×</button>
+          </div>
+          <div class="trip-picker-list" id="trip-picker-list"></div>
+        </div>
+      </div>
+
+      <div class="trip-picker" id="range-picker" hidden>
+        <div class="trip-picker-panel range-picker-panel" role="dialog" aria-modal="true" aria-labelledby="range-picker-title">
+          <div class="trip-picker-head">
+            <b id="range-picker-title">Zeitraum wählen</b>
+            <button class="iconbtn" id="range-picker-close" aria-label="Schließen">×</button>
+          </div>
+          <div class="range-picker-body">
+            <div class="range-presets">
+              <button data-range-preset="today">Heute</button>
+              <button data-range-preset="yesterday">Gestern</button>
+              <button data-range-preset="last7">letzte 7 Tage</button>
+              <button data-range-preset="month">dieser Monat</button>
+              <button data-range-preset="all">Alles</button>
+            </div>
+            <div class="range-fields">
+              <label>Start<input id="range-from" type="datetime-local"></label>
+              <label>Ende<input id="range-to" type="datetime-local"></label>
+            </div>
+            <button class="btn primary" id="range-apply">Zeitraum anzeigen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="trip-picker" id="log-create-picker" hidden>
+        <div class="trip-picker-panel" role="dialog" aria-modal="true" aria-labelledby="log-create-title">
+          <div class="trip-picker-head">
+            <b id="log-create-title">Eintrag hinzufügen</b>
+            <button class="iconbtn" id="log-create-close" aria-label="Schließen">×</button>
+          </div>
+          <div class="trip-picker-list">
+            <button class="trip-picker-row trip-picker-new" id="add-note">
+              <i>✎</i>
+              <span><b>Notiz</b><small>Gedanke, Beobachtung oder kurzer Eintrag</small></span>
+            </button>
+            <button class="trip-picker-row trip-picker-new" id="add-here">
+              <i>＋</i>
+              <span><b>Ort hier</b><small>Aktuelle Position als Ort speichern</small></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="trip-picker" id="route-filter-picker" hidden>
+        <div class="trip-picker-panel" role="dialog" aria-modal="true" aria-labelledby="route-filter-title">
+          <div class="trip-picker-head">
+            <b id="route-filter-title">Fahrten filtern</b>
+            <button class="iconbtn" id="route-filter-close" aria-label="Schließen">×</button>
+          </div>
+          <div class="trip-picker-list">
+            <button class="trip-picker-row" data-route-drive-filter="etappe" aria-pressed="true">
+              <i></i>
+              <span><b>Etappen</b><small>Versorgungsfahrten aus Statistik und Karte ausblenden</small></span>
+            </button>
+            <button class="trip-picker-row" data-route-drive-filter="abstecher" aria-pressed="false">
+              <i></i>
+              <span><b>Versorgung</b><small>Nur als Abstecher markierte Fahrten anzeigen</small></span>
+            </button>
+            <button class="trip-picker-row" data-route-drive-filter="alle" aria-pressed="false">
+              <i></i>
+              <span><b>Alle der Reise</b><small>Etappen und Versorgungsfahrten gemeinsam anzeigen</small></span>
+            </button>
+            <button class="trip-picker-row" data-route-drive-filter="nicht_zugeordnet" aria-pressed="false">
+              <i></i>
+              <span><b>Nicht zugeordnet</b><small>Fahrten ohne Reise anzeigen — nur im Reiter „Fahrten"</small></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="trip-picker" id="drive-kind-picker" hidden>
+        <div class="trip-picker-panel" role="dialog" aria-modal="true" aria-labelledby="drive-kind-title">
+          <div class="trip-picker-head">
+            <b id="drive-kind-title">Fahrtart wählen</b>
+            <button class="iconbtn" id="drive-kind-close" aria-label="Schließen">×</button>
+          </div>
+          <div class="trip-picker-list">
+            <button class="trip-picker-row" data-drive-kind-choice="etappe" aria-pressed="true">
+              <i></i>
+              <span><b>Etappe</b><small>Gehört zur Reisestrecke</small></span>
+            </button>
+            <button class="trip-picker-row" data-drive-kind-choice="abstecher" aria-pressed="false">
+              <i></i>
+              <span><b>Abstecher</b><small>Versorgungsfahrt, optional ausblendbar</small></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet" id="edit-sheet">
+        <div class="sheet-bar">
+          <button class="back" id="edit-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <b>Ort bearbeiten</b><div class="sp"></div>
+          <button class="btn primary" id="edit-save">Speichern</button>
+        </div>
+        <div class="sheet-body">
+          <div class="ef-src" id="ef-src"></div>
+          <div class="ef-src" id="ef-meta"></div>
+          <div class="ef-src" id="ef-visits" hidden></div>
+          <div class="ef-src" id="ef-weather" hidden></div>
+          <button class="btn" style="width:100%;margin-bottom:13px;display:flex;align-items:center;justify-content:center;gap:6px" id="ef-show-map" type="button">Auf Karte zeigen</button>
+          <div class="field"><label>Titel</label><input id="ef-title" type="text" placeholder="z. B. Trattoria da Marco"></div>
+          <div class="field"><label>Kategorie</label><div class="catpick" id="ef-cats"></div></div>
+          <div class="field" id="ef-nights-wrap" hidden>
+            <label>Anzahl Nächte</label>
+            <div class="stepper">
+              <button type="button" id="ef-nights-minus" aria-label="Weniger Nächte">−</button>
+              <span id="ef-nights-val">1</span>
+              <button type="button" id="ef-nights-plus" aria-label="Mehr Nächte">+</button>
+            </div>
+          </div>
+          <div class="field"><label>Beschreibung</label><textarea id="ef-note"></textarea></div>
+          <div class="field"><label>Bewertung</label><div id="ef-stars" style="font-size:26px;letter-spacing:4px;color:var(--accent);cursor:pointer"></div></div>
+          <div class="field">
+            <label>Fotos</label>
+            <div class="photo-gallery" id="ef-photos"></div>
+            <input type="file" accept="image/*" id="ef-photo-input" hidden>
+            <button class="btn" style="width:100%" id="ef-photo-add" type="button">＋ Foto hinzufügen</button>
+          </div>
+          <button class="btn" style="width:100%;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))" id="edit-delete">Ort löschen</button>
+        </div>
+        <div class="confirm-bar" id="edit-confirm"><span>Nicht gespeicherte Änderungen</span><button class="discard">Verwerfen</button><button class="save">Speichern</button></div>
+      </div>
+
+      <div class="sheet" id="note-sheet">
+        <div class="sheet-bar">
+          <button class="back" id="note-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <b>Notiz</b><div class="sp"></div>
+          <button class="btn primary" id="note-save">Speichern</button>
+        </div>
+        <div class="sheet-body">
+          <div class="ef-src" id="note-meta"></div>
+          <div class="field"><label>Titel</label><input id="note-title" maxlength="160" placeholder="z. B. Morgenkaffee" required></div>
+          <div class="field"><label>Notiz</label><textarea id="note-text" placeholder="Was ist gerade los?" style="min-height:160px"></textarea></div>
+          <div class="field"><label>Einem Ort zuordnen (optional)</label><select id="note-place"></select></div>
+          <div class="field">
+            <label>Fotos</label>
+            <div class="photo-gallery" id="note-photos"></div>
+            <input type="file" accept="image/*" id="note-photo-input" hidden>
+            <button class="btn" style="width:100%" id="note-photo-add" type="button">＋ Foto hinzufügen</button>
+          </div>
+          <button class="btn" style="width:100%;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))" id="note-delete">Notiz löschen</button>
+        </div>
+        <div class="confirm-bar" id="note-confirm"><span>Nicht gespeicherte Änderungen</span><button class="discard">Verwerfen</button><button class="save">Speichern</button></div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+
+      <nav class="tabbar" role="tablist">
+        <div class="nav-head">
+          <span>Menü</span>
+          <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menü einklappen" title="Menü einklappen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+        <button role="tab" aria-selected="false" data-view="map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Karte
+        </button>
+        <button role="tab" aria-selected="true" data-view="reise">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 12 2-5h6"/></svg>Reisen
+        </button>
+        <button role="tab" aria-selected="false" data-view="logbuch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M9 3v18"/></svg>Logbuch
+        </button>
+        <button role="tab" aria-selected="false" data-view="mehr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Mehr
+        </button>
+      </nav>
+    </div>
+  </div>
+</div>

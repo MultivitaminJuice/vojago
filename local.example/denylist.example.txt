@@ -1,0 +1,19 @@
+# Sperrliste — NUR lokal (local/ steht in .gitignore und wird nie hochgeladen).
+# Je Zeile ein regulärer Ausdruck (Groß-/Kleinschreibung egal). Trifft einer auf
+# eine neu hinzugefügte Zeile oder eine Commit-Nachricht, brechen die Git-Hooks
+# Commit bzw. Push ab. "#" beginnt einen Kommentar.
+#
+# Trag hier ein, was NIE öffentlich werden darf — Beispiele:
+
+# Wohnort / Straße / Orte, die du besuchst
+# Beispielstadt
+# Musterstraße
+
+# Koordinaten deines Zuhauses (Lookbehind verhindert Treffer auf anonymisierte Daten)
+# (?<![-0-9])52\.000[0-9]{3,}
+
+# Geräte-IDs (IMEI), interne Adressen, eigene Domain, E-Mail
+# 123456789012345
+# 192\.168\.1\.50
+# meine-domain\.example
+# ich@example\.com

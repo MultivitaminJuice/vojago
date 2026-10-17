@@ -1,0 +1,94 @@
+# VOJAĜO — Phase 2, Zwei-Container-Stack
+# Start:  docker compose up -d --build
+#
+# Zwei Container, EIN Stack, EINE geteilte SQLite-Datei (WAL-Modus, dafür
+# gemacht — mehrere Prozesse auf eine Datei ist Standardfall):
+#   app    — Web-App + /api/* (api/router.js unverändert, über D1-/R2-Shim)
+#   ingest — OsmAnd + Teltonika (unverändert aus tracker-backend/)
+#
+# Bewusst getrennt statt ein einziger Prozess: gemeinsamer Blast-Radius bei Abstürzen, Deploy-
+# Unterbrechung der GPS-Empfänger bei App-Deploys, fehlende Sicherheits-
+# Trennschärfe zwischen unauthentifizierten Netzeingaben (Teltonika/OsmAnd)
+# und Session-/Fotodaten waren die Gründe. Operativ bleibt es trotzdem EIN
+# Deploy/EIN "Update the stack" in Portainer.
+#
+# Das ist der Betriebsweg (die frühere Cloudflare-Pages-Variante ist nicht
+# mehr im Einsatz).
+#
+# Ports:
+#   8081 (Host) → 8080 (Container, app)     Web-App + /api/*
+#   5056 (Host) → 5055 (Container, ingest)  OsmAnd-HTTP-Empfänger
+#   5028 (Host) → 5027 (Container, ingest)  Teltonika-TCP-Empfänger
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: app-backend/Dockerfile
+      args:
+        # Kartenschlüssel fürs Bauen der Web-App (Stack-Umgebungsvariable in
+        # Portainer bzw. .env neben dieser Datei) — nicht im Repository.
+        CARTO_API_KEY: ${CARTO_API_KEY:-}
+    container_name: vojago-app
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      # Öffentliche Basisadresse für Passwort-Reset-/E-Mail-Links. In
+      # Portainer als Stack-Umgebungsvariable setzen, falls die Domain später
+      # wechselt; der Vorgabewert ist die aktuelle Produktionsadresse.
+      APP_URL: ${APP_URL:-https://vojago.example.com}
+      # Push-Benachrichtigung (Wache) — nur der öffentliche Schlüssel, den
+      # der Browser fürs Abo braucht (GET /api/push-public-key). Ohne
+      # gesetzten Wert meldet der Endpunkt ehrlich "nicht eingerichtet"
+      # (503), der Rest der App funktioniert unverändert. Als Stack-
+      # Umgebungsvariable in Portainer setzen, nicht hier fest eintragen.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    volumes:
+      - vojago-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ingest:
+    build:
+      # Repo-WURZEL als Kontext (nicht tracker-backend/ selbst) seit der
+      # serverseitigen Übernachtungs-/Stopp-Erkennung (auto-import.js,
+      # 6. September 2026) — die nutzt api/lib.js und
+      # src/overnight-rules.js mit, aus demselben Grund wie
+      # app-backend/Dockerfile es schon für api/+db/schema.sql tut.
+      context: .
+      dockerfile: tracker-backend/Dockerfile
+    container_name: vojago-ingest
+    restart: unless-stopped
+    ports:
+      - "5056:5055"
+      - "5028:5027"
+    environment:
+      # Geteilter Datenpfad mit dem app-Container — Rest der
+      # Umgebungsvariablen siehe tracker-backend/README.md, Standardwerte
+      # passen.
+      TRACKER_DB_PATH: /data/vojago.db
+      # Kommagetrennte Zulassungsliste für OsmAnd-Geräte-IDs und Teltonika-
+      # IMEIs. Leer = historischer Testbetrieb: alle annehmen. Vor direkter
+      # Internet-Erreichbarkeit zwingend setzen.
+      TRACKER_ALLOWED_DEVICE_IDS: ${TRACKER_ALLOWED_DEVICE_IDS:-}
+      # Push-Benachrichtigung: ingest verschickt sie direkt beim Zonen-
+      # Wechsel (siehe src/alarms.js, src/push.js) — sieht das Ereignis als
+      # Erstes. Ohne gesetzte Werte bleibt Push einfach aus (kein Fehler,
+      # kein Absturz), alarm_log wird trotzdem weiter geschrieben.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+    volumes:
+      - vojago-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  vojago-data:

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test, build and audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install app-backend dependencies
+        run: npm --prefix app-backend ci
+
+      - name: Install tracker-backend dependencies
+        run: npm --prefix tracker-backend ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run app-backend tests
+        run: npm --prefix app-backend test
+
+      - name: Run tracker-backend tests
+        run: npm --prefix tracker-backend test
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install browser for smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke test app
+        run: npm run test:smoke
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
+      - name: Audit app-backend production dependencies
+        run: npm --prefix app-backend audit --omit=dev
+
+      - name: Audit tracker-backend production dependencies
+        run: npm --prefix tracker-backend audit --omit=dev
+
+      - name: Audit full toolchain
+        run: npm audit --audit-level=high
