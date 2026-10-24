@@ -546,9 +546,7 @@ function tagSchrittKnoepfe(t) {
       disabled: !ziel,
       "aria-label": vorher ? "Vorheriger Tag" : "Nächster Tag",
       on: { click: () => { if (ziel) { routeFocus = ziel; renderTrips(); } } },
-    }, vorher
-      ? [icon(ICON.chevronLeft, 15), ziel?.title || "Tag"]
-      : [ziel?.title || "Tag", icon(ICON.chevronRight, 15)]);
+    }, ziel?.title || "Tag");
   };
   return [knopf(-1), knopf(1)];
 }
