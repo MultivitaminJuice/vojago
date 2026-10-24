@@ -13,6 +13,7 @@ import { wetterZeile } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile } from "./charts.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
+import { tagIdInfo, tagNachbar, tagNavigation } from "../day-nav.js";
 import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
 import { filteredRouteDrives, itemMatchesRouteFilter, visibleRoutePath } from "../route-visibility.js";
 
@@ -533,12 +534,34 @@ function renderSegments() {
   render(wrap, [renderGesamtActions(t), ...renderGesamtCharts(t)]);
 }
 
+function tagSchrittKnoepfe(t) {
+  if (routeFocus?.type !== "tag") return [];
+  const summaries = tageSummariesFor(t);
+  if (!tagNavigation(summaries, routeFocus.id)) return [];
+  const knopf = (richtung) => {
+    const ziel = tagNachbar(summaries, routeFocus.id, richtung);
+    const vorher = richtung < 0;
+    return el("button.detail-step", {
+      type: "button",
+      disabled: !ziel,
+      "aria-label": vorher ? "Vorheriger Tag" : "Nächster Tag",
+      on: { click: () => { if (ziel) { routeFocus = ziel; renderTrips(); } } },
+    }, vorher
+      ? [icon(ICON.chevronLeft, 15), ziel?.title || "Tag"]
+      : [ziel?.title || "Tag", icon(ICON.chevronRight, 15)]);
+  };
+  return [knopf(-1), knopf(1)];
+}
+
 function renderRouteDetail(t, listMode) {
   const hatSpur = Boolean(routeFocus?.path?.length);
   return el("div.route-detail", {}, [
-    el("button.detail-back", {
-      on: { click: () => { routeFocus = null; renderTrips(); } },
-    }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
+    el("div.detail-nav", {}, [
+      el("button.detail-back", {
+        on: { click: () => { routeFocus = null; renderTrips(); } },
+      }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
+      ...(listMode === "tage" ? tagSchrittKnoepfe(t) : []),
+    ]),
     renderSummaryFacts(routeFocus, t),
     renderMapAction(routeFocus, t),
     // Dieselben Kartenwerkzeuge wie unter Gesamt, hier für nur diesen Tag/
@@ -606,6 +629,32 @@ function zeigeSummaryAufKarte(summary, t) {
     showAdhocOnMap(routeSummaryToTrip(summary, `${t.name} · ${summary.title}`));
   }
   goMap();
+}
+
+/** Für die Kartenleiste: zeigt die Karte gerade einen Tag einer Reise, kommt hier
+ * seine Kurzbezeichnung ("Tag 3") und ob es einen vorherigen/nächsten gibt. */
+export function tagKartenNavigation() {
+  const adhoc = state.adhocTrip;
+  const info = tagIdInfo(adhoc?.id);
+  const t = info ? trip(info.reiseId) : null;
+  if (!t?.path?.length) return null;
+  const summaries = tageSummariesFor(t);
+  const nav = tagNavigation(summaries, adhoc.id);
+  if (!nav) return null;
+  return { titel: summaries.find((x) => x.id === adhoc.id)?.title || adhoc.name, ...nav };
+}
+
+/** Karte: zum vorherigen (-1) / nächsten (+1) Tag derselben Reise wechseln. */
+export function kartenTagWechseln(richtung) {
+  const adhoc = state.adhocTrip;
+  const info = tagIdInfo(adhoc?.id);
+  const t = info ? trip(info.reiseId) : null;
+  if (!t) return;
+  const ziel = tagNachbar(tageSummariesFor(t), adhoc.id, richtung);
+  if (!ziel?.path?.length) return;
+  // "Zurück" führt zu dem Tag, den man zuletzt auf der Karte gesehen hat.
+  if (kartenRueckkehrKontext?.routeFocus?.type === "tag") kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };
+  showAdhocOnMap(routeSummaryToTrip(ziel, `${t.name} · ${ziel.title}`));
 }
 
 /** Für main.js: erneuter Klick auf den "Reisen"-Tab, während man schon
@@ -771,8 +820,8 @@ function segmentCard({ title, subtitle, summary, variant = "" }) {
   ]);
 }
 
-function renderDaySegments(t) {
-  if (!t.path?.length) ensurePathForSegments(t);
+/** Tages-Zusammenfassungen einer Reise samt Vorschau-Spur (für Liste und Vor/Zurück). */
+function tageSummariesFor(t) {
   const routeTrip = tripForRouteFilter(t);
   const fahrten = routeDrives(t);
   ensureDrivePreviewPaths(t, fahrten);
@@ -781,17 +830,22 @@ function renderDaySegments(t) {
     places: routePlaces(t),
     notes: routeNotes(t),
   });
-  if (!summaries.length) return el("div.callout", { text: "Für diese Reise gibt es noch keine Tagesdaten." });
   return summaries.map((summary) => {
     const preview = summary.path?.length ? summary.path : dayPreviewPath(summary.drives || [], t);
-    const visibleSummary = preview.length ? { ...summary, path: preview } : summary;
-    return segmentCard({
-      title: visibleSummary.title,
-      subtitle: tagSubtitle(visibleSummary.path, visibleSummary.from),
-      summary: visibleSummary,
-      variant: "day-card",
-    });
+    return preview.length ? { ...summary, path: preview } : summary;
   });
+}
+
+function renderDaySegments(t) {
+  if (!t.path?.length) ensurePathForSegments(t);
+  const summaries = tageSummariesFor(t);
+  if (!summaries.length) return el("div.callout", { text: "Für diese Reise gibt es noch keine Tagesdaten." });
+  return summaries.map((visibleSummary) => segmentCard({
+    title: visibleSummary.title,
+    subtitle: tagSubtitle(visibleSummary.path, visibleSummary.from),
+    summary: visibleSummary,
+    variant: "day-card",
+  }));
 }
 
 function tagSubtitle(path, fallbackIso = null) {
