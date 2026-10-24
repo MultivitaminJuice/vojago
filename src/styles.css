@@ -128,7 +128,8 @@
   .menu-card { position: absolute; z-index: 18; top: 54px; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 4px; display: none; }
   .menu-card.open { display: block; animation: rise .15s ease; }
   .metric-menu { right: 62px; min-width: 130px; }
-  .metric-menu button { width: 100%; border: 0; border-radius: 10px; padding: 9px 11px; background: transparent; color: var(--ink-soft); font: inherit; font-size: var(--fs-small); font-weight: 750; text-align: left; cursor: pointer; }
+  .metric-menu button { display: block; width: 100%; border: 0; border-radius: 10px; padding: 9px 11px; background: transparent; color: var(--ink-soft); font: inherit; font-size: var(--fs-small); font-weight: 750; text-align: left; cursor: pointer; }
+  .metric-menu button[hidden] { display: none; }
   .metric-menu button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
   .layers-menu { right: 12px; min-width: 202px; }
   .ctx-menu { left: 12px; min-width: 234px; max-width: 76%; }
@@ -226,10 +227,15 @@
   .info-list b { color: var(--ink); font-size: var(--fs-small); font-family: var(--font-mono); white-space: nowrap; }
   .trip-context-bar { display: flex; align-items: center; gap: 8px; background: transparent; border-bottom: 0; padding: 14px 14px 0; z-index: 12; }
   .trip-context-bar.in-flow { margin: 0 0 14px; border: 0; padding: 0; background: transparent; }
-  .map-context-bar { transition: padding .18s ease; }
-  .map-context-bar.is-collapsed { position: absolute; top: 27px; right: 14px; z-index: 16; justify-content: flex-end; padding: 0; }
-  .map-context-bar.is-collapsed + .maparea .map-topbar { top: 92px; }
-  .map-context-bar.is-collapsed + .maparea .menu-card { top: 134px; }
+  /* Die Reisekarte schwebt über der Karte (Karte reicht bis unter die Kopfzeile);
+     Bedienknöpfe und Menüs der Karte beginnen darunter. */
+  .map-context-bar { transition: padding .18s ease; position: absolute; top: 0; left: 0; right: 0; z-index: 16; pointer-events: none; }
+  .map-context-bar > * { pointer-events: auto; }
+  .map-context-bar .trip-context-card { background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(10px); box-shadow: var(--shadow); }
+  .map-context-bar .map-context-toggle { background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); box-shadow: var(--shadow); }
+  .map-context-bar.is-collapsed { top: 27px; left: auto; right: 14px; justify-content: flex-end; padding: 0; }
+  .map-context-bar + .maparea .map-topbar { top: 92px; }
+  .map-context-bar + .maparea .menu-card { top: 134px; }
   .map-context-bar.is-collapsed .trip-context-card { display: none; }
   .trip-context-card { width: 100%; min-height: 66px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 14px; align-items: center; gap: 11px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 14px; padding: 11px 12px; background: color-mix(in srgb, var(--surface) 78%, var(--app-bg)); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
   .map-context-toggle { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surface) 84%, var(--app-bg)); color: var(--ink-soft); cursor: pointer; }
@@ -653,9 +659,9 @@
     .legend { left: 16px; bottom: 16px; }
     .maptools { right: 16px; bottom: 16px; }
     .map-topbar { top: 16px; left: 16px; right: 16px; }
-    .map-context-bar.is-collapsed + .maparea .map-topbar { top: 96px; }
+    .map-context-bar + .maparea .map-topbar { top: 96px; }
     .menu-card { top: 58px; }
-    .map-context-bar.is-collapsed + .maparea .menu-card { top: 138px; }
+    .map-context-bar + .maparea .menu-card { top: 138px; }
     .layers-menu { right: 16px; }
     .metric-menu { right: 66px; }
 

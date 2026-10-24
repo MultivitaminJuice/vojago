@@ -8,7 +8,8 @@ const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
 import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, naechsterRoutenpunkt, meterProPixel } from "./geo.js";
-import { kachelPaint, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
+import { kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
+import { routenSignatur } from "./map-signature.js";
 import { routenTipp } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
@@ -21,9 +22,6 @@ import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility
 // CARTO_API_KEY eingesetzt (siehe scripts/build-site.mjs und README). Er ist
 // danach in der Kachel-URL der ausgelieferten App sichtbar — dafür ist er gedacht.
 const CARTO_KEY = typeof __CARTO_API_KEY__ === "string" ? __CARTO_API_KEY__ : "";
-const TILES = {
-  light: `https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
-};
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
 
 let map = null;
@@ -47,7 +45,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
     style: {
       version: 8,
       sources: {
-        "tiles-light": { type: "raster", tiles: [TILES.light], tileSize: 256, attribution: ATTRIBUTION },
+        "tiles-light": { type: "raster", tiles: [kachelUrl(state.config.kartenstil, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
         dem: { type: "raster-dem", tiles: [HOEHEN_KACHELN], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: HOEHEN_QUELLE },
         "route-solid": {
           type: "geojson",
@@ -58,7 +56,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         },
       },
       layers: [
-        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark()) },
+        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.kartenstil) },
         // Geländeschummerung: nur sichtbar, wenn im Ebenen-Menü eingeschaltet
         // (dann erst werden die Höhenkacheln überhaupt geladen).
         { id: "schummerung", type: "hillshade", source: "dem",
@@ -110,6 +108,13 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
   return map;
 }
 
+/** Kartenstil wechseln (Einstellungen → Darstellung): andere Kacheln, passende Farbwerte. */
+export function setKartenstil(stil) {
+  if (!map || !ready) return;
+  map.getSource("tiles-light").setTiles([kachelUrl(gueltigerKartenstil(stil), CARTO_KEY)]);
+  applyTheme();
+}
+
 /** Geländeschummerung ein-/ausschalten (Ebenen-Menü). */
 export function setTerrain(on) {
   if (!map || !map.getLayer("schummerung")) return;
@@ -119,7 +124,7 @@ export function setTerrain(on) {
 function applyTheme() {
   if (!ready) return;
   const dark = isDark();
-  for (const [k, v] of Object.entries(kachelPaint(dark))) map.setPaintProperty("tiles-light", k, v);
+  for (const [k, v] of Object.entries(kachelPaint(dark, state.config.kartenstil))) map.setPaintProperty("tiles-light", k, v);
   for (const [k, v] of Object.entries(schummerungPaint(dark))) map.setPaintProperty("schummerung", k, v);
   map.setPaintProperty("route-casing", "line-color", dark ? "#000" : "#0a1919");
 }
@@ -205,26 +210,37 @@ function clearGradientLayers() {
   }
   gradientLayerIds = [];
 }
+// Die farbigen Verlaufsebenen werden vorhandenen Ebenen angepasst statt gelöscht
+// und neu angelegt: dazwischen wäre kurz nur die orange Grundlinie zu sehen
+// (das Flackern über die ganze Strecke beim Öffnen der Karte).
 function zeichneVerlaufsSegmente(segments, metric, ctx) {
-  clearGradientLayers();
-  segments.filter((segment) => segment.length > 1).forEach((segment, i) => {
+  const linien = segments.filter((segment) => segment.length > 1);
+  linien.forEach((segment, i) => {
     const sourceId = `route-grad-${i}`;
     const layerId = `route-grad-layer-${i}`;
-    map.addSource(sourceId, {
-      type: "geojson",
-      data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: segment.map((p) => [p.lon, p.lat]) } },
-      lineMetrics: true,
-      tolerance: 0,
-      buffer: 512,
-      maxzoom: 24,
-    });
+    const data = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: segment.map((p) => [p.lon, p.lat]) } };
+    const gradient = gradientFor(segment, metric, ctx);
+    const quelle = map.getSource(sourceId);
+    if (quelle && map.getLayer(layerId)) {
+      quelle.setData(data);
+      map.setPaintProperty(layerId, "line-gradient", gradient);
+      return;
+    }
+    map.addSource(sourceId, { type: "geojson", data, lineMetrics: true, tolerance: 0, buffer: 512, maxzoom: 24 });
     map.addLayer({
       id: layerId, type: "line", source: sourceId,
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-gradient": gradientFor(segment, metric, ctx), "line-width": 5 },
+      paint: { "line-gradient": gradient, "line-width": 5 },
     });
-    gradientLayerIds.push({ source: sourceId, layer: layerId });
+    gradientLayerIds[i] = { source: sourceId, layer: layerId };
   });
+  // Überzählige Ebenen (weniger Linienstücke als zuvor) entfernen.
+  for (let i = linien.length; i < gradientLayerIds.length; i++) {
+    const { source, layer } = gradientLayerIds[i];
+    if (map.getLayer(layer)) map.removeLayer(layer);
+    if (map.getSource(source)) map.removeSource(source);
+  }
+  gradientLayerIds.length = linien.length;
 }
 
 /* ---------- Wache: überwachter Bereich als Kreis ---------- */
@@ -261,8 +277,27 @@ export function setGuardZone(zone) {
   applyGuardZone();
 }
 
+// Beim Start treffen Zwischenspeicher, Reise, Fahrten und Route der Reihe nach
+// ein und lösen jeweils ein Zeichnen aus. Aufträge kurz hintereinander werden
+// zu einem zusammengefasst (fit gewinnt, sobald einer es verlangt).
+const ZEICHNEN_ENTPRELLEN_MS = 80;
+let zeichnenTimer = null;
+let zeichnenOptionen = {};
+let letzteSignatur = null;
+
 /** Zeichnet Route, Marker und Legende der aktuell gewählten Reise. */
 export function draw(options = {}) {
+  zeichnenOptionen = { ...zeichnenOptionen, ...options, fit: Boolean(zeichnenOptionen.fit || options.fit) };
+  if (zeichnenTimer) return;
+  zeichnenTimer = setTimeout(() => {
+    zeichnenTimer = null;
+    const o = zeichnenOptionen;
+    zeichnenOptionen = {};
+    zeichneJetzt(o);
+  }, ZEICHNEN_ENTPRELLEN_MS);
+}
+
+function zeichneJetzt(options = {}) {
   const { fit = false } = options;
   if (!map) return;
   // Noch nicht zeichenbereit? Einmalig nachholen, sobald die Karte ruht.
@@ -305,10 +340,16 @@ export function draw(options = {}) {
   };
 
   const zeichenSegmente = fursZeichnen(segments);
-  const routeData = routeDataFromSegments(zeichenSegmente);
-  map.getSource("route-solid").setData(routeData);
-  zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
+  const signatur = routenSignatur(t.id, zeichenSegmente, state.metric, ctx);
+  const linienAnzahl = zeichenSegmente.filter((s) => s.length > 1).length;
+  const neuGezeichnet = !(signatur === letzteSignatur && gradientLayerIds.length === linienAnzahl);
+  if (neuGezeichnet) {
+    map.getSource("route-solid").setData(routeDataFromSegments(zeichenSegmente));
+    zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
+    letzteSignatur = signatur;
+  }
   debugLog("map.draw", {
+    neuGezeichnet,
     tripId: t.id, pathPoints: path.length, gezeichnetePunkte: zeichenSegmente.reduce((n, s) => n + s.length, 0), hiddenDetours: Math.max(0, t.path.length - path.length),
     sichtbareSegmente: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
   });
@@ -321,6 +362,7 @@ export function draw(options = {}) {
 /** Ansicht ohne Reise: nur die aktuelle Fahrzeugposition. */
 let liveCentered = false;
 function drawLiveOnly({ fit = false } = {}) {
+  letzteSignatur = null;
   tippPfad = [];
   schliesseRoutenTipp();
   clearGradientLayers();
@@ -493,7 +535,7 @@ export function fitTrip() {
   // Reisen richtig nah heranzoomen, bleibt aber unterhalb dessen, wo die
   // Kartenkacheln (OSM/CARTO, kein eigener maxzoom gesetzt) sichtbar
   // unscharf/leer würden.
-  map.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: 64, duration: 600, maxZoom: 16 });
+  map.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: { top: 120, right: 48, bottom: 64, left: 48 }, duration: 600, maxZoom: 16 });
 }
 
 export const resetLiveCentering = () => { liveCentered = false; };
