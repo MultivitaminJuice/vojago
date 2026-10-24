@@ -247,6 +247,13 @@
                 </div>
               </div>
 
+              <div class="gcard">
+                <h3>Route</h3>
+                <div class="info-list" id="route-info">
+                  <div><span>Zuletzt aktualisiert</span><b>—</b></div>
+                </div>
+              </div>
+
               <div class="set-group">
                 <h3>Diagnose</h3>
                 <div class="set-row"><div class="si"><b>Debug-Log</b><div id="debug-count">0 Einträge</div></div><button class="switch sm" id="debug-toggle" role="switch" aria-checked="false"></button></div>
@@ -266,6 +273,16 @@
             </div>
 
             <div class="more-panel" data-more-panel="settings" hidden>
+              <div class="set-group">
+                <h3>Darstellung</h3>
+                <p class="sub">Gilt für App und Karte, nur auf diesem Gerät. „Auto" folgt dem Hell-/Dunkelmodus des Geräts.</p>
+                <div class="segment-tabs" id="theme-tabs" role="group" aria-label="Darstellung">
+                  <button data-theme-wahl="auto" aria-pressed="true">Auto</button>
+                  <button data-theme-wahl="light" aria-pressed="false">Hell</button>
+                  <button data-theme-wahl="dark" aria-pressed="false">Dunkel</button>
+                </div>
+              </div>
+
               <div class="set-group" id="vehicles-group" hidden>
                 <h3>Fahrzeuge</h3>
                 <p class="sub">Aktives Fahrzeug wählen oder weitere hinzufügen.</p>

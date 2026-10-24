@@ -1,5 +1,7 @@
 // Ansicht „Einstellungen": Fahrzeuge, Kategorien, Backend-Verbindung.
-import { el, render, icon, toast, $ } from "../dom.js";
+import { el, render, icon, toast, $, $$ } from "../dom.js";
+import { applyTheme, gueltigesTheme } from "../theme.js";
+import { routenInfoZeilen } from "../route-info.js";
 import { ICON } from "../icons.js";
 import { state, saveConfig, emit, saveLocalData, forgetLocalData, collectPreferences } from "../state.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
@@ -9,7 +11,7 @@ import { health, isConfigured, logout, changePassword, setEmail,
   createShare, listShares, revokeShare, devices as fetchDevices,
   ingestStatus, setIngestLearning,
   listUsers, createUser, updateUser, deleteUser } from "../api.js";
-import { status as dataStatus, forgetSnapshot } from "../dataload.js";
+import { status as dataStatus, forgetSnapshot, routenAbruf } from "../dataload.js";
 import { clearDebugLog, debugCount, debugEnabled, exportDebugLog, preciseDebugDataEnabled, setDebugEnabled, setPreciseDebugDataEnabled } from "../debug.js";
 
 const CAT_COLORS = ["#e8802b", "#3b82c4", "#7a5cd6", "#3f9d5a", "#b5476b", "#caa23a", "#1f9e8f", "#d84a4a", "#4b47a8", "#c24b86"];
@@ -363,6 +365,18 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
     toast("Debug-Log geleert");
   });
 
+  const zeigeTheme = () => {
+    const aktuell = gueltigesTheme(state.config.theme);
+    $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeWahl === aktuell)));
+  };
+  $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.addEventListener("click", () => {
+    state.config.theme = gueltigesTheme(b.dataset.themeWahl);
+    applyTheme(state.config.theme);
+    saveConfig();
+    zeigeTheme();
+  }));
+  zeigeTheme();
+
   const demoSwitch = $("#cfg-demo");
   demoSwitch.addEventListener("click", () => {
     state.config.demo = demoSwitch.getAttribute("aria-checked") !== "true";
@@ -391,6 +405,7 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   renderCategories();
   renderIngestControls();
   renderDebugControls();
+  renderRouteInfo();
   applyConfigToForm();
 }
 
@@ -458,6 +473,13 @@ async function emailSpeichern() {
   } finally {
     btn.disabled = false;
   }
+}
+
+/** Mehr → Status → Route: wann und wie die Route zuletzt aktualisiert wurde. */
+export function renderRouteInfo() {
+  const box = $("#route-info");
+  if (!box) return;
+  render(box, routenInfoZeilen(routenAbruf).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
 }
 
 function renderDebugControls() {

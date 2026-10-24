@@ -133,6 +133,7 @@ export function restoreSnapshot() {
   // Der Zwischenspeicher hält nur einen ausgedünnten Pfad (siehe routeFuerSnapshot) —
   // als "grob" markieren, bis ein echter Abruf gelungen ist.
   state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathGrob: Boolean(t.path?.length) }));
+  routenAbruf.zwischenspeicher = state.trips.some((t) => t.path?.length);
   state.places = Array.isArray(snapshot.places) ? snapshot.places : [];
   state.notes = Array.isArray(snapshot.notes) ? snapshot.notes : [];
   state.drives = Array.isArray(snapshot.drives) ? snapshot.drives : [];
@@ -347,6 +348,19 @@ const ABRUFE_LAUFEN = new Map();
 // alle 30 Minuten wieder die ganze Route holen.
 const VOLLABRUF_ALLE_MS = 30 * 60_000;
 let pfadFehlerInFolge = 0;
+
+/**
+ * Was die Routen-Aktualisierung zuletzt getan hat — für Mehr → Status und das
+ * Debug-Log. Enthält bewusst keine Koordinaten, nur Zeiten und Zählungen.
+ */
+export const routenAbruf = { erfolg: null, fehler: null, zwischenspeicher: false };
+function protokolliere(eintrag) {
+  const { ok, ...daten } = eintrag;
+  if (ok) { routenAbruf.erfolg = { zeit: Date.now(), ...daten }; routenAbruf.zwischenspeicher = false; }
+  else routenAbruf.fehler = { zeit: Date.now(), ...daten };
+  debugLog(ok ? "route.geladen" : "route.fetch-failed", daten);
+  emit("routeInfo");
+}
 const VERBINDUNG_HINWEIS = "Verbindung schwach — die Route ist evtl. nicht aktuell oder unvollständig.";
 
 export function ensureTripPath(trip, { force = false, silent = false } = {}) {
@@ -366,6 +380,10 @@ export function ensureTripPath(trip, { force = false, silent = false } = {}) {
 }
 
 async function ladePfad(trip, silent) {
+  const start = Date.now();
+  const vorherLaenge = trip.path?.length || 0;
+  let art = "komplett";
+  let empfangen = 0;
   try {
     const geraet = state.config.device;
     const bis = trip.range.to || new Date().toISOString();
@@ -374,13 +392,20 @@ async function ladePfad(trip, silent) {
     const anhaengen = Boolean(letzter?.time) && trip.pathDevice === geraet && !trip.pathGrob && !trip.range.to
       && Date.now() - (trip.pfadVollUm || 0) < VOLLABRUF_ALLE_MS;
     if (anhaengen) {
+      art = "nur Neues";
       const positions = await fetchRoute(geraet, letzter.time, bis, { timeoutMs: 45_000 });
+      empfangen = Array.isArray(positions) ? positions.length : 0;
       const neu = renumberPathByTripStart(positionsToPath(Array.isArray(positions) ? positions : []), trip);
       const zusammen = haengeNeuePunkteAn(trip.path, neu);
-      if (zusammen === trip.path) { pfadGelungen(); return; }
+      if (zusammen === trip.path) {
+        pfadGelungen();
+        protokolliere({ ok: true, art, empfangen, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
+        return;
+      }
       trip.path = zusammen;
     } else {
       const positions = await fetchRoute(geraet, trip.range.from, bis);
+      empfangen = Array.isArray(positions) ? positions.length : 0;
       trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
       trip.pfadVollUm = Date.now();
     }
@@ -394,11 +419,12 @@ async function ladePfad(trip, silent) {
       trip.barLabels = tage.labels;
     }
     pfadGelungen();
+    protokolliere({ ok: true, art, empfangen, neuePunkte: art === "nur Neues" ? trip.path.length - vorherLaenge : trip.path.length, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
     emit(silent ? "tripPath" : "trips");
     saveSnapshot();
   } catch (err) {
     pfadFehlerInFolge++;
-    debugLog("route.fetch-failed", { error: err.message || String(err), inFolge: pfadFehlerInFolge, silent });
+    protokolliere({ ok: false, art, fehler: err.message || String(err), inFolge: pfadFehlerInFolge, dauerMs: Date.now() - start, hintergrund: silent });
     if (!silent) setStatus({ error: `Route konnte nicht geladen werden: ${err.message}` });
     else if (pfadFehlerInFolge >= 2 && !status.error) setStatus({ error: VERBINDUNG_HINWEIS });
   }

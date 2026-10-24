@@ -20,11 +20,13 @@ import { initJournal, renderJournal } from "./views/journal.js";
 import { initNoteEditor, captureNote, openNoteEditor, isDirty as noteDirty, save as saveNote, clearEditor as clearNote } from "./views/note-editor.js";
 import { initGuard, loadGuard, renderGuardInfo } from "./views/guard.js";
 import { liveAlterText } from "./live-alter.js";
-import { initSettings, renderVehicles, renderCategories, syncPreferences, refreshAccountState } from "./views/settings.js";
+import { applyTheme } from "./theme.js";
+import { initSettings, renderVehicles, renderCategories, syncPreferences, refreshAccountState, renderRouteInfo } from "./views/settings.js";
 import { debugLog } from "./debug.js";
 
 /* ---------- Start ---------- */
 loadConfig();
+applyTheme(state.config.theme);
 restoreLivePosition();
 restoreSnapshot();
 
@@ -898,6 +900,7 @@ export function offerUndo(message, restore) {
 /* ---------- Auf Zustandsänderungen reagieren ---------- */
 subscribe((topic) => {
   if (topic === "status") renderStatusBar();
+  if (topic === "routeInfo") renderRouteInfo();
   // Beim Wechsel der gezeigten Reise gehört eine offene Ortskarte nicht mehr dazu
   if (topic === "mapTrip" || topic === "trips") popover.classList.remove("show");
   if (topic === "mapTrip") { renderTripContexts(); renderMapFocusBar(); renderTrips(); renderJournal(); renderLogbookPlacesIfOpen(); }

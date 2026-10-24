@@ -263,7 +263,7 @@ export function draw(options = {}) {
   map.getSource("route-solid").setData(routeData);
   zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
   debugLog("map.draw", {
-    tripId: t.id, pathPoints: path.length, hiddenDetours: Math.max(0, t.path.length - path.length),
+    tripId: t.id, pathPoints: path.length, gezeichnetePunkte: zeichenSegmente.reduce((n, s) => n + s.length, 0), hiddenDetours: Math.max(0, t.path.length - path.length),
     sichtbareSegmente: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
   });
 
