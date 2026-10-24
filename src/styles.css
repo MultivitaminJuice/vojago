@@ -366,8 +366,6 @@
   .route-detail { margin-bottom: 14px; }
   .detail-nav { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
   .detail-nav .detail-back { margin: 0 auto 0 0; }
-  .detail-step { flex: none; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 800; padding: 6px 9px; cursor: pointer; white-space: nowrap; }
-  .detail-step:disabled { opacity: .35; cursor: default; }
   .detail-back { margin: 0 0 10px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 800; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 7px 2px; }
   .detail-back svg { width: 17px; height: 17px; }
   .summary-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 8px; }

@@ -534,31 +534,37 @@ function renderSegments() {
   render(wrap, [renderGesamtActions(t), ...renderGesamtCharts(t)]);
 }
 
-function tagSchrittKnoepfe(t) {
-  if (routeFocus?.type !== "tag") return [];
+/** Kopf der Tagesansicht: dieselbe Pille wie auf der Karte ("Zurück · Tag 3 · ‹ ›"). */
+function tagKopfLeiste(t) {
+  const zurueck = () => { routeFocus = null; renderTrips(); };
   const summaries = tageSummariesFor(t);
-  if (!tagNavigation(summaries, routeFocus.id)) return [];
-  const knopf = (richtung) => {
+  const nav = tagNavigation(summaries, routeFocus.id);
+  const schritt = (richtung) => {
     const ziel = tagNachbar(summaries, routeFocus.id, richtung);
-    const vorher = richtung < 0;
-    return el("button.detail-step", {
+    return el("button.map-focus-step", {
       type: "button",
       disabled: !ziel,
-      "aria-label": vorher ? "Vorheriger Tag" : "Nächster Tag",
+      "aria-label": richtung < 0 ? "Vorheriger Tag" : "Nächster Tag",
       on: { click: () => { if (ziel) { routeFocus = ziel; renderTrips(); } } },
-    }, ziel?.title || "Tag");
+    }, [icon(richtung < 0 ? ICON.chevronLeft : ICON.chevronRight, 16)]);
   };
-  return [knopf(-1), knopf(1)];
+  return el("div.map-focusbar", {}, [
+    el("button", { type: "button", text: "Zurück", on: { click: zurueck } }),
+    el("b", { text: routeFocus.title }),
+    ...(nav ? [schritt(-1), schritt(1)] : []),
+  ]);
 }
 
 function renderRouteDetail(t, listMode) {
   const hatSpur = Boolean(routeFocus?.path?.length);
+  const tagKopf = listMode === "tage" && routeFocus?.type === "tag";
   return el("div.route-detail", {}, [
     el("div.detail-nav", {}, [
-      el("button.detail-back", {
-        on: { click: () => { routeFocus = null; renderTrips(); } },
-      }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
-      ...(listMode === "tage" ? tagSchrittKnoepfe(t) : []),
+      tagKopf
+        ? tagKopfLeiste(t)
+        : el("button.detail-back", {
+          on: { click: () => { routeFocus = null; renderTrips(); } },
+        }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
     ]),
     renderSummaryFacts(routeFocus, t),
     renderMapAction(routeFocus, t),
