@@ -7,10 +7,10 @@
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep } from "./geo.js";
+import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache } from "./geo.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
-import { itemMatchesRouteFilter, visibleRoutePath, visibleRouteSegments } from "./route-visibility.js";
+import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility.js";
 
 // CARTO verlangt einen (kostenlosen) API-Schlüssel für den Kachel-Dienst —
 // ohne ihn kommen nur "API KEY REQUIRED"-Wasserzeichen statt echter
@@ -116,11 +116,20 @@ let pendingDraw = false;
 
 function visibleRouteForMap(t) {
   const realTrip = state.trips.some((reise) => reise.id === t?.id);
-  const segments = realTrip
-    ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter)
+  // Ein aus dem Zwischenspeicher wiederhergestellter, ausgedünnter Pfad ("grob")
+  // passt nicht zu den Zeitspannen der Fahrten (kurze Fahrten hätten gar keine
+  // Punkte mehr) — bis ein echter Abruf gelang, ohne Fahrtenfilter zeigen.
+  const segments = realTrip && !t.pathGrob
+    ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { offenesEnde: Boolean(t.live) })
     : visibleRouteSegments(t.path || [], [], t?.id, "alle");
   return { segments, path: segments.flat() };
 }
+
+// Zeichnen mit vereinfachter Linie (siehe vereinfache() in geo.js): Zehntausende
+// Punkte je Linie überfordern die Grafik von Handys. Statistik, Marker und
+// Legende rechnen weiter mit dem vollen Pfad (`path`).
+const ZEICHEN_TOLERANZ_M = 3;
+const fursZeichnen = (segments) => segments.map((s) => vereinfache(s, ZEICHEN_TOLERANZ_M));
 
 function routeDataFromSegments(segments) {
   return {
@@ -249,9 +258,10 @@ export function draw(options = {}) {
     hasUnassignedTripPoints: isRangeTrip(t) && path.some((p) => !p.tripId),
   };
 
-  const routeData = routeDataFromSegments(segments);
+  const zeichenSegmente = fursZeichnen(segments);
+  const routeData = routeDataFromSegments(zeichenSegmente);
   map.getSource("route-solid").setData(routeData);
-  zeichneVerlaufsSegmente(segments, state.metric, ctx);
+  zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
   debugLog("map.draw", {
     tripId: t.id, pathPoints: path.length, hiddenDetours: Math.max(0, t.path.length - path.length),
     sichtbareSegmente: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
@@ -426,7 +436,7 @@ export function fitTrip() {
   if (!ready) return;
   if (!t || !t.path?.length) { drawLiveOnly({ fit: true }); return; }
   const realTrip = state.trips.some((reise) => reise.id === t.id);
-  const visible = visibleRoutePath(t.path, realTrip ? state.drives : [], t.id, realTrip ? state.routeDriveFilter : "alle");
+  const visible = visibleRouteForMap(t).path;
   const b = bounds(visible.length ? visible : t.path);
   // maxZoom war fest auf 13 — passend für eine mehrtägige Reise, aber für
   // eine räumlich kleine Reise (kurzer Ausflug, wenige hundert Meter/km)

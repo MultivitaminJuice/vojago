@@ -34,11 +34,15 @@ function inRange(point, ranges) {
   return Number.isFinite(time) && ranges.some((range) => time >= range.from && time <= range.to);
 }
 
-function segmentsInsideRanges(path, ranges) {
+function segmentsInsideRanges(path, ranges, offenAbMs = null) {
   const segments = [];
   let current = [];
   for (const point of path) {
-    if (inRange(point, ranges)) {
+    const zeit = Date.parse(point?.time || "");
+    // Offenes Ende: Punkte NACH der zuletzt bekannten Fahrt gehören vermutlich zu
+    // einer Fahrt, die die (seltener aktualisierte) Fahrtenliste noch nicht kennt.
+    const imOffenenEnde = offenAbMs != null && Number.isFinite(zeit) && zeit > offenAbMs;
+    if (imOffenenEnde || inRange(point, ranges)) {
       current.push(point);
     } else {
       if (current.length > 1) segments.push(current);
@@ -83,7 +87,13 @@ export function itemMatchesRouteFilter(item, drives, tripId, filter = "etappe") 
   return filter === "abstecher" ? isDetour : !isDetour;
 }
 
-export function visibleRouteSegments(path, drives, tripId, filter = "etappe") {
+/**
+ * @param {object} [optionen]
+ * @param {boolean} [optionen.offenesEnde] Bei laufender Reise: Punkte nach der
+ *   letzten bekannten Fahrt trotzdem zeigen (die Fahrtenliste hinkt dem Pfad
+ *   hinterher, sonst fehlt das jüngste Stück der Strecke).
+ */
+export function visibleRouteSegments(path, drives, tripId, filter = "etappe", { offenesEnde = false } = {}) {
   if (!Array.isArray(path) || !path.length) return [];
   if (filter === "alle") return normaliseSegments([path]);
 
@@ -96,7 +106,11 @@ export function visibleRouteSegments(path, drives, tripId, filter = "etappe") {
   const drivesInTrip = tripDrives(drives, tripId);
   const etappeRanges = rangesForFilter(drivesInTrip, tripId, "etappe");
   if (etappeRanges.length) {
-    return normaliseSegments(segmentsInsideRanges(path, etappeRanges));
+    // "Offen" beginnt erst nach der letzten bekannten Fahrt JEDER Art — ein
+    // Abstecher am Ende bleibt ausgeblendet.
+    const alleEnden = rangesForDrives(drivesInTrip, tripId, () => true).map((r) => r.to);
+    const offenAb = offenesEnde && alleEnden.length ? Math.max(...alleEnden) : null;
+    return normaliseSegments(segmentsInsideRanges(path, etappeRanges, offenAb));
   }
 
   if (drivesInTrip.length) return [];
@@ -118,6 +132,6 @@ export function visibleRouteSegments(path, drives, tripId, filter = "etappe") {
   return normaliseSegments(segments);
 }
 
-export function visibleRoutePath(path, drives, tripId, filter = "etappe") {
-  return visibleRouteSegments(path, drives, tripId, filter).flat();
+export function visibleRoutePath(path, drives, tripId, filter = "etappe", optionen = {}) {
+  return visibleRouteSegments(path, drives, tripId, filter, optionen).flat();
 }

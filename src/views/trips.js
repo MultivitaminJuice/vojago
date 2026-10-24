@@ -381,7 +381,10 @@ function tripSummary(t) {
 function tripForRouteFilter(t) {
   if (!t) return t;
   if (isRangeTrip(t)) return t;
-  return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter()) };
+  // Wie die Karte: bei laufender Reise bleibt das Ende nach der letzten bekannten Fahrt sichtbar,
+  // ein grober Zwischenspeicher-Pfad wird nicht nach Fahrten gefiltert.
+  if (t.pathGrob) return t;
+  return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), { offenesEnde: Boolean(t.live) }) };
 }
 
 function routeDrives(t) {

@@ -116,6 +116,7 @@ function aktualisiereKarteJetzt() {
   loadLivePosition();
   const t = mapTrip();
   if (t) ensureTripPath(t, { force: true, silent: true });
+  aktualisiereFahrtenWennAlt();
 }
 
 function go(name) {
@@ -1244,6 +1245,21 @@ function aktualisiereLaufendeSpur() {
   if (document.hidden || state.config.demo || gastToken) return;
   const t = activeTrip();
   if (t) ensureTripPath(t, { force: true, silent: true });
+  aktualisiereFahrtenWennAlt();
+}
+
+// Die Fahrtenliste bestimmt, welche Teile der Spur als Etappe gezeichnet werden.
+// Sie wurde bisher nur beim Start geladen, die Spur aber alle 2 Minuten — das
+// jüngste Stück der Strecke fehlte dann auf der Karte (Nutzerfund, 24. Oktober 2026).
+// Deshalb bei laufender Reise leise alle 10 Minuten (und beim Zurückkehren in die
+// App) mit auffrischen; scheitert das, bleibt die bisherige Liste stehen.
+const FAHRTEN_MAX_ALTER_MS = 10 * 60 * 1000;
+let fahrtenGeladenUm = Date.now();
+function aktualisiereFahrtenWennAlt() {
+  if (state.config.demo || gastToken || !activeTrip()) return;
+  if (Date.now() - fahrtenGeladenUm < FAHRTEN_MAX_ALTER_MS) return;
+  fahrtenGeladenUm = Date.now();
+  loadDrives({ silent: true });
 }
 setInterval(aktualisiereLaufendeSpur, 2 * 60 * 1000);
 // Zusätzlich zur laufenden Reise (oben) beim Zurückkommen aus dem

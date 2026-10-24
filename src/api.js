@@ -3,26 +3,58 @@
 // Erst-Anbieter-Cookie mit, das auch Safari auf iOS akzeptiert.
 
 async function request(path, options = {}) {
+  // `timeoutMs`: bei schlechter Verbindung hängt ein Abruf sonst ewig (ein
+  // Handy im Funkloch bekommt weder Antwort noch Fehler) — und überlappt dann
+  // mit dem nächsten Auffrischen. Nach Ablauf wird abgebrochen und ein klarer
+  // Fehler geworfen; die App behält ihren letzten guten Stand.
+  const { timeoutMs, ...fetchOptions } = options;
+  const abbruch = timeoutMs ? new AbortController() : null;
+  const timer = abbruch ? setTimeout(() => abbruch.abort(), timeoutMs) : null;
   // FormData (Foto-Upload) braucht ihr eigenes, vom Browser gesetztes
   // content-type mit multipart-Grenze — ein erzwungenes "application/json"
   // würde den Body unlesbar machen.
-  const istFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-  const res = await fetch(path, {
-    ...options,
-    credentials: "same-origin",
-    headers: istFormData ? { ...options.headers } : { "content-type": "application/json", ...options.headers },
-  });
-  if (!res.ok) {
-    // Die Meldung des Servers ist die aussagekräftigste — sie darf nicht
-    // durch eine allgemeine ersetzt werden (sonst steht bei falschem Passwort
-    // nur "nicht angemeldet" statt des eigentlichen Grundes).
-    let text = "";
-    try { text = (await res.json())?.error || ""; } catch { text = await res.text().catch(() => ""); }
-    const fehler = new Error(text ? text.slice(0, 200) : `${res.status} ${res.statusText}`);
-    if (res.status === 401) fehler.nichtAngemeldet = true;
-    throw fehler;
+  const istFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
+  try {
+    const res = await fetch(path, {
+      ...fetchOptions,
+      signal: abbruch?.signal,
+      credentials: "same-origin",
+      headers: istFormData ? { ...fetchOptions.headers } : { "content-type": "application/json", ...fetchOptions.headers },
+    });
+    if (!res.ok) {
+      // Die Meldung des Servers ist die aussagekräftigste — sie darf nicht
+      // durch eine allgemeine ersetzt werden (sonst steht bei falschem Passwort
+      // nur "nicht angemeldet" statt des eigentlichen Grundes).
+      let text = "";
+      try { text = (await res.json())?.error || ""; } catch { text = await res.text().catch(() => ""); }
+      const fehler = new Error(text ? text.slice(0, 200) : `${res.status} ${res.statusText}`);
+      fehler.status = res.status;
+      if (res.status === 401) fehler.nichtAngemeldet = true;
+      throw fehler;
+    }
+    // await INNERHALB von try: sonst liefe das finally (Zeitgeber löschen) schon
+    // vor dem Lesen des Antwortkörpers, und ein abgebrochener Download bliebe unbemerkt.
+    return res.status === 204 ? null : await res.json();
+  } catch (err) {
+    if (abbruch?.signal.aborted) throw new Error("Zeitüberschreitung — die Verbindung ist zu langsam");
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  return res.status === 204 ? null : res.json();
+}
+
+/** Wiederholt einen Abruf bei Verbindungsfehlern/Zeitüberschreitung/5xx (nicht bei 4xx). */
+async function requestWiederholt(path, options = {}, { versuche = 2, pauseMs = 2000 } = {}) {
+  let letzter;
+  for (let i = 0; i < versuche; i++) {
+    try { return await request(path, options); } catch (err) {
+      letzter = err;
+      const wiederholbar = err.status == null || err.status >= 500;
+      if (!wiederholbar || i === versuche - 1) break;
+      await new Promise((r) => setTimeout(r, pauseMs));
+    }
+  }
+  throw letzter;
 }
 
 /* ---------- Anmeldung ---------- */
@@ -150,10 +182,12 @@ export const updateUser = (id, patch) => request(`/api/users/${id}`, { method: "
 export const deleteUser = (id) => request(`/api/users/${id}`, { method: "DELETE" });
 
 export const positions = (deviceId) => request(`/api/positions?deviceId=${encodeURIComponent(deviceId)}`);
+// Die Fahrten- und Routenabrufe sind groß (Route einer 6-Tage-Reise: ~14 MB) —
+// mit Zeitlimit und einer Wiederholung bei Verbindungsproblemen.
 export const drives = (deviceId, from, to) =>
-  request(`/api/drives?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-export const route = (deviceId, from, to) =>
-  request(`/api/route?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  requestWiederholt(`/api/drives?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs: 120_000 });
+export const route = (deviceId, from, to, { timeoutMs = 120_000 } = {}) =>
+  requestWiederholt(`/api/route?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs });
 /** Bekannte Geräte — bei Traccar dessen Geräteliste, im Selbst-Hosting-
  * Betrieb die Geräte, die schon einmal an die
  * eigene positions-Tabelle gesendet haben. Fürs Zuordnen einer Geräte-ID

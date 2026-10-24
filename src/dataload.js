@@ -10,6 +10,7 @@ import {
 import { pathLengthKm, elevationRange, glaetteStandRauschen } from "./geo.js";
 import { debugLog } from "./debug.js";
 import { renumberPathByTripStart } from "./day-utils.js";
+import { haengeNeuePunkteAn } from "./path-merge.js";
 
 /** Zustand des Datenbezugs — die Oberfläche zeigt ihn im Statusband. */
 export const status = { mode: "demo", loading: false, error: null };
@@ -86,6 +87,8 @@ function tripMitLetztemStand(t, vorher) {
     ...t,
     path: renumberPathByTripStart(vorher.path || [], t),
     pathDevice: vorher.pathDevice ?? null,
+    pathGrob: vorher.pathGrob ?? false,
+    pfadVollUm: vorher.pfadVollUm ?? 0,
     km: Number.isFinite(vorher.km) ? vorher.km : t.km,
     nights: Number.isFinite(vorher.nights) ? vorher.nights : t.nights,
     peak: Number.isFinite(vorher.peak) ? vorher.peak : t.peak,
@@ -127,7 +130,9 @@ export function restoreSnapshot() {
   if (!snapshot || !Array.isArray(snapshot.trips) || !snapshot.trips.length) return false;
 
   state.trips = snapshot.trips;
-  state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t) }));
+  // Der Zwischenspeicher hält nur einen ausgedünnten Pfad (siehe routeFuerSnapshot) —
+  // als "grob" markieren, bis ein echter Abruf gelungen ist.
+  state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathGrob: Boolean(t.path?.length) }));
   state.places = Array.isArray(snapshot.places) ? snapshot.places : [];
   state.notes = Array.isArray(snapshot.notes) ? snapshot.notes : [];
   state.drives = Array.isArray(snapshot.drives) ? snapshot.drives : [];
@@ -324,20 +329,63 @@ export function tagesKilometer(path) {
  * fährt. `silent` unterdrückt Fehleranzeige und Neueinpassen der Karte; das
  * braucht der regelmäßige Hintergrund-Refresh (siehe main.js), damit er die
  * Ansicht nicht alle paar Minuten wegspringen lässt.
+ *
+ * Gegen schlechte Verbindungen (Nutzerfund, 24. Oktober 2026: Teile der Linie
+ * fehlten, eine Gerade lief quer über die Karte):
+ *  - Nie zwei Abrufe derselben Reise gleichzeitig: ein langsamer alter Abruf
+ *    konnte sonst nach einem neueren eintreffen und dessen Stand überschreiben.
+ *  - Bei laufender Reise werden nur die NEUEN Punkte nachgeladen und angehängt
+ *    (statt jedes Mal die ganze Route, bei 6 Tagen ~14 MB alle 2 Minuten).
+ *  - Der aus dem Zwischenspeicher wiederhergestellte, ausgedünnte Pfad gilt als
+ *    "grob" (pathGrob), bis ein echter Abruf gelungen ist.
+ *  - Scheitert das Auffrischen mehrfach, steht ein Hinweis da — und der letzte
+ *    gute Stand bleibt stehen.
  */
-export async function ensureTripPath(trip, { force = false, silent = false } = {}) {
+const ABRUFE_LAUFEN = new Map();
+// Nachladen verpasst Punkte, die der Router erst später nachliefert (Funkloch,
+// Zwischenspeicher) und die älter sind als der letzte bekannte — daher spätestens
+// alle 30 Minuten wieder die ganze Route holen.
+const VOLLABRUF_ALLE_MS = 30 * 60_000;
+let pfadFehlerInFolge = 0;
+const VERBINDUNG_HINWEIS = "Verbindung schwach — die Route ist evtl. nicht aktuell oder unvollständig.";
+
+export function ensureTripPath(trip, { force = false, silent = false } = {}) {
   // Nicht nur "haben wir schon eine Spur", sondern "für das gerade aktive
   // Gerät" — sonst bleibt nach einem Fahrzeugwechsel die (evtl. leere)
   // Spur des vorherigen Geräts stehen, obwohl Reise/Fahrten längst neu
   // geladen wurden (echter Fund: 05.09.2026, zweites Fahrzeug aktiviert,
   // Karte zeigte weiter nichts).
-  const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device;
-  if (!trip || (nochAktuell && !force) || status.mode !== "live") return;
-  if (!state.config.device || !trip.range?.from) return;
+  const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathGrob;
+  if (!trip || (nochAktuell && !force) || status.mode !== "live") return Promise.resolve();
+  if (!state.config.device || !trip.range?.from) return Promise.resolve();
+  const schluessel = `${trip.id}|${state.config.device}`;
+  if (ABRUFE_LAUFEN.has(schluessel)) return ABRUFE_LAUFEN.get(schluessel);
+  const abruf = ladePfad(trip, silent).finally(() => ABRUFE_LAUFEN.delete(schluessel));
+  ABRUFE_LAUFEN.set(schluessel, abruf);
+  return abruf;
+}
+
+async function ladePfad(trip, silent) {
   try {
-    const positions = await fetchRoute(state.config.device, trip.range.from, trip.range.to || new Date().toISOString());
-    trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
-    trip.pathDevice = state.config.device;
+    const geraet = state.config.device;
+    const bis = trip.range.to || new Date().toISOString();
+    // Nur Neues nachladen: laufende Reise, frischer (nicht grober) Pfad für dasselbe Gerät.
+    const letzter = trip.path?.length ? trip.path[trip.path.length - 1] : null;
+    const anhaengen = Boolean(letzter?.time) && trip.pathDevice === geraet && !trip.pathGrob && !trip.range.to
+      && Date.now() - (trip.pfadVollUm || 0) < VOLLABRUF_ALLE_MS;
+    if (anhaengen) {
+      const positions = await fetchRoute(geraet, letzter.time, bis, { timeoutMs: 45_000 });
+      const neu = renumberPathByTripStart(positionsToPath(Array.isArray(positions) ? positions : []), trip);
+      const zusammen = haengeNeuePunkteAn(trip.path, neu);
+      if (zusammen === trip.path) { pfadGelungen(); return; }
+      trip.path = zusammen;
+    } else {
+      const positions = await fetchRoute(geraet, trip.range.from, bis);
+      trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
+      trip.pfadVollUm = Date.now();
+    }
+    trip.pathDevice = geraet;
+    trip.pathGrob = false;
     if (trip.path.length) {
       trip.km = Math.round(pathLengthKm(trip.path));
       trip.peak = Math.round(elevationRange(trip.path).max);
@@ -345,11 +393,20 @@ export async function ensureTripPath(trip, { force = false, silent = false } = {
       trip.bars = tage.bars;
       trip.barLabels = tage.labels;
     }
+    pfadGelungen();
     emit(silent ? "tripPath" : "trips");
     saveSnapshot();
   } catch (err) {
+    pfadFehlerInFolge++;
+    debugLog("route.fetch-failed", { error: err.message || String(err), inFolge: pfadFehlerInFolge, silent });
     if (!silent) setStatus({ error: `Route konnte nicht geladen werden: ${err.message}` });
+    else if (pfadFehlerInFolge >= 2 && !status.error) setStatus({ error: VERBINDUNG_HINWEIS });
   }
+}
+
+function pfadGelungen() {
+  pfadFehlerInFolge = 0;
+  if (status.error === VERBINDUNG_HINWEIS) setStatus({ error: null });
 }
 
 export async function buildRangeTrip({ from, to, label = "Zeitraum" } = {}) {
@@ -440,7 +497,7 @@ export function forgetSnapshot() {
  * sie über die Zeit den eigenen Reisen zu. Fällt eine Fahrt in keine Reise,
  * ist es eine Alltagsfahrt.
  */
-export async function loadDrives({ tage = 30, from = null, to = null } = {}) {
+export async function loadDrives({ tage = 30, from = null, to = null, silent = false } = {}) {
   if (state.config.demo || !isConfigured() || !state.config.device) { state.drives = []; return; }
   const von = from || new Date(Date.now() - tage * 86400000).toISOString();
   const bis = to || new Date().toISOString();
@@ -486,8 +543,11 @@ export async function loadDrives({ tage = 30, from = null, to = null } = {}) {
     saveSnapshot();
     holeFahrtWetter();
   } catch (err) {
-    state.drives = [];
-    setStatus({ error: `Fahrten konnten nicht geladen werden: ${err.message}` });
+    // Die zuletzt geladene Fahrtenliste BEHALTEN: sie auf [] zu setzen ließ die
+    // Karte bei schlechter Verbindung auf "alle Punkte, keine Fahrten" kippen
+    // (Etappen-Filter aus, Abstecher sichtbar, Stücke zusammengezogen).
+    debugLog("drives.fetch-failed", { error: err.message || String(err), behalten: state.drives.length, silent });
+    if (!silent) setStatus({ error: `Fahrten konnten nicht geladen werden: ${err.message}` });
   }
 }
 

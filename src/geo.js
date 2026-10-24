@@ -131,3 +131,43 @@ export function kmMarkerStep(total) {
   const n = raw / p;
   return Math.max(10, (n >= 5 ? 5 : n >= 2 ? 2 : 1) * p);
 }
+
+/**
+ * Linie für die Darstellung vereinfachen (Douglas-Peucker): Punkte, die weniger
+ * als `toleranzM` Meter von der Verbindung ihrer Nachbarn abweichen, entfallen.
+ * Erste und letzte Punkte bleiben, die übrigen Punkte bleiben unverändert
+ * (mit allen Feldern wie `cum`, `time`, `day`). Nur fürs Zeichnen gedacht —
+ * Statistik (Kilometer, Höhe, Fahrzeit) rechnet weiter mit dem vollen Pfad.
+ *
+ * Hintergrund: Eine Reise hat Zehntausende Punkte (6 Tage ≈ 72 000), die
+ * Karte bekam sie ungekürzt (zweimal: Basislinie und Farbverlauf). Das
+ * überfordert die Grafik von Handys — Teile der Linie fehlten oder wurden
+ * als Gerade quer über die Karte gezeichnet. Mit 3 m Toleranz bleiben rund
+ * 10 % der Punkte, optisch ohne Unterschied.
+ */
+export function vereinfache(punkte, toleranzM = 3) {
+  const n = punkte?.length || 0;
+  if (n <= 2) return punkte || [];
+  const k = Math.cos((punkte[0].lat * Math.PI) / 180);
+  const m = 111320;
+  const X = (p) => p.lon * k * m;
+  const Y = (p) => p.lat * m;
+  const behalten = new Uint8Array(n);
+  behalten[0] = behalten[n - 1] = 1;
+  const stapel = [[0, n - 1]];
+  while (stapel.length) {
+    const [a, b] = stapel.pop();
+    const ax = X(punkte[a]), ay = Y(punkte[a]);
+    const dx = X(punkte[b]) - ax, dy = Y(punkte[b]) - ay;
+    const laenge2 = dx * dx + dy * dy;
+    let max = 0, idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const px = X(punkte[i]) - ax, py = Y(punkte[i]) - ay;
+      const t = laenge2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / laenge2)) : 0;
+      const abstand = Math.hypot(px - t * dx, py - t * dy);
+      if (abstand > max) { max = abstand; idx = i; }
+    }
+    if (max > toleranzM && idx > 0) { behalten[idx] = 1; stapel.push([a, idx], [idx, b]); }
+  }
+  return punkte.filter((_, i) => behalten[i]);
+}
