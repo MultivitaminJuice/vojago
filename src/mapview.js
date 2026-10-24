@@ -7,10 +7,10 @@
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, naechsterRoutenpunkt, meterProPixel } from "./geo.js";
+import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, meterProPixel } from "./geo.js";
 import { kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
-import { routenTipp } from "./route-tip.js";
+import { tippEintraege, naechsterTreffer } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
 import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility.js";
@@ -148,17 +148,27 @@ function onMapClick(e) {
   if (!tippPfad.length) return;
   const { lng, lat } = e.lngLat;
   const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * meterProPixel(map.getZoom(), lat));
-  const treffer = naechsterRoutenpunkt(tippPfad, lng, lat, toleranz);
-  if (!treffer) return;
-  const p = treffer.punkt;
-  const { kopf, werte } = routenTipp(p);
-  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([p.lon, p.lat]).addTo(map);
+  // Wurde dieselbe Strecke mehrfach befahren (Hin- und Rückweg), gibt es mehrere
+  // Durchfahrten an der Stelle — alle werden gezeigt, nicht nur die nächste.
+  const treffer = routenTreffer(tippPfad, lng, lat, toleranz);
+  if (!treffer.length) return;
+  const anker = naechsterTreffer(treffer).punkt;
+  const { eintraege, weitere } = tippEintraege(treffer);
+  const inhalt = el("div.rt-liste", {}, [
+    ...eintraege.map((eintrag) => el("div.rt", {}, [
+      ...(eintrag.titel ? [el("small", { text: eintrag.titel })] : []),
+      el("b", { text: eintrag.kopf }),
+      el("div", { text: eintrag.werte }),
+    ])),
+    ...(weitere ? [el("small.rt-mehr", { text: `+ ${weitere} weitere` })] : []),
+  ]);
+  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([anker.lon, anker.lat]).addTo(map);
   tippPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
-    .setLngLat([p.lon, p.lat])
-    .setDOMContent(el("div.rt", {}, [el("b", { text: kopf }), el("div", { text: werte })]))
+    .setLngLat([anker.lon, anker.lat])
+    .setDOMContent(inhalt)
     .addTo(map);
   tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
-  debugLog("map.route-tip", { index: treffer.index, abstandM: Math.round(treffer.abstandM) });
+  debugLog("map.route-tip", { durchfahrten: treffer.length, abstandM: Math.round(naechsterTreffer(treffer).abstandM) });
 }
 
 let pendingDraw = false;

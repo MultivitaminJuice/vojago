@@ -176,23 +176,39 @@ export function vereinfache(punkte, toleranzM = 3) {
 export const meterProPixel = (zoom, lat) => (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 
 /**
- * Nächster Routenpunkt zu einer Tipp-Position — nur wenn er innerhalb von
- * `toleranzM` liegt. Rechnet mit dem vollen Pfad (nicht der vereinfachten
- * Zeichnung), damit Kilometer, Uhrzeit und Tempo exakt stimmen. Gleichwinklige
- * Näherung: auf Tipp-Abstände von wenigen hundert Metern völlig ausreichend.
+ * Alle Durchfahrten der Route an einer Tipp-Position. Wurde dieselbe Strecke
+ * mehrfach befahren (Hin- und Rückweg), liegen mehrere Routenstücke innerhalb
+ * der Toleranz — gezeigt wird je Durchfahrt der nächstgelegene Punkt, in
+ * zeitlicher Reihenfolge. Zwei Punkte gehören zur selben Durchfahrt, solange
+ * höchstens `lueckeMs` zwischen ihnen liegt (ohne Zeitstempel: 30 Punkte).
+ * Rechnet mit dem vollen Pfad (nicht der vereinfachten Zeichnung), damit
+ * Kilometer, Uhrzeit und Tempo exakt stimmen. Gleichwinklige Näherung: auf
+ * Tipp-Abstände von wenigen hundert Metern völlig ausreichend.
  */
-export function naechsterRoutenpunkt(path, lon, lat, toleranzM) {
-  if (!Array.isArray(path) || !path.length) return null;
+export function routenTreffer(path, lon, lat, toleranzM, lueckeMs = 300_000) {
+  if (!Array.isArray(path) || !path.length) return [];
   const mLat = 111_320;
   const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
-  let bester = null;
-  let besterAbstand = Infinity;
+  const grenze = toleranzM * toleranzM;
+  const durchfahrten = [];
+  let aktuell = null;
   for (let i = 0; i < path.length; i++) {
     const dx = (path[i].lon - lon) * mLon;
     const dy = (path[i].lat - lat) * mLat;
-    const abstand = dx * dx + dy * dy;
-    if (abstand < besterAbstand) { besterAbstand = abstand; bester = i; }
+    const abstand2 = dx * dx + dy * dy;
+    if (abstand2 > grenze) continue;
+    const zeit = Date.parse(path[i].time || "");
+    const zusammen = aktuell && (Number.isFinite(zeit) && Number.isFinite(aktuell.letzteZeit)
+      ? zeit - aktuell.letzteZeit <= lueckeMs
+      : i - aktuell.letzterIndex <= 30);
+    if (!zusammen) {
+      aktuell = { punkt: path[i], index: i, abstand2, letzterIndex: i, letzteZeit: zeit };
+      durchfahrten.push(aktuell);
+      continue;
+    }
+    if (abstand2 < aktuell.abstand2) { aktuell.punkt = path[i]; aktuell.index = i; aktuell.abstand2 = abstand2; }
+    aktuell.letzterIndex = i;
+    aktuell.letzteZeit = zeit;
   }
-  const abstandM = Math.sqrt(besterAbstand);
-  return abstandM <= toleranzM ? { punkt: path[bester], index: bester, abstandM } : null;
+  return durchfahrten.map((d) => ({ punkt: d.punkt, index: d.index, abstandM: Math.sqrt(d.abstand2) }));
 }

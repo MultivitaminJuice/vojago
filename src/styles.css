@@ -83,6 +83,9 @@
   .route-tip .maplibregl-popup-content { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 8px 11px; box-shadow: var(--shadow); font-family: var(--font-sans); }
   .route-tip .maplibregl-popup-tip { border-top-color: var(--surface); border-bottom-color: var(--surface); }
   .route-tip .rt b { display: block; font-size: var(--fs-small); white-space: nowrap; }
+  .route-tip .rt + .rt { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .route-tip .rt small, .route-tip .rt-mehr { display: block; font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .route-tip .rt-mehr { margin: 8px 0 0; }
   .route-tip .rt div { margin-top: 2px; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--ink-soft); white-space: nowrap; }
   .route-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); box-shadow: 0 0 0 2px var(--app-bg); pointer-events: none; }
   .marker { display: grid; place-items: center; cursor: pointer; border-radius: 50%; box-sizing: border-box; }
