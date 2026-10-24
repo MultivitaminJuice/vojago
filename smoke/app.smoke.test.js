@@ -32,7 +32,7 @@ test("App-Smoke: Hauptbereiche laden ohne Konsolenfehler", async ({ page }) => {
   await page.getByRole("dialog", { name: "Fahrten filtern" }).getByRole("button", { name: /Alle/ }).click();
 
   await page.getByRole("tab", { name: "Karte" }).click();
-  await expect(page.getByLabel("Karte")).toBeVisible();
+  await expect(page.getByLabel("Karte", { exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "Logbuch" }).click();
   await expect(page.getByRole("group", { name: "Einträge filtern" })).toBeVisible();
