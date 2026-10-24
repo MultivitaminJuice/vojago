@@ -171,3 +171,28 @@ export function vereinfache(punkte, toleranzM = 3) {
   }
   return punkte.filter((_, i) => behalten[i]);
 }
+
+/** Meter je Bildschirmpixel bei einem Zoom (MapLibre, 512-px-Kacheln) auf einer Breite. */
+export const meterProPixel = (zoom, lat) => (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+
+/**
+ * Nächster Routenpunkt zu einer Tipp-Position — nur wenn er innerhalb von
+ * `toleranzM` liegt. Rechnet mit dem vollen Pfad (nicht der vereinfachten
+ * Zeichnung), damit Kilometer, Uhrzeit und Tempo exakt stimmen. Gleichwinklige
+ * Näherung: auf Tipp-Abstände von wenigen hundert Metern völlig ausreichend.
+ */
+export function naechsterRoutenpunkt(path, lon, lat, toleranzM) {
+  if (!Array.isArray(path) || !path.length) return null;
+  const mLat = 111_320;
+  const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
+  let bester = null;
+  let besterAbstand = Infinity;
+  for (let i = 0; i < path.length; i++) {
+    const dx = (path[i].lon - lon) * mLon;
+    const dy = (path[i].lat - lat) * mLat;
+    const abstand = dx * dx + dy * dy;
+    if (abstand < besterAbstand) { besterAbstand = abstand; bester = i; }
+  }
+  const abstandM = Math.sqrt(besterAbstand);
+  return abstandM <= toleranzM ? { punkt: path[bester], index: bester, abstandM } : null;
+}

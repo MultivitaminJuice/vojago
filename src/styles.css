@@ -78,6 +78,13 @@
   .maplibregl-ctrl-attrib a { color: var(--ink-soft); }
   .maplibregl-ctrl-bottom-right { z-index: 4; }
   .maplibregl-popup { display: none; }
+  /* Info-Karte beim Tippen auf die Route (mapview.js → onMapClick) */
+  .maplibregl-popup.route-tip { display: flex; z-index: 6; }
+  .route-tip .maplibregl-popup-content { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 8px 11px; box-shadow: var(--shadow); font-family: var(--font-sans); }
+  .route-tip .maplibregl-popup-tip { border-top-color: var(--surface); border-bottom-color: var(--surface); }
+  .route-tip .rt b { display: block; font-size: var(--fs-small); white-space: nowrap; }
+  .route-tip .rt div { margin-top: 2px; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--ink-soft); white-space: nowrap; }
+  .route-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); box-shadow: 0 0 0 2px var(--app-bg); pointer-events: none; }
   .marker { display: grid; place-items: center; cursor: pointer; border-radius: 50%; box-sizing: border-box; }
   .marker-night { background: var(--indigo); color: #fff; border: 2.5px solid var(--app-bg); width: 26px; height: 26px; font: 700 12px var(--font-mono); }
   .marker-place { background: var(--surface); width: 20px; height: 20px; border: 3px solid var(--accent); }
@@ -126,6 +133,7 @@
   .layers-menu { right: 12px; min-width: 202px; }
   .ctx-menu { left: 12px; min-width: 234px; max-width: 76%; }
   .lm-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; }
+  .lm-sep { border-top: 1px solid var(--line); margin-top: 3px; padding-top: 12px; }
   .lm-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
   .lm-l { flex: 1; font-size: var(--fs-small); }
   .cm-head { font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); padding: 8px 8px 5px; font-weight: 700; }

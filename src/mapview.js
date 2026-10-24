@@ -7,7 +7,9 @@
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache } from "./geo.js";
+import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, naechsterRoutenpunkt, meterProPixel } from "./geo.js";
+import { kachelPaint, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
+import { routenTipp } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
 import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility.js";
@@ -21,7 +23,6 @@ import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility
 const CARTO_KEY = typeof __CARTO_API_KEY__ === "string" ? __CARTO_API_KEY__ : "";
 const TILES = {
   light: `https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
-  dark: `https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
 };
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
 
@@ -47,7 +48,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
       version: 8,
       sources: {
         "tiles-light": { type: "raster", tiles: [TILES.light], tileSize: 256, attribution: ATTRIBUTION },
-        "tiles-dark": { type: "raster", tiles: [TILES.dark], tileSize: 256, attribution: ATTRIBUTION },
+        dem: { type: "raster-dem", tiles: [HOEHEN_KACHELN], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: HOEHEN_QUELLE },
         "route-solid": {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
@@ -57,8 +58,11 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         },
       },
       layers: [
-        { id: "tiles-light", type: "raster", source: "tiles-light", layout: { visibility: isDark() ? "none" : "visible" } },
-        { id: "tiles-dark", type: "raster", source: "tiles-dark", layout: { visibility: isDark() ? "visible" : "none" } },
+        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark()) },
+        // Geländeschummerung: nur sichtbar, wenn im Ebenen-Menü eingeschaltet
+        // (dann erst werden die Höhenkacheln überhaupt geladen).
+        { id: "schummerung", type: "hillshade", source: "dem",
+          layout: { visibility: state.config.gelaende ? "visible" : "none" }, paint: schummerungPaint(isDark()) },
         { id: "route-casing", type: "line", source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": isDark() ? "#000" : "#0a1919", "line-opacity": 0.35, "line-width": 9 } },
@@ -101,15 +105,55 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+  map.on("click", onMapClick);
+
   return map;
+}
+
+/** Geländeschummerung ein-/ausschalten (Ebenen-Menü). */
+export function setTerrain(on) {
+  if (!map || !map.getLayer("schummerung")) return;
+  map.setLayoutProperty("schummerung", "visibility", on ? "visible" : "none");
 }
 
 function applyTheme() {
   if (!ready) return;
   const dark = isDark();
-  map.setLayoutProperty("tiles-light", "visibility", dark ? "none" : "visible");
-  map.setLayoutProperty("tiles-dark", "visibility", dark ? "visible" : "none");
+  for (const [k, v] of Object.entries(kachelPaint(dark))) map.setPaintProperty("tiles-light", k, v);
+  for (const [k, v] of Object.entries(schummerungPaint(dark))) map.setPaintProperty("schummerung", k, v);
   map.setPaintProperty("route-casing", "line-color", dark ? "#000" : "#0a1919");
+}
+
+/* ---------- Tippen auf die Route: Tag, Datum, Uhrzeit, km ---------- */
+let tippPfad = [];     // voller (nicht vereinfachter) sichtbarer Pfad der gezeichneten Reise
+let tippPopup = null;
+let tippPunkt = null;
+const TIPP_TOLERANZ_PX = 22;
+const TIPP_MIN_M = 12;
+
+function schliesseRoutenTipp() {
+  tippPopup?.remove();
+  tippPunkt?.remove();
+  tippPopup = null;
+  tippPunkt = null;
+}
+
+function onMapClick(e) {
+  schliesseRoutenTipp();
+  if (!tippPfad.length) return;
+  const { lng, lat } = e.lngLat;
+  const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * meterProPixel(map.getZoom(), lat));
+  const treffer = naechsterRoutenpunkt(tippPfad, lng, lat, toleranz);
+  if (!treffer) return;
+  const p = treffer.punkt;
+  const { kopf, werte } = routenTipp(p);
+  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([p.lon, p.lat]).addTo(map);
+  tippPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+    .setLngLat([p.lon, p.lat])
+    .setDOMContent(el("div.rt", {}, [el("b", { text: kopf }), el("div", { text: werte })]))
+    .addTo(map);
+  tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
+  debugLog("map.route-tip", { index: treffer.index, abstandM: Math.round(treffer.abstandM) });
 }
 
 let pendingDraw = false;
@@ -243,6 +287,8 @@ export function draw(options = {}) {
 
   const { segments, path } = visibleRouteForMap(t);
   if (!path.length) { drawLiveOnly({ fit }); return; }
+  tippPfad = path;
+  if (fit) schliesseRoutenTipp();
 
   const { min: elevMin, max: elevMax } = elevationRange(path);
   const totalKm = pathLengthKm(path);
@@ -275,6 +321,8 @@ export function draw(options = {}) {
 /** Ansicht ohne Reise: nur die aktuelle Fahrzeugposition. */
 let liveCentered = false;
 function drawLiveOnly({ fit = false } = {}) {
+  tippPfad = [];
+  schliesseRoutenTipp();
   clearGradientLayers();
   map.getSource("route-solid").setData({ type: "FeatureCollection", features: [] });
   markers.forEach((m) => m.remove());

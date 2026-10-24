@@ -758,6 +758,17 @@ for (const [id, key] of [["lc-overnight", "nights"], ["lc-places", "places"], ["
     syncPreferences();
   });
 }
+// Gelände-Schummerung gehört zur Karte dieses Geräts (nicht zur Reise) — daher
+// in der Gerätekonfiguration statt in state.layers.
+const terrainSwitch = $("#lc-terrain");
+terrainSwitch.setAttribute("aria-checked", String(Boolean(state.config.gelaende)));
+terrainSwitch.addEventListener("click", () => {
+  const on = terrainSwitch.getAttribute("aria-checked") !== "true";
+  terrainSwitch.setAttribute("aria-checked", String(on));
+  state.config.gelaende = on;
+  saveConfig();
+  mapview.setTerrain(on);
+});
 function renderLayerSwitches() {
   for (const [id, key] of [["lc-overnight", "nights"], ["lc-places", "places"], ["lc-notes", "notes"], ["lc-km", "km"]]) {
     const sw = $("#" + id);
