@@ -579,8 +579,28 @@ function renderRouteDetail(t, listMode) {
   ]);
 }
 
+/** Fahrt aus der Reise nehmen: wird zur Alltagsfahrt (bleibt im Logbuch, unter
+ * Fahrten → Filter "Nicht zugeordnet" jederzeit wieder einer Reise zuordenbar). */
+async function entferneFahrtAusReise() {
+  const drive = routeFocus?.drives?.[0];
+  if (!drive?.key) return;
+  closeDriveKindPicker();
+  if (!zentral()) { toast("Nur mit verbundenem Konto möglich"); return; }
+  try {
+    await assignDrive(drive.key, null);
+    await loadDrives();
+    routeFocus = null;
+    renderTrips();
+    detailNeuZeichnen();
+    toast("Fahrt aus der Reise entfernt — als Alltagsfahrt gemerkt");
+  } catch (err) {
+    toast(err.message || "Fahrt konnte nicht entfernt werden");
+  }
+}
+
 async function setFocusedDriveKind(kind, knopf) {
   if (routeFocus?.type !== "fahrt" || !routeFocus.drives?.length) return;
+  if (kind === "entfernen") { entferneFahrtAusReise(); return; }
   const drive = routeFocus.drives[0];
   const ziel = kind === "abstecher" ? "abstecher" : "etappe";
   if (drive.kind === ziel) {
@@ -936,9 +956,15 @@ function groupDriveActivitiesByDay(t, drives) {
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
-/** Zusammenfassungen für Fahrten (Detailansicht und Vor/Zurück): Titel "Fahrt 14:32". */
-const fahrtZusammenfassung = (drive, t) => ({ ...summarizeDrive(drive, { path: drivePreviewPath(drive, t) }), title: `Fahrt ${uhrzeit(drive.from)}` });
-const spurZusammenfassung = (summary) => ({ ...summary, title: `Fahrt ${uhrzeit(summary.from)}` });
+/** Kurzname einer Fahrt für Kopfleiste und Karte: "Tag 2 · 14:32". */
+const fahrtTitel = (iso, t) => {
+  const tag = tripDayNumberForIso(iso, t);
+  return [Number.isFinite(tag) ? `Tag ${tag}` : null, uhrzeit(iso)].filter(Boolean).join(" · ") || "Fahrt";
+};
+
+/** Zusammenfassungen für Fahrten (Detailansicht und Vor/Zurück). */
+const fahrtZusammenfassung = (drive, t) => ({ ...summarizeDrive(drive, { path: drivePreviewPath(drive, t) }), title: fahrtTitel(drive.from, t) });
+const spurZusammenfassung = (summary, t) => ({ ...summary, title: fahrtTitel(summary.from, t) });
 
 /** Alle Fahrten einer Reise, die ein Detail öffnen, in zeitlicher Reihenfolge (über Tagesgrenzen). */
 function fahrtenEintraege(t) {
@@ -947,7 +973,7 @@ function fahrtenEintraege(t) {
   const eintraege = [];
   for (const [, group] of groupDriveActivitiesByDay(routeTrip, fahrten)) {
     eintraege.push(...group.drives.map((d) => fahrtZusammenfassung(d, t)));
-    eintraege.push(...group.tracks.map(spurZusammenfassung));
+    eintraege.push(...group.tracks.map((x) => spurZusammenfassung(x, t)));
   }
   return eintraege
     .filter((e) => e.type === "fahrt")
@@ -980,7 +1006,7 @@ function driveDayGroup(t, key, group, index, count) {
       ...group.tracks.map((summary) => segmentCard({
         title: `Fahrt ${kurzDatumZeit(summary.from)}`,
         subtitle: "aus Live-Spur, noch nicht im Fahrtbericht",
-        summary: spurZusammenfassung(summary),
+        summary: spurZusammenfassung(summary, t),
         variant: "drive-card",
       })),
     ]),

@@ -489,7 +489,7 @@
       <div class="trip-picker" id="drive-kind-picker" hidden>
         <div class="trip-picker-panel" role="dialog" aria-modal="true" aria-labelledby="drive-kind-title">
           <div class="trip-picker-head">
-            <b id="drive-kind-title">Fahrtart wählen</b>
+            <b id="drive-kind-title">Fahrtart und Zuordnung</b>
             <button class="iconbtn" id="drive-kind-close" aria-label="Schließen">×</button>
           </div>
           <div class="trip-picker-list">
@@ -500,6 +500,10 @@
             <button class="trip-picker-row" data-drive-kind-choice="abstecher" aria-pressed="false">
               <i></i>
               <span><b>Abstecher</b><small>Versorgungsfahrt, optional ausblendbar</small></span>
+            </button>
+            <button class="trip-picker-row danger" data-drive-kind-choice="entfernen" aria-pressed="false">
+              <i></i>
+              <span><b>Aus Reise entfernen</b><small>Wird zur Alltagsfahrt</small></span>
             </button>
           </div>
         </div>

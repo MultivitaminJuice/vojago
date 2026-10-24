@@ -100,14 +100,14 @@
   .map-topbar { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 14; display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; pointer-events: none; }
   .map-topbar > * { pointer-events: auto; }
   .map-topbar .segmented { min-width: 0; }
-  .map-focusbar { margin-right: auto; min-width: 0; max-width: 68%; display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px 5px 6px; box-shadow: var(--shadow); }
+  .map-focusbar { margin-right: auto; min-width: 0; max-width: 72%; display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px 5px 6px; box-shadow: var(--shadow); }
   .map-focusbar[hidden] { display: none; }
-  .map-focusbar button { border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 750; padding: 5px 9px; cursor: pointer; white-space: nowrap; }
-  .map-focusbar .map-focus-step { padding: 5px; display: inline-grid; place-items: center; }
+  .map-focusbar button { border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 750; padding: 5px 8px; cursor: pointer; white-space: nowrap; }
+  .map-focusbar .map-focus-step { padding: 4px; display: inline-grid; place-items: center; }
   .map-focusbar .map-focus-step[hidden] { display: none; }
   .map-focusbar .map-focus-step svg { width: 16px; height: 16px; }
   .map-focusbar .map-focus-step:disabled { opacity: .3; cursor: default; }
-  .map-focusbar b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small); color: var(--ink); }
+  .map-focusbar b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink); }
   .layers-btn { padding: 8px 10px; }
   .view-note { display: none; align-items: center; gap: 8px; margin-right: auto; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px 6px 12px; box-shadow: var(--shadow); font-size: var(--fs-small); max-width: 70%; }
   .view-note.show { display: inline-flex; }
@@ -338,6 +338,7 @@
   .trip-picker-row { width: 100%; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 62px; border: 1px solid var(--line); border-radius: 13px; padding: 10px 12px; margin-bottom: 9px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
   .trip-picker-row[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
   .trip-picker-row i { width: 12px; height: 12px; border-radius: 50%; display: grid; place-items: center; background: var(--ink-faint); color: var(--accent-ink); font-style: normal; font-size: 9px; font-weight: 900; line-height: 1; }
+  .trip-picker-row.danger b { color: var(--crit); }
   .trip-picker-row[aria-pressed="true"] i { background: var(--accent); }
   .trip-picker-row b, .trip-picker-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trip-picker-row b { font-size: var(--fs-small); }
