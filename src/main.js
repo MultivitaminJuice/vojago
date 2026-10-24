@@ -13,7 +13,7 @@ import { duerfteWeg } from "./ui/dirty-guard.js";
 import * as mapview from "./mapview.js";
 import { createSheet, wireEscape } from "./ui/sheets.js";
 import { teileOrt, teileReise } from "./ui/share.js";
-import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTripFromContext, stelleKartenRueckkehrWieder, resetReiseAnsicht, tagKartenNavigation, kartenTagWechseln } from "./views/trips.js";
+import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTripFromContext, stelleKartenRueckkehrWieder, resetReiseAnsicht, kartenNavigation, kartenSchritt } from "./views/trips.js";
 import { initPlaces, renderPlaces, renderCategoryChips, buildFilterOptions, photoGradient, resetPlaceFilters } from "./views/places.js";
 import { initPlaceEditor, openPlaceEditor, renderCategoryPicker, isDirty as editorDirty, save as saveEditor, clearEditor } from "./views/place-editor.js";
 import { initJournal, renderJournal } from "./views/journal.js";
@@ -605,7 +605,7 @@ function renderMapFocusBar() {
   if (!focused) return;
   // Zeigt die Karte einen Tag einer Reise, genügt "Tag 3" (der Reisename steht
   // darüber) — Platz für Vorheriger/Nächster.
-  const tagNav = placeRueckkehrKontext ? null : tagKartenNavigation();
+  const tagNav = placeRueckkehrKontext ? null : kartenNavigation();
   const label = $("#map-focus-label");
   if (label) label.textContent = placeRueckkehrKontext ? (placeRueckkehrKontext.place.title || "Ort") : (tagNav?.titel || focused.name || "Kartenausschnitt");
   for (const [id, hat] of [["#map-focus-prev", tagNav?.hatVorher], ["#map-focus-next", tagNav?.hatNaechster]]) {
@@ -616,8 +616,8 @@ function renderMapFocusBar() {
   }
 }
 
-$("#map-focus-prev")?.addEventListener("click", () => kartenTagWechseln(-1));
-$("#map-focus-next")?.addEventListener("click", () => kartenTagWechseln(1));
+$("#map-focus-prev")?.addEventListener("click", () => kartenSchritt(-1));
+$("#map-focus-next")?.addEventListener("click", () => kartenSchritt(1));
 
 $("#map-focus-back")?.addEventListener("click", () => {
   // Kam der Fokus aus "Auf Karte zeigen" im Orte-Editor, führt "Zurück"

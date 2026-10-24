@@ -1,14 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tagIdInfo, tagNachbar, tagNavigation } from "../day-nav.js";
+import { tagNachbar, tagNavigation } from "../day-nav.js";
 
 const tage = ["T:day:1", "T:day:2", "T:day:4"].map((id) => ({ id, title: id.split(":").pop() }));
-
-test("tagIdInfo: zerlegt Tages-IDs, alles andere ergibt null", () => {
-  assert.deepEqual(tagIdInfo("abc-123:day:6"), { reiseId: "abc-123", tag: 6 });
-  assert.deepEqual(tagIdInfo("a:b:day:2"), { reiseId: "a:b", tag: 2 });
-  for (const v of ["abc", "abc:drive:3", "", null, undefined, "x:day:"]) assert.equal(tagIdInfo(v), null);
-});
 
 test("tagNachbar: vorheriger und nächster Tag, an den Enden und bei unbekannter ID null", () => {
   assert.equal(tagNachbar(tage, "T:day:2", -1).id, "T:day:1");

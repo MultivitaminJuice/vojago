@@ -1,12 +1,6 @@
-// Vorheriger / nächster Tag innerhalb einer Reise (Reisen → Tage und Karte).
+// Vorheriger / nächster Tag bzw. Fahrt innerhalb einer Reise (Reisen und Karte).
 
-/** Tages-Zusammenfassungen tragen die ID "<reiseId>:day:<n>" (siehe route-summary.js). */
-export function tagIdInfo(id) {
-  const m = /^(.+):day:(\d+)$/.exec(String(id || ""));
-  return m ? { reiseId: m[1], tag: Number(m[2]) } : null;
-}
-
-/** Nachbartag in der Liste der Tages-Zusammenfassungen; richtung -1 = vorher, +1 = nächster. */
+/** Nachbareintrag in der Liste der Zusammenfassungen (Tage oder Fahrten); richtung -1 = vorher, +1 = nächster. */
 export function tagNachbar(summaries, aktuelleId, richtung) {
   if (!Array.isArray(summaries)) return null;
   const i = summaries.findIndex((s) => s.id === aktuelleId);

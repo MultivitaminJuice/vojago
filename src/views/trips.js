@@ -13,7 +13,7 @@ import { wetterZeile } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile } from "./charts.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
-import { tagIdInfo, tagNachbar, tagNavigation } from "../day-nav.js";
+import { tagNachbar, tagNavigation } from "../day-nav.js";
 import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
 import { filteredRouteDrives, itemMatchesRouteFilter, visibleRoutePath } from "../route-visibility.js";
 
@@ -534,10 +534,9 @@ function renderSegments() {
   render(wrap, [renderGesamtActions(t), ...renderGesamtCharts(t)]);
 }
 
-/** Kopf der Tagesansicht: dieselbe Pille wie auf der Karte ("Zurück · Tag 3 · ‹ ›"). */
-function tagKopfLeiste(t) {
+/** Kopf der Tages-/Fahrtansicht: dieselbe Pille wie auf der Karte ("Zurück · Tag 3 · ‹ ›"). */
+function detailKopfLeiste(summaries) {
   const zurueck = () => { routeFocus = null; renderTrips(); };
-  const summaries = tageSummariesFor(t);
   const nav = tagNavigation(summaries, routeFocus.id);
   const schritt = (richtung) => {
     const ziel = tagNachbar(summaries, routeFocus.id, richtung);
@@ -557,11 +556,13 @@ function tagKopfLeiste(t) {
 
 function renderRouteDetail(t, listMode) {
   const hatSpur = Boolean(routeFocus?.path?.length);
-  const tagKopf = listMode === "tage" && routeFocus?.type === "tag";
+  const kopfListe = listMode === "tage" && routeFocus?.type === "tag" ? tageSummariesFor(t)
+    : listMode === "fahrten" && routeFocus?.type === "fahrt" ? fahrtenEintraege(t)
+      : null;
   return el("div.route-detail", {}, [
     el("div.detail-nav", {}, [
-      tagKopf
-        ? tagKopfLeiste(t)
+      kopfListe
+        ? detailKopfLeiste(kopfListe)
         : el("button.detail-back", {
           on: { click: () => { routeFocus = null; renderTrips(); } },
         }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
@@ -630,35 +631,43 @@ function zeigeSummaryAufKarte(summary, t) {
     else showTripOnMap(t.id);
   } else if (summary.path?.length) {
     kartenRueckkehrKontext = { tripMode, routeFocus, rangeFocusTripId };
-    showAdhocOnMap(routeSummaryToTrip(summary, `${t.name} · ${summary.title}`));
+    const adhoc = routeSummaryToTrip(summary, `${t.name} · ${summary.title}`);
+    if (summary.type === "tag" || summary.type === "fahrt") { adhoc.navArt = summary.type; adhoc.navReiseId = t.id; }
+    showAdhocOnMap(adhoc);
   }
   goMap();
 }
 
-/** Für die Kartenleiste: zeigt die Karte gerade einen Tag einer Reise, kommt hier
- * seine Kurzbezeichnung ("Tag 3") und ob es einen vorherigen/nächsten gibt. */
-export function tagKartenNavigation() {
+/** Liste, in der die Karte blättert: Tage bzw. Fahrten der Reise, aus der der Ausschnitt stammt. */
+function kartenListe(adhoc) {
+  const t = adhoc?.navReiseId ? trip(adhoc.navReiseId) : null;
+  if (!t?.path?.length) return { t: null, summaries: null };
+  if (adhoc.navArt === "tag") return { t, summaries: tageSummariesFor(t) };
+  if (adhoc.navArt === "fahrt") return { t, summaries: fahrtenEintraege(t) };
+  return { t: null, summaries: null };
+}
+
+/** Für die Kartenleiste: zeigt die Karte gerade einen Tag bzw. eine Fahrt einer Reise,
+ * kommt hier seine Kurzbezeichnung ("Tag 3", "Fahrt 14:32") und ob es einen
+ * vorherigen/nächsten gibt. */
+export function kartenNavigation() {
   const adhoc = state.adhocTrip;
-  const info = tagIdInfo(adhoc?.id);
-  const t = info ? trip(info.reiseId) : null;
-  if (!t?.path?.length) return null;
-  const summaries = tageSummariesFor(t);
-  const nav = tagNavigation(summaries, adhoc.id);
+  const { summaries } = kartenListe(adhoc);
+  const nav = tagNavigation(summaries, adhoc?.id);
   if (!nav) return null;
   return { titel: summaries.find((x) => x.id === adhoc.id)?.title || adhoc.name, ...nav };
 }
 
-/** Karte: zum vorherigen (-1) / nächsten (+1) Tag derselben Reise wechseln. */
-export function kartenTagWechseln(richtung) {
+/** Karte: zum vorherigen (-1) / nächsten (+1) Tag bzw. zur Fahrt wechseln. */
+export function kartenSchritt(richtung) {
   const adhoc = state.adhocTrip;
-  const info = tagIdInfo(adhoc?.id);
-  const t = info ? trip(info.reiseId) : null;
+  const { t, summaries } = kartenListe(adhoc);
   if (!t) return;
-  const ziel = tagNachbar(tageSummariesFor(t), adhoc.id, richtung);
+  const ziel = tagNachbar(summaries, adhoc.id, richtung);
   if (!ziel?.path?.length) return;
-  // "Zurück" führt zu dem Tag, den man zuletzt auf der Karte gesehen hat.
-  if (kartenRueckkehrKontext?.routeFocus?.type === "tag") kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };
-  showAdhocOnMap(routeSummaryToTrip(ziel, `${t.name} · ${ziel.title}`));
+  // "Zurück" führt zu dem Eintrag, den man zuletzt auf der Karte gesehen hat.
+  if (kartenRueckkehrKontext?.routeFocus) kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };
+  showAdhocOnMap({ ...routeSummaryToTrip(ziel, `${t.name} · ${ziel.title}`), navArt: adhoc.navArt, navReiseId: adhoc.navReiseId });
 }
 
 /** Für main.js: erneuter Klick auf den "Reisen"-Tab, während man schon
@@ -709,10 +718,8 @@ function renderSummaryFacts(summary, t) {
     ? fact(ICON.list, "Fahrtart", summary.drives[0].kind === "abstecher" ? "Abstecher" : "Etappe", { onClick: openDriveKindPicker })
     : null;
   return el("section.route-summary", {}, [
-    el("div.summary-title", {}, [
-      el("b", { text: label }),
-      summary.type !== "reise" ? el("span", { text: "Auswertung" }) : null,
-    ]),
+    // Tag und Fahrt tragen ihren Namen schon in der Kopfleiste darüber.
+    summary.type === "reise" ? el("div.summary-title", {}, [el("b", { text: label })]) : null,
     el("div.trip-facts", {}, [
       driveKindFact,
       fact(ICON.calendar, "von", when(summary.from)),
@@ -929,6 +936,24 @@ function groupDriveActivitiesByDay(t, drives) {
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
+/** Zusammenfassungen für Fahrten (Detailansicht und Vor/Zurück): Titel "Fahrt 14:32". */
+const fahrtZusammenfassung = (drive, t) => ({ ...summarizeDrive(drive, { path: drivePreviewPath(drive, t) }), title: `Fahrt ${uhrzeit(drive.from)}` });
+const spurZusammenfassung = (summary) => ({ ...summary, title: `Fahrt ${uhrzeit(summary.from)}` });
+
+/** Alle Fahrten einer Reise, die ein Detail öffnen, in zeitlicher Reihenfolge (über Tagesgrenzen). */
+function fahrtenEintraege(t) {
+  const routeTrip = tripForRouteFilter(t);
+  const fahrten = routeDrives(t).sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")));
+  const eintraege = [];
+  for (const [, group] of groupDriveActivitiesByDay(routeTrip, fahrten)) {
+    eintraege.push(...group.drives.map((d) => fahrtZusammenfassung(d, t)));
+    eintraege.push(...group.tracks.map(spurZusammenfassung));
+  }
+  return eintraege
+    .filter((e) => e.type === "fahrt")
+    .sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")));
+}
+
 function driveDayGroup(t, key, group, index, count) {
   const day = tripDayNumberFromKeys(key, tagKey(tripStartIso(t))) || index + 1;
   const entries = group.drives.length + group.tracks.length;
@@ -949,13 +974,13 @@ function driveDayGroup(t, key, group, index, count) {
       ...group.drives.map((d) => segmentCard({
         title: `Fahrt ${kurzDatumZeit(d.from)}`,
         subtitle: [kurzeAdresse(d.startAddress), kurzeAdresse(d.endAddress)].filter(Boolean).join(" → "),
-        summary: { ...summarizeDrive(d, { path: drivePreviewPath(d, t) }), title: `Fahrt ${zeitpunkt(d.from)}` },
+        summary: fahrtZusammenfassung(d, t),
         variant: "drive-card",
       })),
       ...group.tracks.map((summary) => segmentCard({
         title: `Fahrt ${kurzDatumZeit(summary.from)}`,
         subtitle: "aus Live-Spur, noch nicht im Fahrtbericht",
-        summary: { ...summary, title: `Fahrt ${zeitpunkt(summary.from)}` },
+        summary: spurZusammenfassung(summary),
         variant: "drive-card",
       })),
     ]),
