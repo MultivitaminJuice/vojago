@@ -24,5 +24,8 @@
   },
   "dependencies": {
     "maplibre-gl": "^6.14.0"
+  },
+  "overrides": {
+    "undici": "7.30.1"
   }
 }
