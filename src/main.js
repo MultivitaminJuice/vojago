@@ -3,7 +3,7 @@ import "./styles.css";
 
 import { $, $$, el, render, toast, icon } from "./dom.js";
 import { ICON } from "./icons.js";
-import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips } from "./state.js";
+import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
 import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot } from "./dataload.js";
 import { authState, login as anmelden, setupAccount, setAngemeldet, forgotPassword, resetPassword, verifyEmail } from "./api.js";
 import { starteGastAnsicht, zeigeGastReise, ladeGastLivePosition, ladeGastRoute } from "./guest.js";
@@ -17,6 +17,7 @@ import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTr
 import { initPlaces, renderPlaces, renderCategoryChips, buildFilterOptions, photoGradient, resetPlaceFilters } from "./views/places.js";
 import { initPlaceEditor, openPlaceEditor, renderCategoryPicker, isDirty as editorDirty, save as saveEditor, clearEditor } from "./views/place-editor.js";
 import { initJournal, renderJournal } from "./views/journal.js";
+import { initTagEditor, openTagEditor, isDirty as tagDirty, save as saveTag, clearEditor as clearTag } from "./views/tag-editor.js";
 import { initNoteEditor, captureNote, openNoteEditor, isDirty as noteDirty, save as saveNote, clearEditor as clearNote } from "./views/note-editor.js";
 import { initGuard, loadGuard, renderGuardInfo } from "./views/guard.js";
 import { liveAlterText } from "./live-alter.js";
@@ -226,7 +227,14 @@ const noteSheet = createSheet({
   onClose: clearNote,
 });
 
-const alleSheets = [tripSheet, editSheet, noteSheet];
+const tagSheet = createSheet({
+  id: "tag-sheet", confirmId: "tag-confirm",
+  isDirty: tagDirty,
+  onSave: saveTag,
+  onClose: clearTag,
+});
+
+const alleSheets = [tripSheet, editSheet, noteSheet, tagSheet];
 
 /**
  * Nur eine Detailansicht ist je sichtbar. Ohne das blieb z. B. ein Ort-Editor
@@ -248,6 +256,7 @@ wireEscape(alleSheets);
 $("#sheet-back").addEventListener("click", tripSheet.requestClose);
 $("#edit-back").addEventListener("click", editSheet.requestClose);
 $("#note-back").addEventListener("click", noteSheet.requestClose);
+$("#tag-back").addEventListener("click", tagSheet.requestClose);
 $$("[data-share]").forEach((b) => b.addEventListener("click", () => {
   const t = currentTripId ? trip(currentTripId) : null;
   if (!t) return;
@@ -335,9 +344,24 @@ initNoteEditor({
   onChange: () => { noteSheet.close(); renderJournal(); mapview.draw(); },
 });
 
+function openTag(opts) {
+  if (state.gast) return; // Gäste lesen nur
+  const t = journalTrip();
+  const tripId = opts?.tripId || t?.id;
+  if (!tripId || isRangeTrip(trip(tripId))) { toast("Das Tagebuch gibt es für einzelne Reisen"); return; }
+  if (!schliesseAndere(tagSheet)) return;
+  openTagEditor({ tripId, dayKey: opts?.dayKey || null });
+}
+
+initTagEditor({
+  onOpen: () => tagSheet.open(),
+  onChange: () => { tagSheet.close(); renderJournal(); },
+});
+
 initJournal({
   onPlaceClick: (place) => openEditor(place),
   onNoteClick: (note) => openNote(note),
+  onTagClick: (opts) => openTag(opts),
 });
 
 // Notizen entstehen im Tagebuch — dort gehören sie hin.
@@ -349,6 +373,11 @@ $("#log-add")?.addEventListener("click", (e) => {
 });
 $("#log-create-close")?.addEventListener("click", closeLogCreatePicker);
 logCreatePicker?.addEventListener("click", (e) => { if (e.target === logCreatePicker) closeLogCreatePicker(); });
+
+$("#add-tag")?.addEventListener("click", () => {
+  closeLogCreatePicker();
+  openTag();
+});
 
 $("#add-note").addEventListener("click", () => {
   closeLogCreatePicker();

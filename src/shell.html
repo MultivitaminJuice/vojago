@@ -447,9 +447,13 @@
             <button class="iconbtn" id="log-create-close" aria-label="Schließen">×</button>
           </div>
           <div class="trip-picker-list">
+            <button class="trip-picker-row trip-picker-new" id="add-tag">
+              <i>✎</i>
+              <span><b>Tag erzählen</b><small>Was los war, mit Fotos — auch nachträglich</small></span>
+            </button>
             <button class="trip-picker-row trip-picker-new" id="add-note">
               <i>✎</i>
-              <span><b>Notiz</b><small>Gedanke, Beobachtung oder kurzer Eintrag</small></span>
+              <span><b>Notiz</b><small>Kurzer Gedanke oder Hinweis zu einem Ort</small></span>
             </button>
             <button class="trip-picker-row trip-picker-new" id="add-here">
               <i>＋</i>
@@ -564,6 +568,25 @@
           <button class="btn" style="width:100%;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))" id="note-delete">Notiz löschen</button>
         </div>
         <div class="confirm-bar" id="note-confirm"><span>Nicht gespeicherte Änderungen</span><button class="discard">Verwerfen</button><button class="save">Speichern</button></div>
+      </div>
+
+      <div class="sheet" id="tag-sheet">
+        <div class="sheet-bar">
+          <button class="back" id="tag-back" aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <b>Tag erzählen</b><div class="sp"></div>
+          <button class="btn primary" id="tag-save">Fertig</button>
+        </div>
+        <div class="sheet-body">
+          <div class="tag-kopf">
+            <select id="tag-day" class="tag-day" aria-label="Tag der Reise"></select>
+            <span class="tag-hinweis" id="tag-day-hint"></span>
+          </div>
+          <div id="tag-blocks"></div>
+          <input type="file" accept="image/*" multiple id="tag-photo-input" hidden>
+          <div class="tag-status" id="tag-status" role="status"></div>
+          <button class="btn" style="width:100%;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))" id="tag-delete" hidden>Eintrag löschen</button>
+        </div>
+        <div class="confirm-bar" id="tag-confirm"><span>Nicht gespeicherte Änderungen</span><button class="discard">Verwerfen</button><button class="save">Speichern</button></div>
       </div>
 
       <div class="toast" id="toast"></div>

@@ -162,10 +162,28 @@ CREATE INDEX IF NOT EXISTS notes_time ON notes (occurred_at);
 -- R2-Shim (lokales Dateisystem, siehe app-backend/src/r2-shim.js), hier nur
 -- die Metadaten — r2_key bleibt bewusst so benannt, auch ohne echtes R2,
 -- damit api/router.js unverändert bleibt.
+-- Tagebuch (Logbuch-Umbau, Oktober 2026): ein Eintrag je Reise und Kalendertag,
+-- geschrieben von einem Konto (author). `blocks` ist eine JSON-Liste aus
+-- Textabsätzen und Foto-Gruppen in der Reihenfolge, wie sie erzählt werden:
+--   [{"t":"text","text":"…"},{"t":"fotos","ids":["foto-id", …]}]
+-- day_key ist der Kalendertag in der Ortszeit des Schreibenden (YYYY-MM-DD).
+-- Nachträgliches Schreiben ist ausdrücklich vorgesehen (ein Tag später o. ä.).
+CREATE TABLE IF NOT EXISTS tagebuch (
+  id         TEXT PRIMARY KEY,
+  trip_id    TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  day_key    TEXT NOT NULL,
+  blocks     TEXT NOT NULL DEFAULT '[]',
+  author     TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (trip_id, day_key)
+);
+
 CREATE TABLE IF NOT EXISTS photos (
   id         TEXT PRIMARY KEY,
   besuch_id  TEXT REFERENCES besuche(id) ON DELETE CASCADE,
   note_id    TEXT REFERENCES notes(id) ON DELETE CASCADE,
+  tagebuch_id TEXT REFERENCES tagebuch(id) ON DELETE CASCADE,
   r2_key     TEXT NOT NULL,
   taken_at   TEXT,                    -- aus EXIF oder Upload-Zeitpunkt
   lat        REAL,                    -- aus EXIF-GPS, falls vorhanden
@@ -177,6 +195,7 @@ CREATE TABLE IF NOT EXISTS photos (
 -- Kein Index auf besuch_id hier — dieselbe Begründung wie bei notes oben,
 -- ensureOrteBesuche() (api/router.js) legt ihn lazy und sicher an.
 CREATE INDEX IF NOT EXISTS photos_note ON photos (note_id);
+CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id);
 
 CREATE TABLE IF NOT EXISTS vehicles (
   id           TEXT PRIMARY KEY,

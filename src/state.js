@@ -22,7 +22,8 @@ export const state = {
   trips: [],          // { id, name, dates, live, km, nights, peak, hue, path, bars, barLabels }
   places: [],         // Besuch+Ort geflacht: { id, ortId, tripId|null (live berechnet), catId, title, note, stars, date, at, lon, lat, source, hue }
   notes: [],          // { id, tripId|null (live berechnet), besuchId|null, text, at, lon, lat, source }
-  photos: [],         // { id, besuchId|null, noteId|null, takenAt, lat, lon, width, height }
+  photos: [],         // { id, besuchId|null, noteId|null, tagebuchId|null, takenAt, lat, lon, width, height }
+  tagebuch: [],       // { id, tripId, dayKey, blocks, author, createdAt, updatedAt } — ein Eintrag je Reise und Tag
   livePosition: null, // { lon, lat, at, speed } — letzte Meldung des Fahrzeugs
   drives: [],         // Fahrten vom Server: { id, from, to, km, minutes, startAddress, endAddress, tripId, kind }
   adhocTrip: null,    // einzelne Fahrt, die gerade auf der Karte liegt
@@ -167,6 +168,26 @@ export function removePhoto(id) {
   const i = state.photos.findIndex((p) => p.id === id);
   if (i >= 0) state.photos.splice(i, 1);
   emit("photos");
+}
+
+/** Fotos eines Tagebucheintrags, nach Aufnahmezeit. */
+export const tagebuchFotos = (eintragId) =>
+  state.photos.filter((p) => p.tagebuchId === eintragId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
+
+export const tagebuchFuer = (tripId, dayKey) => state.tagebuch.find((e) => e.tripId === tripId && e.dayKey === dayKey) || null;
+
+export function upsertTagebuch(eintrag) {
+  const i = state.tagebuch.findIndex((e) => e.id === eintrag.id || (e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey));
+  if (i >= 0) state.tagebuch[i] = { ...state.tagebuch[i], ...eintrag };
+  else state.tagebuch.push(eintrag);
+  emit("notes");
+}
+
+export function removeTagebuch(id) {
+  const i = state.tagebuch.findIndex((e) => e.id === id);
+  if (i >= 0) state.tagebuch.splice(i, 1);
+  state.photos = state.photos.filter((p) => p.tagebuchId !== id);
+  emit("notes");
 }
 
 export function upsertNote(note) {

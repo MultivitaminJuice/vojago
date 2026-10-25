@@ -3,12 +3,13 @@
 import { state, emit, applyLocalData, applyPreferences, saveConfig, MAP_METRICS } from "./state.js";
 import { loadDemoData } from "./demo.js";
 import {
-  isConfigured, listTrips, listPlaces, listNotes, listCategories, listPhotos, listVehicles, route as fetchRoute,
+  isConfigured, listTrips, listPlaces, listNotes, listTagebuch, listCategories, listPhotos, listVehicles, route as fetchRoute,
   positions as fetchPositions, drives as fetchDrives, loadSettings, listDriveAssignments,
   cacheDriveWeather, weather as fetchWeather,
 } from "./api.js";
 import { pathLengthKm, elevationRange, glaetteStandRauschen } from "./geo.js";
 import { debugLog } from "./debug.js";
+import { parseBlocks } from "./tagebuch.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { haengeNeuePunkteAn } from "./path-merge.js";
 
@@ -105,6 +106,7 @@ export function saveSnapshot() {
     trips: state.trips.map((t) => tripFuerSnapshot(t, routeIds)),
     places: state.places,
     notes: state.notes,
+    tagebuch: state.tagebuch,
     drives: state.drives,
     activeTripId: state.activeTripId,
     mapTripId: state.mapTripId,
@@ -136,6 +138,7 @@ export function restoreSnapshot() {
   routenAbruf.zwischenspeicher = state.trips.some((t) => t.path?.length);
   state.places = Array.isArray(snapshot.places) ? snapshot.places : [];
   state.notes = Array.isArray(snapshot.notes) ? snapshot.notes : [];
+  state.tagebuch = Array.isArray(snapshot.tagebuch) ? snapshot.tagebuch : [];
   state.drives = Array.isArray(snapshot.drives) ? snapshot.drives : [];
   state.adhocTrip = null;
   state.categories = snapshot.categories && typeof snapshot.categories === "object" ? snapshot.categories : state.categories;
@@ -207,11 +210,25 @@ export function toNote(row) {
   };
 }
 
+/** Ein Tagebucheintrag aus der Datenbank (blocks kommt als JSON-Text). */
+export function toTagebuch(row) {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    dayKey: row.day_key,
+    blocks: parseBlocks(row.blocks),
+    author: row.author || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+  };
+}
+
 export function toPhoto(row) {
   return {
     id: row.id,
     besuchId: row.besuch_id || null,
     noteId: row.note_id || null,
+    tagebuchId: row.tagebuch_id || null,
     takenAt: row.taken_at || "",
     lat: row.lat == null ? null : Number(row.lat),
     lon: row.lon == null ? null : Number(row.lon),
@@ -798,15 +815,17 @@ export async function loadData() {
   const vorherMapTripId = state.mapTripId;
   const vorherigeTrips = new Map(state.trips.map((t) => [t.id, t]));
   try {
-    const [trips, places, notes, categories, photos, vehicles] = await Promise.all([
+    const [trips, places, notes, categories, photos, vehicles, tagebuch] = await Promise.all([
       listTrips(), listPlaces(), listNotes().catch(() => []), listCategories().catch(() => []), listPhotos().catch(() => []),
-      listVehicles().catch(() => []),
+      listVehicles().catch(() => []), listTagebuch().catch(() => null),
     ]);
 
     state.trips = (trips || []).map((row, index) => tripMitLetztemStand(toTrip(row, index), vorherigeTrips.get(row.id)));
     state.places = (places || []).map(toPlace);
     state.notes = (notes || []).map(toNote);
     state.photos = (photos || []).map(toPhoto);
+    // Schlägt das Laden des Tagebuchs fehl (z. B. kurz offline), bleibt der bisherige Stand stehen.
+    if (tagebuch) state.tagebuch = tagebuch.map(toTagebuch);
     const standard = standardReise(state.trips);
     const active = standard?.live ? standard : null;
     state.activeTripId = active?.id || null;

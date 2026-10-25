@@ -65,9 +65,11 @@ export function tagesVerlauf(eintraege, fahrten) {
  * Tage der Reise mit allem, was dazugehört. `eintraege`: flache Liste aus
  * journal.js ({ kind: "place" | "night-continuation" | "note", at, data }),
  * `fahrten`: Fahrten der Reise, `path`: Spur mit `day`-Nummer je Punkt.
+ * `zusatzTage`: Tage, die auch ohne Besuch/Fahrt/Spur ein Kapitel bekommen
+ * (z. B. weil dort ein Tagebucheintrag steht).
  * Tage ohne jeden Inhalt (keine Einträge, keine Fahrt, keine Spur) entfallen.
  */
-export function tageDerReise({ startIso, eintraege, fahrten, path }) {
+export function tageDerReise({ startIso, eintraege, fahrten, path, zusatzTage = [] }) {
   const tage = new Map();
   const tag = (key) => {
     if (!tage.has(key)) tage.set(key, { key, eintraege: [], fahrten: [], punkte: [] });
@@ -75,6 +77,8 @@ export function tageDerReise({ startIso, eintraege, fahrten, path }) {
   };
   for (const e of eintraege) { const k = localDayKey(e.at); if (k) tag(k).eintraege.push(e); }
   for (const f of fahrten) { const k = localDayKey(f.from); if (k) tag(k).fahrten.push(f); }
+  const extra = new Set(zusatzTage);
+  for (const k of extra) tag(k);
 
   // Spur: Punkte tragen ihre Tagesnummer; der Schlüssel kommt vom ersten Punkt des Tages.
   const nachNummer = new Map();
@@ -89,7 +93,7 @@ export function tageDerReise({ startIso, eintraege, fahrten, path }) {
 
   const startKey = localDayKey(startIso);
   return [...tage.values()]
-    .filter((t) => t.eintraege.length || t.fahrten.length || t.punkte.length >= 2)
+    .filter((t) => t.eintraege.length || t.fahrten.length || t.punkte.length >= 2 || extra.has(t.key))
     .sort((a, b) => a.key.localeCompare(b.key))
     .map((t, i) => {
       const orte = t.eintraege.filter((e) => e.kind === "place");

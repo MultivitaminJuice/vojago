@@ -125,6 +125,33 @@ export function validateBesuch(body, { partial = false } = {}) {
 }
 
 /** Prüft eine neue oder geänderte Notiz. */
+/** Tagebucheintrag: Reise, Kalendertag und die Blöcke (Textabsätze / Foto-Gruppen). */
+export function validateTagebuch(body) {
+  const errors = [];
+  if (!isValidId(body?.trip_id)) errors.push("trip_id ist ungültig");
+  const tag = body?.day_key;
+  if (typeof tag !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tag) || Number.isNaN(Date.parse(`${tag}T12:00:00Z`))) {
+    errors.push("day_key muss ein Datum JJJJ-MM-TT sein");
+  }
+  const blocks = [];
+  if (!Array.isArray(body?.blocks)) errors.push("blocks muss eine Liste sein");
+  else if (body.blocks.length > 80) errors.push("zu viele Blöcke (max. 80)");
+  else {
+    let zeichen = 0;
+    for (const b of body.blocks) {
+      if (b?.t === "text" && typeof b.text === "string") {
+        if (b.text.length > 20000) { errors.push("Absatz zu lang (max. 20000)"); break; }
+        zeichen += b.text.length;
+        blocks.push({ t: "text", text: b.text });
+      } else if (b?.t === "fotos" && Array.isArray(b.ids) && b.ids.length <= 60 && b.ids.every((x) => isValidId(x))) {
+        blocks.push({ t: "fotos", ids: b.ids });
+      } else { errors.push("ungültiger Block"); break; }
+    }
+    if (zeichen > 60000) errors.push("Eintrag zu lang (max. 60000 Zeichen)");
+  }
+  return { ok: errors.length === 0, errors, blocks };
+}
+
 export function validateNote(body, { partial = false } = {}) {
   const errors = [];
   const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);

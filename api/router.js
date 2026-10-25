@@ -22,7 +22,7 @@
  *                     Verhalten dort unverändert.
  */
 import {
-  corsHeaders, validateOrt, validateBesuch, validateTrip, validateNote, validateRange, createRateLimiter, publicError,
+  corsHeaders, validateOrt, validateBesuch, validateTrip, validateNote, validateTagebuch, validateRange, createRateLimiter, publicError,
   hashPassword, verifyPassword, newSessionToken, hashToken,
   sessionCookie, clearedSessionCookie, istHttps, readCookie, validateCredentials, SESSION_DAYS,
   validateCoords, holeOrtsname, holeWetter,
@@ -213,6 +213,32 @@ async function ensureShares(env) {
       if (!/duplicate column name/i.test(String(e))) throw e;
     }
   }
+}
+
+/**
+ * Tagebuch (Logbuch-Umbau, Oktober 2026): ein Eintrag je Reise und Kalendertag
+ * plus Fotos, die direkt am Eintrag hängen. Lazy und idempotent wie die anderen
+ * ensure*-Funktionen — auf einer bestehenden Installation fehlt die Spalte
+ * photos.tagebuch_id noch und wird einmalig nachgetragen.
+ */
+async function ensureTagebuch(env) {
+  await ensureOrteBesuche(env); // legt photos an, falls noch nicht vorhanden
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS tagebuch (" +
+    "id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, " +
+    "day_key TEXT NOT NULL, blocks TEXT NOT NULL DEFAULT '[]', author TEXT, " +
+    "created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), " +
+    "UNIQUE (trip_id, day_key))"
+  ).run();
+  const { results } = await env.DB.prepare("PRAGMA table_info(photos)").all();
+  if (!(results || []).some((row) => row.name === "tagebuch_id")) {
+    try {
+      await env.DB.prepare("ALTER TABLE photos ADD COLUMN tagebuch_id TEXT REFERENCES tagebuch(id) ON DELETE CASCADE").run();
+    } catch (e) {
+      if (!/duplicate column name/i.test(String(e))) throw e;
+    }
+  }
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id)").run();
 }
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -894,16 +920,21 @@ async function route(request, env) {
       // Besuch/die Notiz nachsehen, wann das Foto tatsächlich entstand.
       if (teilaspekt === "photos" && seg[4]) {
         if (freigabe.scope !== "karte_logbuch") return reply(request, env, { error: "Über diesen Link nicht freigegeben" }, 403);
-        await ensureOrteBesuche(env);
+        await ensureTagebuch(env);
         const { results } = await env.DB.prepare(
-          `SELECT p.r2_key, COALESCE(p.taken_at, b.occurred_at, n.occurred_at) AS wann
+          `SELECT p.r2_key, COALESCE(p.taken_at, b.occurred_at, n.occurred_at) AS wann, tb.trip_id AS tagebuch_reise
            FROM photos p
            LEFT JOIN besuche b ON b.id = p.besuch_id
            LEFT JOIN notes n ON n.id = p.note_id
+           LEFT JOIN tagebuch tb ON tb.id = p.tagebuch_id
            WHERE p.id = ?`
         ).bind(seg[4]).all();
         const foto = results?.[0];
-        if (!foto?.r2_key || !faelltInReisezeitraum(foto.wann, reisen)) {
+        // Tagebuchfotos gehören über ihren Eintrag zur Reise, nicht über die Aufnahmezeit.
+        const freigegeben = foto?.tagebuch_reise
+          ? reisen.some((r) => r.id === foto.tagebuch_reise)
+          : faelltInReisezeitraum(foto?.wann, reisen);
+        if (!foto?.r2_key || !freigegeben) {
           return reply(request, env, { error: "Foto nicht gefunden" }, 404);
         }
         return await liefereFoto(request, env, foto.r2_key);
@@ -920,8 +951,9 @@ async function route(request, env) {
       let notizen = [];
       let kategorien = [];
       let fotos = [];
+      let tagebuch = [];
       if (freigabe.scope === "karte_logbuch" && reisen.length) {
-        await ensureOrteBesuche(env);
+        await ensureTagebuch(env);
         const alleBesuche = (await env.DB.prepare(
           `SELECT b.id, b.ort_id, o.title, o.address, o.note, o.category_id, o.rating, o.lat, o.lon,
                   b.source, b.kind, b.occurred_at, b.nights, b.weather, b.stop_key
@@ -935,14 +967,21 @@ async function route(request, env) {
         kategorien = (await env.DB.prepare("SELECT id, name, color FROM categories").all()).results;
 
         const alleFotos = (await env.DB.prepare(
-          `SELECT p.id, p.besuch_id, p.note_id, p.taken_at, p.lat, p.lon, p.width, p.height,
-                  COALESCE(p.taken_at, b.occurred_at, n.occurred_at) AS wann
+          `SELECT p.id, p.besuch_id, p.note_id, p.tagebuch_id, p.taken_at, p.lat, p.lon, p.width, p.height,
+                  COALESCE(p.taken_at, b.occurred_at, n.occurred_at) AS wann, tb.trip_id AS tagebuch_reise
            FROM photos p
            LEFT JOIN besuche b ON b.id = p.besuch_id
-           LEFT JOIN notes n ON n.id = p.note_id`
+           LEFT JOIN notes n ON n.id = p.note_id
+           LEFT JOIN tagebuch tb ON tb.id = p.tagebuch_id`
         ).all()).results;
-        fotos = alleFotos.filter((f) => faelltInReisezeitraum(f.wann, reisen))
-          .map(({ wann, ...f }) => f);
+        fotos = alleFotos
+          .filter((f) => (f.tagebuch_reise ? reisen.some((r) => r.id === f.tagebuch_reise) : faelltInReisezeitraum(f.wann, reisen)))
+          .map(({ wann, tagebuch_reise, ...f }) => f);
+
+        const alleEintraege = (await env.DB.prepare(
+          "SELECT id, trip_id, day_key, blocks, author, created_at, updated_at FROM tagebuch"
+        ).all()).results;
+        tagebuch = alleEintraege.filter((e) => reisen.some((r) => r.id === e.trip_id));
       }
 
       // Sichtbarkeit protokollieren — bewusst nur beim eigentlichen
@@ -959,6 +998,7 @@ async function route(request, env) {
         notes: notizen,
         categories: kategorien,
         photos: fotos,
+        tagebuch,
       });
     }
 
@@ -1330,15 +1370,57 @@ async function route(request, env) {
         }
       }
 
-      /* ---- D1 + R2: Fotos zu Besuchen und Notizen ---- */
+      /* ---- D1: Tagebuch — ein Eintrag je Reise und Kalendertag ---- */
+      if (seg[1] === "tagebuch") {
+        await ensureTagebuch(env);
+        const id = seg[2];
+        if (request.method === "GET" && !id) {
+          const { results } = await env.DB.prepare(
+            "SELECT id, trip_id, day_key, blocks, author, created_at, updated_at FROM tagebuch ORDER BY day_key"
+          ).all();
+          return reply(request, env, results);
+        }
+        if (request.method === "PUT" && !id) {
+          const b = await request.json();
+          const check = validateTagebuch(b);
+          if (!check.ok) return reply(request, env, { error: check.errors.join("; ") }, 400);
+          const { results: reise } = await env.DB.prepare("SELECT id FROM trips WHERE id = ?").bind(b.trip_id).all();
+          if (!reise?.length) return reply(request, env, { error: "Reise nicht gefunden" }, 404);
+          const blocks = JSON.stringify(check.blocks);
+          const { results: vorhanden } = await env.DB.prepare(
+            "SELECT id FROM tagebuch WHERE trip_id = ? AND day_key = ?"
+          ).bind(b.trip_id, b.day_key).all();
+          if (vorhanden?.length) {
+            // Der erste Schreibende bleibt als Autor stehen, auch wenn jemand anderes nachbessert.
+            await env.DB.prepare("UPDATE tagebuch SET blocks = ?, updated_at = datetime('now') WHERE id = ?")
+              .bind(blocks, vorhanden[0].id).run();
+            return reply(request, env, { id: vorhanden[0].id, neu: false });
+          }
+          const nid = uid();
+          await env.DB.prepare(
+            "INSERT INTO tagebuch (id, trip_id, day_key, blocks, author) VALUES (?,?,?,?,?)"
+          ).bind(nid, b.trip_id, b.day_key, blocks, sitzung.username).run();
+          return reply(request, env, { id: nid, neu: true }, 201);
+        }
+        if (request.method === "DELETE" && id) {
+          const { results: fotos } = await env.DB.prepare("SELECT r2_key FROM photos WHERE tagebuch_id = ?").bind(id).all();
+          await env.DB.prepare("DELETE FROM photos WHERE tagebuch_id = ?").bind(id).run();
+          await env.DB.prepare("DELETE FROM tagebuch WHERE id = ?").bind(id).run();
+          if (env.PHOTOS) for (const f of fotos || []) await env.PHOTOS.delete(f.r2_key).catch(() => {});
+          return reply(request, env, { ok: true });
+        }
+        return reply(request, env, { error: "nicht gefunden" }, 404);
+      }
+
+      /* ---- D1 + R2: Fotos zu Besuchen, Notizen und Tagebuch ---- */
       if (seg[1] === "photos") {
-        await ensureOrteBesuche(env);
+        await ensureTagebuch(env);
         const id = seg[2];
 
         if (request.method === "GET" && !id) {
           // Nur Metadaten — die Bilddatei selbst kommt über GET /api/photos/:id.
           const { results } = await env.DB.prepare(
-            "SELECT id, besuch_id, note_id, taken_at, lat, lon, width, height FROM photos ORDER BY created_at"
+            "SELECT id, besuch_id, note_id, tagebuch_id, taken_at, lat, lon, width, height FROM photos ORDER BY created_at"
           ).all();
           return reply(request, env, results);
         }
@@ -1362,14 +1444,18 @@ async function route(request, env) {
 
           const besuchId = form.get("besuch_id") || null;
           const noteId = form.get("note_id") || null;
-          if (!besuchId && !noteId) return reply(request, env, { error: "Foto braucht einen Besuch oder eine Notiz" }, 400);
+          const tagebuchId = form.get("tagebuch_id") || null;
+          if (!besuchId && !noteId && !tagebuchId) return reply(request, env, { error: "Foto braucht einen Besuch, eine Notiz oder einen Tagebucheintrag" }, 400);
 
           if (besuchId) {
             const { results } = await env.DB.prepare("SELECT id FROM besuche WHERE id = ?").bind(besuchId).all();
             if (!results?.length) return reply(request, env, { error: "Besuch nicht gefunden" }, 404);
-          } else {
+          } else if (noteId) {
             const { results } = await env.DB.prepare("SELECT id FROM notes WHERE id = ?").bind(noteId).all();
             if (!results?.length) return reply(request, env, { error: "Notiz nicht gefunden" }, 404);
+          } else {
+            const { results } = await env.DB.prepare("SELECT id FROM tagebuch WHERE id = ?").bind(tagebuchId).all();
+            if (!results?.length) return reply(request, env, { error: "Tagebucheintrag nicht gefunden" }, 404);
           }
 
           if (!env.PHOTOS) return reply(request, env, { error: "Fotospeicher ist noch nicht eingerichtet" }, 503);
@@ -1386,8 +1472,8 @@ async function route(request, env) {
 
           try {
             await env.DB.prepare(
-              "INSERT INTO photos (id, besuch_id, note_id, r2_key, taken_at, lat, lon, width, height) VALUES (?,?,?,?,?,?,?,?,?)"
-            ).bind(nid, besuchId, noteId, r2Key, takenAt, lat, lon, width, height).run();
+              "INSERT INTO photos (id, besuch_id, note_id, tagebuch_id, r2_key, taken_at, lat, lon, width, height) VALUES (?,?,?,?,?,?,?,?,?,?)"
+            ).bind(nid, besuchId, noteId, tagebuchId, r2Key, takenAt, lat, lon, width, height).run();
           } catch (e) {
             await env.PHOTOS.delete(r2Key).catch(() => {}); // kein verwaistes Objekt in R2 zurücklassen
             throw e;

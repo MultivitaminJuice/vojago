@@ -5,12 +5,12 @@
 // erst lokal zeigen (die App bleibt flott), dann zentral sichern — und wenn
 // das Sichern scheitert, wird die Anzeige zurückgenommen. Nichts soll auf dem
 // Bildschirm stehen, was nirgends gespeichert ist.
-import { state, upsertPlace, removePlace, upsertNote, removeNote, emit } from "./state.js";
+import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertTagebuch, removeTagebuch, emit } from "./state.js";
 import { toast } from "./dom.js";
 import { findeVorhandenenOrt, AUTO_ORT_PLATZHALTER_TITEL } from "./dataload.js";
 import {
   isConfigured, createPlace, updatePlace, deletePlace,
-  createNote, updateNote, deleteNote, weather as fetchWeather, geocode as fetchGeocode,
+  createNote, updateNote, deleteNote, saveTagebuch, deleteTagebuch, weather as fetchWeather, geocode as fetchGeocode,
 } from "./api.js";
 
 /** Nur im verbundenen Betrieb gibt es eine zentrale Ablage. */
@@ -120,6 +120,50 @@ export async function loescheNotiz(id) {
     return true;
   } catch (err) {
     if (vorher) upsertNote(vorher);
+    toast(`Nicht gelöscht: ${err.message}`);
+    return false;
+  }
+}
+
+/* ---------- Tagebuch ---------- */
+
+/**
+ * Tagebucheintrag sichern (anlegen oder überschreiben — je Reise und Tag gibt es
+ * genau einen). Der lokale Stand ändert sich sofort; schlägt das Speichern
+ * fehl, kommt der vorherige zurück. Liefert { ok, id }.
+ */
+export async function speichereTagebuch(eintrag) {
+  const vorher = state.tagebuch.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
+  if (!zentral()) {
+    const id = vorher?.id || eintrag.id || newId("tag");
+    upsertTagebuch({ ...eintrag, id });
+    return { ok: true, id };
+  }
+  try {
+    const antwort = await saveTagebuch({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
+    const jetzt = new Date().toISOString();
+    upsertTagebuch({
+      ...eintrag, id: antwort.id,
+      author: vorher?.author || state.account?.username || eintrag.author || "",
+      createdAt: vorher?.createdAt || jetzt, updatedAt: jetzt,
+    });
+    return { ok: true, id: antwort.id };
+  } catch (err) {
+    toast(`Nicht gespeichert: ${err.message}`);
+    return { ok: false, id: null };
+  }
+}
+
+export async function loescheTagebuch(id) {
+  const vorher = state.tagebuch.find((e) => e.id === id) || null;
+  const fotos = state.photos.filter((p) => p.tagebuchId === id);
+  removeTagebuch(id);
+  if (!zentral()) return true;
+  try {
+    await deleteTagebuch(id);
+    return true;
+  } catch (err) {
+    if (vorher) { upsertTagebuch(vorher); state.photos.push(...fotos); emit("photos"); }
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }

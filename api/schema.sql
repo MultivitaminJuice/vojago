@@ -129,10 +129,28 @@ CREATE INDEX IF NOT EXISTS notes_time ON notes (occurred_at);
 -- je nachdem, wovon nie beide gleichzeitig gesetzt sind — ein Foto gehört
 -- zum Moment, nicht dauerhaft zum Ort) statt zweier getrennter Tabellen.
 -- Die Bilddatei selbst liegt in R2 (r2_key), hier nur die Metadaten.
+-- Tagebuch (Logbuch-Umbau, Oktober 2026): ein Eintrag je Reise und Kalendertag,
+-- geschrieben von einem Konto (author). `blocks` ist eine JSON-Liste aus
+-- Textabsätzen und Foto-Gruppen in der Reihenfolge, wie sie erzählt werden:
+--   [{"t":"text","text":"…"},{"t":"fotos","ids":["foto-id", …]}]
+-- day_key ist der Kalendertag in der Ortszeit des Schreibenden (YYYY-MM-DD).
+-- Nachträgliches Schreiben ist ausdrücklich vorgesehen (ein Tag später o. ä.).
+CREATE TABLE IF NOT EXISTS tagebuch (
+  id         TEXT PRIMARY KEY,
+  trip_id    TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  day_key    TEXT NOT NULL,
+  blocks     TEXT NOT NULL DEFAULT '[]',
+  author     TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (trip_id, day_key)
+);
+
 CREATE TABLE IF NOT EXISTS photos (
   id         TEXT PRIMARY KEY,
   besuch_id  TEXT REFERENCES besuche(id) ON DELETE CASCADE,
   note_id    TEXT REFERENCES notes(id) ON DELETE CASCADE,
+  tagebuch_id TEXT REFERENCES tagebuch(id) ON DELETE CASCADE,
   r2_key     TEXT NOT NULL,
   taken_at   TEXT,                    -- aus EXIF oder Upload-Zeitpunkt
   lat        REAL,                    -- aus EXIF-GPS, falls vorhanden
@@ -143,6 +161,7 @@ CREATE TABLE IF NOT EXISTS photos (
 );
 -- Kein Index auf besuch_id hier — siehe db/schema.sql für die Begründung.
 CREATE INDEX IF NOT EXISTS photos_note ON photos (note_id);
+CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id);
 
 CREATE TABLE IF NOT EXISTS vehicles (
   id           TEXT PRIMARY KEY,

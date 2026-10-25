@@ -8,7 +8,7 @@ import {
   validateOrt, validateBesuch, validateTrip, validateRange, createRateLimiter, publicError,
   hashPassword, verifyPassword, newSessionToken, hashToken,
   sessionCookie, clearedSessionCookie, istHttps, readCookie, validateCredentials,
-  validateNote, weatherText, weatherSymbol, pickHourIndex, validateCoords, benenneOrtAusGeocodeAntwort,
+  validateNote, validateTagebuch, weatherText, weatherSymbol, pickHourIndex, validateCoords, benenneOrtAusGeocodeAntwort,
   isValidId, isHexColor, validateCategory, validateVehicle,
   isValidEmail, newResetToken, RESET_TOKEN_MINUTES, newVerifyToken, EMAIL_VERIFY_MINUTES,
   mapPositionRow, segmentDrives, segmentStops,
@@ -616,4 +616,23 @@ test("segmentStops: eine lange Lücke mit hoher Randgeschwindigkeit UND deutlich
     { device_id: "d1", at: Date.parse("2026-09-27T10:17:17.000Z"), lat: -47.446, lon: 30.2436, speed_kmh: 15 }, // ~190 m
   ];
   assert.equal(segmentStops(rows).length, 0);
+});
+
+test("validateTagebuch: Reise, Kalendertag und Blöcke werden geprüft und normalisiert", () => {
+  const gut = { trip_id: "reise-1", day_key: "2026-07-14", blocks: [{ t: "text", text: "Hallo" }, { t: "fotos", ids: ["f1", "f2"] }, { t: "text", text: "" }] };
+  const ok = validateTagebuch(gut);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.blocks, [{ t: "text", text: "Hallo" }, { t: "fotos", ids: ["f1", "f2"] }, { t: "text", text: "" }]);
+  assert.equal(validateTagebuch({ ...gut, blocks: [] }).ok, true, "ein leerer Eintrag darf als Träger für Fotos entstehen");
+
+  for (const kaputt of [
+    { ...gut, trip_id: "" },
+    { ...gut, day_key: "14.07.2026" },
+    { ...gut, day_key: "2026-13-45" },
+    { ...gut, blocks: "text" },
+    { ...gut, blocks: [{ t: "video", ids: [] }] },
+    { ...gut, blocks: [{ t: "fotos", ids: [""] }] },
+    { ...gut, blocks: [{ t: "text", text: "x".repeat(20001) }] },
+    { ...gut, blocks: Array.from({ length: 81 }, () => ({ t: "text", text: "a" })) },
+  ]) assert.equal(validateTagebuch(kaputt).ok, false, JSON.stringify(kaputt).slice(0, 60));
 });

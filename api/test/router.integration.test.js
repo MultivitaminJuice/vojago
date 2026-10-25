@@ -879,8 +879,8 @@ test("API-Integration: Kategorien/Fahrzeuge — Lesen für alle, Ändern nur fü
   assert.equal(kategorieAnlegenAdmin.status, 201);
 });
 
-async function apiFormData(env, method, path, { body, cookie } = {}) {
-  const reqHeaders = new Headers();
+async function apiFormData(env, method, path, { body, cookie, headers = {} } = {}) {
+  const reqHeaders = new Headers(headers);
   if (cookie) reqHeaders.set("cookie", cookie);
   const response = await handle(new Request(`https://vojago.test${path}`, { method, headers: reqHeaders, body }), env);
   const text = await response.text();
@@ -1101,4 +1101,154 @@ test("API-Integration: Push-Benachrichtigung — öffentlicher Schlüssel und Ab
     headers: ip2, body: { endpoint: "https://push.example/xyz", keys: { p256dh: "p", auth: "a" } },
   });
   assert.equal(ohneAnmeldung.status, 401);
+});
+
+/* ---------------- Tagebuch ---------------- */
+const apiBasis = api;
+const formBasis = apiFormData;
+
+function fotoSpeicher() {
+  const objekte = new Map();
+  return {
+    objekte,
+    put: async (key, daten) => { objekte.set(key, daten); },
+    delete: async (key) => { objekte.delete(key); },
+    get: async (key) => (objekte.has(key) ? { body: objekte.get(key), httpMetadata: { contentType: "image/jpeg" } } : null),
+  };
+}
+
+test("API-Integration: Tagebuch — anlegen, überschreiben, Fotos anhängen, löschen", async (t) => {
+  const speicher = fotoSpeicher();
+  const env = makeEnv({ PHOTOS: speicher });
+  t.after(() => env.DB.close());
+  // Eigene IP: die allgemeine Lastbegrenzung zählt je Adresse, und alle Tests dieser Datei teilen sich sonst "unbekannt".
+  const ip = { "cf-connecting-ip": "203.0.113.41" };
+  const cookie = await setupAndLogin(env, "dirk", "langgenug1", ip);
+  const api = (e, m, p, o = {}) => apiBasis(e, m, p, { ...o, headers: { ...ip, ...(o.headers || {}) } });
+  const apiFormData = (e, m, p, o = {}) => formBasis(e, m, p, { ...o, headers: ip });
+  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-t", name: "Tagebuchreise", start_at: "2026-07-12T06:00:00Z" } });
+
+  const ohneSitzung = await api(env, "GET", "/api/tagebuch");
+  assert.equal(ohneSitzung.status, 401);
+
+  const leer = await api(env, "GET", "/api/tagebuch", { cookie });
+  assert.deepEqual(leer.data, []);
+
+  const schlecht = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "gestern", blocks: [] } });
+  assert.equal(schlecht.status, 400);
+  const unbekannteReise = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "nicht-da", day_key: "2026-07-14", blocks: [] } });
+  assert.equal(unbekannteReise.status, 404);
+
+  const erster = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "2026-07-14", blocks: [{ t: "text", text: "Früh los." }] } });
+  assert.equal(erster.status, 201);
+  assert.equal(erster.data.neu, true);
+  const id = erster.data.id;
+
+  // Dasselbe (Reise, Tag) noch einmal: überschreibt den Eintrag, legt keinen zweiten an.
+  const zweiter = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "2026-07-14", blocks: [{ t: "text", text: "Früh los und Kaffee." }] } });
+  assert.equal(zweiter.status, 200);
+  assert.equal(zweiter.data.neu, false);
+  assert.equal(zweiter.data.id, id);
+
+  const liste = await api(env, "GET", "/api/tagebuch", { cookie });
+  assert.equal(liste.data.length, 1);
+  assert.equal(liste.data[0].author, "dirk");
+  assert.deepEqual(JSON.parse(liste.data[0].blocks), [{ t: "text", text: "Früh los und Kaffee." }]);
+
+  // Foto an den Eintrag hängen.
+  const bild = new File([new Uint8Array([1, 2, 3, 4])], "foto.jpg", { type: "image/jpeg" });
+  const form = new FormData();
+  form.set("file", bild);
+  form.set("tagebuch_id", id);
+  const hoch = await apiFormData(env, "POST", "/api/photos", { cookie, body: form });
+  assert.equal(hoch.status, 201);
+  const unbekannt = new FormData();
+  unbekannt.set("file", bild);
+  unbekannt.set("tagebuch_id", "nicht-da");
+  assert.equal((await apiFormData(env, "POST", "/api/photos", { cookie, body: unbekannt })).status, 404);
+
+  const fotos = await api(env, "GET", "/api/photos", { cookie });
+  assert.equal(fotos.data.length, 1);
+  assert.equal(fotos.data[0].tagebuch_id, id);
+  assert.equal(speicher.objekte.size, 1);
+
+  // Eintrag löschen nimmt seine Fotos samt Bilddatei mit.
+  const weg = await api(env, "DELETE", `/api/tagebuch/${id}`, { cookie });
+  assert.equal(weg.status, 200);
+  assert.deepEqual((await api(env, "GET", "/api/tagebuch", { cookie })).data, []);
+  assert.deepEqual((await api(env, "GET", "/api/photos", { cookie })).data, []);
+  assert.equal(speicher.objekte.size, 0);
+});
+
+test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur zur freigegebenen Reise", async (t) => {
+  const env = makeEnv({ PHOTOS: fotoSpeicher() });
+  t.after(() => env.DB.close());
+  const verwalter = { "cf-connecting-ip": "203.0.113.42" };
+  const cookie = await setupAndLogin(env, "dirk", "langgenug1", verwalter);
+  const api = (e, m, p, o = {}) => apiBasis(e, m, p, { ...o, headers: { ...verwalter, ...(o.headers || {}) } });
+  const apiFormData = (e, m, p, o = {}) => formBasis(e, m, p, { ...o, headers: verwalter });
+  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-x", name: "Freigegeben", start_at: "2026-07-12T06:00:00Z", end_at: "2026-07-20T06:00:00Z" } });
+  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-y", name: "Andere", start_at: "2026-08-01T06:00:00Z", end_at: "2026-08-05T06:00:00Z" } });
+  const eintragX = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-x", day_key: "2026-07-13", blocks: [{ t: "text", text: "Bei Oma." }] } });
+  const eintragY = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-y", day_key: "2026-08-02", blocks: [{ t: "text", text: "Geheim." }] } });
+  const form = new FormData();
+  form.set("file", new File([new Uint8Array([9, 9])], "f.jpg", { type: "image/jpeg" }));
+  form.set("tagebuch_id", eintragX.data.id);
+  // Aufnahmezeit weit außerhalb der Reise: das Foto gehört trotzdem über seinen Eintrag dazu.
+  form.set("taken_at", "2020-01-01T10:00:00Z");
+  const foto = await apiFormData(env, "POST", "/api/photos", { cookie, body: form });
+  assert.equal(foto.status, 201);
+
+  const nurKarte = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-x", scope: "karte" } });
+  const mitLogbuch = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-x", scope: "karte_logbuch" } });
+  const ip = { "cf-connecting-ip": "203.0.113.77" };
+
+  const karte = await api(env, "GET", `/api/share/${nurKarte.data.token}`, { headers: ip });
+  assert.deepEqual(karte.data.tagebuch, [], "ohne Logbuch-Umfang kein Tagebuch");
+
+  const logbuch = await api(env, "GET", `/api/share/${mitLogbuch.data.token}`, { headers: ip });
+  assert.equal(logbuch.data.tagebuch.length, 1);
+  assert.equal(logbuch.data.tagebuch[0].id, eintragX.data.id);
+  assert.equal(logbuch.data.photos.length, 1);
+  assert.equal(logbuch.data.photos[0].tagebuch_id, eintragX.data.id);
+  assert.ok(!logbuch.data.tagebuch.some((e) => e.id === eintragY.data.id), "Eintrag einer anderen Reise bleibt privat");
+
+  const ausgeliefert = await handle(new Request(`https://vojago.test/api/share/${mitLogbuch.data.token}/photos/${foto.data.id}`, { headers: ip }), env);
+  assert.equal(ausgeliefert.status, 200);
+  const nurKarteFoto = await handle(new Request(`https://vojago.test/api/share/${nurKarte.data.token}/photos/${foto.data.id}`, { headers: ip }), env);
+  assert.equal(nurKarteFoto.status, 403);
+});
+
+test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id wird einmalig nachgerüstet", async (t) => {
+  const env = makeEnv({ PHOTOS: fotoSpeicher() });
+  t.after(() => env.DB.close());
+  const ip = { "cf-connecting-ip": "203.0.113.43" };
+  const cookie = await setupAndLogin(env, "dirk", "langgenug1", ip);
+  const a = (m, p, o = {}) => apiBasis(env, m, p, { ...o, headers: ip });
+  await a("POST", "/api/trips", { cookie, body: { id: "reise-alt", name: "Alt", start_at: "2026-07-12T06:00:00Z" } });
+  await a("POST", "/api/besuche", { cookie, body: { id: "besuch-alt", title: "Platz", lat: 50, lon: 8 } });
+
+  // Zustand vor dem Update nachbauen: photos ohne tagebuch_id, keine Tagebuch-Tabelle, ein vorhandenes Foto.
+  env.DB.db.exec("PRAGMA foreign_keys = OFF");
+  env.DB.db.exec("DROP TABLE photos; DROP TABLE tagebuch;");
+  env.DB.db.exec(`CREATE TABLE photos (
+    id TEXT PRIMARY KEY, besuch_id TEXT REFERENCES besuche(id) ON DELETE CASCADE,
+    note_id TEXT REFERENCES notes(id) ON DELETE CASCADE, r2_key TEXT NOT NULL, taken_at TEXT,
+    lat REAL, lon REAL, width INTEGER, height INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  env.DB.db.exec("INSERT INTO photos (id, besuch_id, r2_key) VALUES ('altes-foto', 'besuch-alt', 'fotos/altes-foto.jpg')");
+  env.DB.db.exec("PRAGMA foreign_keys = ON");
+
+  // Der erste Zugriff auf das Tagebuch rüstet nach — das alte Foto bleibt erhalten.
+  const liste = await a("GET", "/api/tagebuch", { cookie });
+  assert.equal(liste.status, 200);
+  assert.deepEqual(liste.data, []);
+  const fotos = await a("GET", "/api/photos", { cookie });
+  assert.equal(fotos.data.length, 1);
+  assert.equal(fotos.data[0].id, "altes-foto");
+  assert.equal(fotos.data[0].tagebuch_id, null);
+
+  const eintrag = await a("PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-alt", day_key: "2026-07-13", blocks: [] } });
+  assert.equal(eintrag.status, 201);
+  // Zweiter Aufruf der Nachrüstung ist harmlos (idempotent).
+  assert.equal((await a("GET", "/api/tagebuch", { cookie })).data.length, 1);
 });

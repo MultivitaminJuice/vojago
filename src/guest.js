@@ -8,7 +8,7 @@
 // /api/share/...) — hier geht es nur darum, dieselben Render-Funktionen
 // (renderTrips, renderJournal, die Karte) unverändert weiterzuverwenden.
 import { state, emit } from "./state.js";
-import { toTrip, toPlace, toNote, toPhoto, standardReise, positionsToPath, tagesKilometer } from "./dataload.js";
+import { toTrip, toPlace, toNote, toPhoto, toTagebuch, standardReise, positionsToPath, tagesKilometer } from "./dataload.js";
 import { pathLengthKm, elevationRange } from "./geo.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { fetchShare, fetchShareRoute, fetchSharePositions, fetchShareDrives } from "./api.js";
@@ -24,6 +24,7 @@ export async function starteGastAnsicht(token) {
   state.places = (antwort.places || []).map(toPlace);
   state.notes = (antwort.notes || []).map(toNote);
   state.photos = (antwort.photos || []).map(toPhoto);
+  state.tagebuch = (antwort.tagebuch || []).map(toTagebuch);
   if (antwort.categories?.length) {
     state.categories = Object.fromEntries(antwort.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
   }

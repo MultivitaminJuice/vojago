@@ -4,11 +4,12 @@
 // Angaben stehen eine Ebene tiefer unter "Details".
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { ICON } from "../icons.js";
-import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip } from "../state.js";
+import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip, tagebuchFotos } from "../state.js";
 import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js";
 import { speichereOrt, wetterZeile } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
 import { tageDerReise, routenGeometrie } from "../journal-days.js";
+import { ohneFoto, titelbildId, geschriebenText } from "../tagebuch.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
 
@@ -89,12 +90,14 @@ function fotoStreifen(fotos) {
 
 let openPlace = () => {};
 let openNote = () => {};
+let openTag = () => {};
 let logFilters = new Set(["night", "place", "note"]);
 const spurAnfrage = new Map();
 
-export function initJournal({ onPlaceClick, onNoteClick }) {
+export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
   openPlace = onPlaceClick;
   openNote = onNoteClick;
+  openTag = onTagClick || (() => {});
 
   $$("#log-filter button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -240,9 +243,10 @@ function verlaufBlock(tag, offen) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
-function gedankenstuetze(tag, hatErzaehlung) {
-  const zeichnung = routenZeichnung(tag);
-  const wetter = tag.wetter;
+function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false) {
+  // Ist der Tag erzählt, gehören Route und Wetter in den Kopf der Erzählung — hier bleibt nur der Verlauf.
+  const zeichnung = nurVerlauf ? null : routenZeichnung(tag);
+  const wetter = nurVerlauf ? null : tag.wetter;
   const verlauf = verlaufBlock(tag, !hatErzaehlung);
   if (!zeichnung && !wetter && !verlauf) return null;
   return el("div.jt-karte", {}, [
@@ -365,12 +369,71 @@ function notizZitat(note) {
   ]);
 }
 
-function tagKapitel(tag) {
+/** Lightbox-Beschriftung zu einem Tagebuch-Foto: Tag und Anfang des Textes. */
+function tagebuchCaption(eintrag, tag) {
+  const erster = eintrag.blocks.find((b) => b.t === "text" && b.text.trim());
+  return el("div", {}, [
+    el("div.j-head", {}, [el("b", { text: `Tag ${tag.nummer} · ${dayLabel(tag.key)}` })]),
+    erster ? el("p", { text: erster.text.length > 160 ? `${erster.text.slice(0, 159).trim()}…` : erster.text }) : null,
+  ]);
+}
+
+function titelbild(foto, info) {
+  photoSlideIndex.set(foto.id, tripSlides.length);
+  tripSlides.push({ url: bildUrl(foto.id), info });
+  return el("figure.jt-titel", {}, [el("img", {
+    src: bildUrl(foto.id), alt: "", loading: "lazy",
+    on: { click: () => zeigeFoto(tripSlides, photoSlideIndex.get(foto.id) ?? 0) },
+  })]);
+}
+
+/** Der erzählte Tag: Titelbild, Autorenzeile mit Wetter, dann Absätze und Fotos in der Reihenfolge des Textes. */
+function tagebuchBlock(eintrag, tag) {
+  const fotos = new Map(tagebuchFotos(eintrag.id).map((f) => [f.id, f]));
+  const info = tagebuchCaption(eintrag, tag);
+  const coverId = titelbildId(eintrag.blocks.filter((b) => b.t !== "fotos" || b.ids.some((id) => fotos.has(id)))
+    .map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((id) => fotos.has(id)) } : b)));
+  const cover = coverId ? fotos.get(coverId) : null;
+  const rest = ohneFoto(eintrag.blocks, cover?.id);
+  const autor = eintrag.author || "";
+  const wann = geschriebenText(tag.key, eintrag.createdAt);
+  const wetter = tag.wetter ? [tag.wetter.symbol, tag.wetter.temp].filter(Boolean).join(" ") : "";
+  return el("div.jt-erzaehlt", {}, [
+    cover ? titelbild(cover, info) : null,
+    el("div.jt-autor", {}, [
+      autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
+      el("span", { text: [autor, wann].filter(Boolean).join(" · ") }),
+      wetter ? el("span.jt-autor-wetter", { text: wetter }) : null,
+    ]),
+    ...rest.map((b) => {
+      if (b.t === "text") return el("p.jt-text", { text: b.text });
+      return fotoCollage(b.ids.map((id) => fotos.get(id)).filter(Boolean), info);
+    }),
+    state.gast ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
+  ]);
+}
+
+/** Einladung für einen Tag ohne Eintrag. */
+function einladung(tag, t) {
+  if (state.gast || isRangeTrip(t)) return null;
+  const heute = localDayKey(new Date().toISOString());
+  const gestern = localDayKey(new Date(Date.now() - 86400000).toISOString());
+  const hinweis = tag.key === heute ? "Der heutige Tag wartet auf den Abend."
+    : tag.key === gestern ? "Gestern fehlt noch ein Eintrag."
+      : "Dazu gibt es noch keinen Eintrag.";
+  return el("div.jt-einladung", {}, [
+    el("b", { text: `Wie war Tag ${tag.nummer}?` }),
+    el("div.jt-leise", { text: hinweis }),
+    el("button.jt-btn", { type: "button", text: "Tag erzählen", on: { click: () => openTag({ tripId: t.id, dayKey: tag.key }) } }),
+  ]);
+}
+
+function tagKapitel(tag, t, eintrag) {
   const sichtbar = tag.eintraege.filter(matchesLogFilter);
   const karten = sichtbar.filter((e) => e.kind === "night-continuation"
     || (e.kind === "place" && (e.data.catId === "uebernachtung" || istStation(e.data))));
   const notizen = sichtbar.filter((e) => e.kind === "note");
-  const hatErzaehlung = tag.notizen.length > 0;
+  const hatErzaehlung = Boolean(eintrag) || tag.notizen.length > 0;
   const folgeNur = tag.eintraege.some((e) => e.kind === "night-continuation") && !tag.km;
   const zeile = tag.km
     ? (tag.von && tag.nach ? `${kmText(tag.km)} km von ${tag.von} nach ${tag.nach}` : `${kmText(tag.km)} km`)
@@ -381,7 +444,9 @@ function tagKapitel(tag) {
       el("div", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
       zeile ? el("div.jt-zeile", { text: zeile }) : null,
     ]),
-    gedankenstuetze(tag, hatErzaehlung),
+    eintrag ? tagebuchBlock(eintrag, tag) : null,
+    gedankenstuetze(tag, hatErzaehlung, Boolean(eintrag)),
+    eintrag ? null : einladung(tag, t),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
   ]);
 }
@@ -415,7 +480,8 @@ export function renderJournal() {
     ensureTripPath(t, { silent: true });
   }
   const fahrten = state.drives.filter((d) => d.tripId === t.id);
-  const tage = tageDerReise({ startIso: tripStartIso(t), eintraege: allEntries, fahrten, path: t.path || [] });
+  const tagebuch = new Map(state.tagebuch.filter((e) => e.tripId === t.id).map((e) => [e.dayKey, e]));
+  const tage = tageDerReise({ startIso: tripStartIso(t), eintraege: allEntries, fahrten, path: t.path || [], zusatzTage: [...tagebuch.keys()] });
 
   if (!tage.length) {
     render(container, el("div.callout", {
@@ -441,5 +507,5 @@ export function renderJournal() {
       ansicht.scrollTo({ top: Math.max(0, oben), behavior: "smooth" });
     } } })
     : null;
-  render(container, [sprung, ...tage.map(tagKapitel)]);
+  render(container, [sprung, ...tage.map((tag) => tagKapitel(tag, t, tagebuch.get(tag.key)))]);
 }

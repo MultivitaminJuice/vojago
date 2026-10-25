@@ -93,19 +93,26 @@ export const updatePlace = (id, patch) => request(`/api/besuche/${id}`, { method
 export const deletePlace = (id) => request(`/api/besuche/${id}`, { method: "DELETE" });
 
 export const listNotes = () => request("/api/notes");
+
+/* ---------- Tagebuch: ein Eintrag je Reise und Kalendertag ---------- */
+export const listTagebuch = () => request("/api/tagebuch");
+/** Legt den Eintrag an bzw. überschreibt ihn (je Reise und Tag genau einer): { id, neu }. */
+export const saveTagebuch = (eintrag) => request("/api/tagebuch", { method: "PUT", body: JSON.stringify(eintrag) });
+export const deleteTagebuch = (id) => request(`/api/tagebuch/${id}`, { method: "DELETE" });
 export const createNote = (note) => request("/api/notes", { method: "POST", body: JSON.stringify(note) });
 export const updateNote = (id, patch) => request(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 export const deleteNote = (id) => request(`/api/notes/${id}`, { method: "DELETE" });
 
 /* ---------- Fotos ---------- */
 export const listPhotos = () => request("/api/photos");
-/** `meta`: { besuchId | noteId, takenAt?, lat?, lon?, width?, height? } — die
+/** `meta`: { besuchId | noteId | tagebuchId, takenAt?, lat?, lon?, width?, height? } — die
  * Bilddatei kommt bereits clientseitig verkleinert an (siehe ui/photo.js). */
 export const uploadPhoto = (blob, meta = {}) => {
   const form = new FormData();
   form.set("file", blob, "foto.jpg");
   if (meta.besuchId) form.set("besuch_id", meta.besuchId);
   if (meta.noteId) form.set("note_id", meta.noteId);
+  if (meta.tagebuchId) form.set("tagebuch_id", meta.tagebuchId);
   if (meta.takenAt) form.set("taken_at", meta.takenAt);
   if (meta.lat != null) form.set("lat", String(meta.lat));
   if (meta.lon != null) form.set("lon", String(meta.lon));

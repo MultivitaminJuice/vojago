@@ -64,3 +64,9 @@ test("tageDerReise: Tage ohne jeden Inhalt entfallen, nummeriert wird nach Reise
   assert.deepEqual(tage.map((t) => t.key), ["2026-10-22"]);
   assert.equal(tage[0].nummer, 4);
 });
+
+test("tageDerReise: Zusatztage (z. B. mit Tagebucheintrag) bekommen auch ohne Daten ein Kapitel", () => {
+  const tage = tageDerReise({ startIso: "2026-10-19T08:00:00Z", eintraege: [], fahrten: [], path: [], zusatzTage: ["2026-10-21"] });
+  assert.deepEqual(tage.map((t) => [t.key, t.nummer, t.km]), [["2026-10-21", 3, 0]]);
+  assert.deepEqual(tage[0].verlauf, []);
+});
