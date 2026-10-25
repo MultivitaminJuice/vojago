@@ -871,7 +871,7 @@
   .tag-aktionen { display: flex; align-items: center; }
   .tag-weg { margin-left: auto; margin-right: 0; color: var(--ink-faint); font-weight: 600; }
   .tag-add { margin-right: 18px; border: 0; background: transparent; padding: 6px 0 14px; color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
-  .tag-leiste { position: sticky; bottom: -16px; z-index: 2; display: flex; align-items: center; margin: 0 -16px 8px; padding: 4px 16px 0; background: var(--app-bg); border-top: 1px solid var(--line); }
+  .tag-leiste { position: sticky; bottom: -16px; z-index: 2; display: flex; align-items: center; margin: 0 -16px 8px; padding: 4px max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left)); background: var(--app-bg); border-top: 1px solid var(--line); box-shadow: 0 -10px 14px var(--app-bg); }
   .tag-leiste .tag-add { padding: 12px 0; }
   .tag-fotos { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
   .tag-fotos .photo-thumb { width: 72px; }
