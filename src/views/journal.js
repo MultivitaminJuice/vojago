@@ -101,7 +101,7 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
   openNote = onNoteClick;
   openTag = onTagClick || (() => {});
 
-  $$("#log-anzeigen-menu [data-log-filter]").forEach((sw) => {
+  $$("#log-menue [data-log-filter]").forEach((sw) => {
     sw.addEventListener("click", () => {
       const key = sw.dataset.logFilter || "";
       if (!key) return;
@@ -111,9 +111,9 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
     });
   });
 
-  // "Anzeigen"-Zeile klappt das kleine Menü mit den drei Schaltern auf und zu.
-  const knopf = $("#log-anzeigen-btn");
-  const menue = $("#log-anzeigen-menu");
+  // Das "⋯"-Menü: Hinzufügen und Anzeige-Schalter in einer zweiten Ebene.
+  const knopf = $("#log-mehr-btn");
+  const menue = $("#log-menue");
   const schliessen = () => { menue?.classList.remove("open"); knopf?.setAttribute("aria-expanded", "false"); };
   knopf?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -121,6 +121,7 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
     menue.classList.toggle("open", offen);
     knopf.setAttribute("aria-expanded", String(offen));
   });
+  menue?.querySelector("#log-add")?.addEventListener("click", schliessen);
   document.addEventListener("click", (e) => {
     if (menue?.classList.contains("open") && !menue.contains(e.target) && !knopf.contains(e.target)) schliessen();
   });
@@ -188,15 +189,12 @@ function matchesLogFilter(entry) {
   return false;
 }
 
-const FILTER_NAMEN = { night: "Stellplätze", place: "Orte", note: "Notizen" };
-
 function renderLogFilterButtons() {
-  $$("#log-anzeigen-menu [data-log-filter]").forEach((sw) => {
+  $$("#log-menue [data-log-filter]").forEach((sw) => {
     sw.setAttribute("aria-checked", String(logFilters.has(sw.dataset.logFilter)));
   });
-  const aktiv = Object.keys(FILTER_NAMEN).filter((k) => logFilters.has(k));
-  const text = $("#log-anzeigen-text");
-  if (text) text.textContent = aktiv.length === 3 ? "Alles anzeigen" : aktiv.length ? `Zeigt: ${aktiv.map((k) => FILTER_NAMEN[k]).join(", ")}` : "Nichts ausgewählt";
+  // Ein Punkt am "⋯"-Knopf zeigt, dass etwas ausgeblendet ist.
+  $("#log-mehr-btn")?.classList.toggle("hat-filter", logFilters.size < 3);
 }
 
 /* ---------- Bausteine ---------- */
@@ -272,10 +270,10 @@ function kartenbild(tag) {
 }
 
 /** Verlauf des Tages: Start, Stopps, Übernachtung. Ohne Erzählung offen, sonst eine graue Zeile. */
-function verlaufBlock(tag, offen) {
+function verlaufBlock(tag, offen, km = 0) {
   if (!tag.verlauf.length) return null;
   const stopps = tag.verlauf.filter((v) => v.art === "stopp").length;
-  const kopf = stopps ? `Unterwegs · ${stopps} ${stopps === 1 ? "Stopp" : "Stopps"}` : "Verlauf";
+  const kopf = [stopps ? `Unterwegs · ${stopps} ${stopps === 1 ? "Stopp" : "Stopps"}` : "Verlauf", km ? `${kmText(km)} km` : ""].filter(Boolean).join(" · ");
   const zeile = (v) => el("div.jt-vz", {}, [
     el("span.jt-zeit", { text: timeLabel(v.zeit) }),
     el(`span.jt-vi${v.art === "nacht" ? ".jt-nacht" : ""}`, {}, icon(v.art === "nacht" ? ICON.moon : v.art === "start" ? ICON.play : ICON.pin, 14)),
@@ -284,17 +282,20 @@ function verlaufBlock(tag, offen) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
-function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false) {
-  // Ist der Tag erzählt, gehören Route und Wetter in den Kopf der Erzählung — hier bleibt nur der Verlauf.
+function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false, zeile = "") {
+  // Ist der Tag erzählt, gehören Route und Wetter in den Kopf der Erzählung — hier bleibt nur der Verlauf
+  // (mit den Kilometern in der grauen Zeile).
   const zeichnung = nurVerlauf ? null : kartenbild(tag);
   const wetter = nurVerlauf ? null : tag.wetter;
-  const verlauf = verlaufBlock(tag, !hatErzaehlung);
-  if (!zeichnung && !wetter && !verlauf) return null;
+  const verlauf = verlaufBlock(tag, !hatErzaehlung, nurVerlauf ? tag.km : 0);
+  const info = !nurVerlauf && (wetter || zeile);
+  if (!zeichnung && !info && !verlauf) return null;
   return el("div.jt-karte", {}, [
     zeichnung,
-    wetter ? el("div.jt-wetter", {}, [
-      el("span", { text: [wetter.symbol, wetter.temp].filter(Boolean).join(" ") }),
-      wetter.text ? el("span.jt-leise", { text: wetter.text }) : null,
+    info ? el("div.jt-wetter", {}, [
+      wetter ? el("span", { text: [wetter.symbol, wetter.temp].filter(Boolean).join(" ") }) : null,
+      wetter?.text ? el("span.jt-leise", { text: wetter.text }) : null,
+      zeile ? el("span.jt-leise.jt-strecke", { text: zeile }) : null,
     ]) : null,
     verlauf,
   ]);
@@ -481,12 +482,9 @@ function tagKapitel(tag, t, eintrag) {
     : folgeNur ? "Ruhetag am Stellplatz" : "";
   const inhalt = [...karten, ...notizen].sort((a, b) => String(a.at).localeCompare(String(b.at)));
   return el("section.jt-tag", { dataset: { tag: tag.key } }, [
-    el("header.jt-kopf", {}, [
-      el("div", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
-      zeile ? el("div.jt-zeile", { text: zeile }) : null,
-    ]),
+    el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
     eintrag ? tagebuchBlock(eintrag, tag) : null,
-    gedankenstuetze(tag, hatErzaehlung, Boolean(eintrag)),
+    gedankenstuetze(tag, hatErzaehlung, Boolean(eintrag), zeile),
     eintrag ? null : einladung(tag, t),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
   ]);

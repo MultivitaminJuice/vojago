@@ -155,16 +155,14 @@
             <div class="log-sticky">
               <div class="trip-context-bar in-flow">
                 <button class="trip-context-card" id="trip-context-logbuch" aria-label="Reise auswählen"></button>
+                <button class="map-context-toggle log-mehr" id="log-mehr-btn" type="button" aria-label="Logbuch-Menü" aria-expanded="false" aria-controls="log-menue">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                </button>
               </div>
-              <div class="log-create">
-                <div class="log-toolbar">
-                  <button class="log-anzeigen" id="log-anzeigen-btn" type="button" aria-expanded="false" aria-controls="log-anzeigen-menu">
-                    <span id="log-anzeigen-text">Alles anzeigen</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-                  </button>
-                  <button class="quick-add" id="log-add" aria-label="Eintrag hinzufügen">＋</button>
-                </div>
-                <div class="menu-card log-anzeigen-menu" id="log-anzeigen-menu" role="group" aria-label="Einträge filtern">
+              <div class="menu-card log-menue" id="log-menue" role="menu">
+                <button class="cm-row" id="log-add" type="button"><span class="lm-l">Eintrag hinzufügen …</span></button>
+                <div class="cm-head">Anzeigen</div>
+                <div role="group" aria-label="Einträge filtern">
                   <div class="lm-row"><span class="lm-l">Stellplätze</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Stellplätze anzeigen" data-log-filter="night"></button></div>
                   <div class="lm-row"><span class="lm-l">Orte</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Orte anzeigen" data-log-filter="place"></button></div>
                   <div class="lm-row"><span class="lm-l">Notizen</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Notizen anzeigen" data-log-filter="note"></button></div>

@@ -35,8 +35,8 @@ test("App-Smoke: Hauptbereiche laden ohne Konsolenfehler", async ({ page }) => {
   await expect(page.getByLabel("Karte", { exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "Logbuch" }).click();
-  // Die Filter stecken hinter der leisen "Anzeigen"-Zeile.
-  await page.getByRole("button", { name: /anzeigen/i }).first().click();
+  // Die Anzeige-Schalter stecken im "⋯"-Menü der festen Kopfzeile.
+  await page.getByRole("button", { name: "Logbuch-Menü" }).click();
   await expect(page.getByRole("group", { name: "Einträge filtern" })).toBeVisible();
 
   await page.getByRole("tab", { name: "Mehr" }).click();

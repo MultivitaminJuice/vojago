@@ -331,13 +331,13 @@
   .log-create { position: relative; }
   /* Reisekarte und "Anzeigen"-Zeile bleiben beim Scrollen im Logbuch oben stehen */
   .log-sticky { position: sticky; top: 0; z-index: 8; margin: -14px -14px 12px; padding: 14px 14px 8px; background: var(--app-bg); border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-  .log-sticky .trip-context-bar.in-flow { margin: 0 0 8px; }
-  .log-sticky .log-toolbar { height: 40px; margin: 0; grid-template-columns: minmax(0, 1fr) 40px; }
-  .log-sticky .quick-add { width: 40px; height: 40px; border-radius: 12px; }
-  .log-anzeigen { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink-soft); font: inherit; font-size: var(--fs-small); text-align: left; cursor: pointer; }
-  .log-anzeigen span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .log-anzeigen svg { width: 16px; height: 16px; flex: none; }
-  .log-anzeigen-menu { left: 0; right: auto; top: 46px; min-width: 240px; }
+  .log-sticky .trip-context-bar.in-flow { margin: 0; }
+  .log-mehr { position: relative; }
+  .log-mehr svg { width: 20px; height: 20px; }
+  .log-mehr.hat-filter::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .log-menue { right: 14px; left: auto; top: 66px; min-width: 250px; }
+  .log-menue .cm-row { width: 100%; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-small); text-align: left; }
+  .log-menue .cm-head { margin-top: 4px; }
   #current-trip { display: none !important; }
   .trip-picker { position: absolute; inset: 0; z-index: 65; display: grid; align-items: end; background: rgba(0,0,0,.34); padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   .trip-picker[hidden] { display: none; }
@@ -757,9 +757,8 @@
   .j-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   /* Logbuch: Tage als Kapitel (journal.js) */
   .jt-sprung { display: block; width: 100%; margin: 0 0 12px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
-  .jt-tag { margin: 0; }
-  .jt-tag + .jt-tag { margin-top: 34px; padding-top: 28px; border-top: 1px solid color-mix(in srgb, var(--ink-faint) 38%, var(--line)); }
-  .jt-kopf { margin: 0 0 12px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+  .jt-tag { margin: 0 0 18px; padding: 0 12px 2px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 18px; background: color-mix(in srgb, var(--accent) 6%, var(--app-bg)); overflow: hidden; }
+  .jt-kopf { margin: 0 -12px 12px; padding: 12px 14px; border-bottom: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); background: color-mix(in srgb, var(--accent) 13%, var(--app-bg)); }
   .jt-num { display: inline-block; margin-right: 8px; color: var(--accent); font-size: var(--fs-small); font-weight: 800; }
   .jt-kopf h3 { display: inline; margin: 0; font-size: var(--fs-title); letter-spacing: -.01em; }
   .jt-zeile { margin-top: 3px; color: var(--ink-soft); font-size: var(--fs-small); }
@@ -776,7 +775,8 @@
     :root:not([data-theme="light"]) .jt-kachel { filter: brightness(.5) contrast(1.25) saturate(1.3); }
     :root:not([data-theme="light"]) .jt-kachel-dezent { filter: brightness(.5) contrast(1.25) saturate(.8); }
   }
-  .jt-wetter { display: flex; align-items: baseline; gap: 10px; font-size: var(--fs-small); }
+  .jt-wetter { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-small); }
+  .jt-strecke { margin-left: auto; }
   .jt-leise { color: var(--ink-faint); font-size: var(--fs-small); }
   .jt-verlauf { margin-top: 8px; border-top: 1px solid var(--line); }
   .jt-karte > .jt-verlauf:first-child { margin-top: 0; border-top: 0; }
