@@ -929,17 +929,17 @@ subscribe((topic) => {
   if (topic === "mapTrip") { renderTripContexts(); renderMapFocusBar(); renderTrips(); renderJournal(); renderLogbookPlacesIfOpen(); }
   if (topic === "metric") renderMetricButtons();
   if (topic === "metric" || topic === "mapTrip") mapview.draw({ fit: topic === "mapTrip" });
-  if (topic === "trips") { renderTripContexts(); renderMetricButtons(); renderLayerSwitches(); mapview.draw({ fit: true }); buildFilterOptions(); }
+  if (topic === "trips") { renderTripContexts(); renderMetricButtons(); renderLayerSwitches(); mapview.draw({ fit: true }); buildFilterOptions(); renderJournal(); }
   // Die Spur der laufenden Reise wächst im Hintergrund nach (siehe Intervall
   // unten) — anders als bei "trips" hier ohne Neueinpassen, sonst würde die
   // Karte alle paar Minuten unter der Hand wegspringen.
-  if (topic === "tripPath") { renderTripContexts({ pulse: true }); renderMapFocusBar(); mapview.draw(); renderTrips(); detailNeuZeichnen(); }
+  if (topic === "tripPath") { renderTripContexts({ pulse: true }); renderMapFocusBar(); mapview.draw(); renderTrips(); detailNeuZeichnen(); renderJournal(); }
   if (topic === "places") { renderLogbookPlacesIfOpen(); renderTrips(); }
   if (topic === "places" || topic === "notes") { mapview.draw(); renderJournal(); }
   // renderTripContexts() auch hier: die Live-LED prüft bei jedem neuen
   // Positionsabruf erneut, ob die Wache-Zone gerade verlassen wurde.
   if (topic === "livePosition") { renderStatusPill(); mapview.draw(); renderTripContexts(); renderGuardInfo(); }
-  if (topic === "drives") { renderTrips(); mapview.draw(); }
+  if (topic === "drives") { renderTrips(); mapview.draw(); renderJournal(); }
   if (topic === "routeDriveFilter") { renderTrips(); renderTripContexts(); mapview.draw({ fit: true }); }
   if (topic === "vehicles") renderVehicleLine();
   if (topic === "config") renderStatusPill();

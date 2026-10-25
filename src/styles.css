@@ -286,7 +286,8 @@
   .route-filter[hidden] { display: none; }
   .log-filter { height: 48px; grid-template-columns: minmax(0, 1.75fr) minmax(0, .75fr) minmax(0, .95fr); margin: 0; min-width: 0; }
   .segment-tabs button, .log-filter button { min-width: 0; min-height: 36px; border: 0; border-radius: 9px; padding: 0 5px; background: transparent; color: var(--ink-soft); font: inherit; font-size: var(--fs-small); font-weight: 800; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .segment-tabs button[aria-pressed="true"], .log-filter button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .segment-tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .log-filter button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
   .quick-add { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--accent); font: inherit; font-size: 22px; font-weight: 800; cursor: pointer; flex: none; }
   .quick-add svg { width: 18px; height: 18px; }
   .route-filter-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
@@ -732,47 +733,76 @@
   .vehline { cursor: pointer; }
 
   /* ---------- Reisetagebuch (N4) ---------- */
-  .j-day { margin-bottom: 22px; }
-  .j-day > summary { list-style: none; cursor: pointer; }
-  .j-day > summary::-webkit-details-marker { display: none; }
-  .j-day-head { display: flex; align-items: baseline; gap: 6px; margin: 0 0 10px; padding: 0 14px 7px; border-bottom: 1px solid var(--line); }
-  .j-day-head::after { content: "▾"; color: var(--ink-faint); font-size: 11px; transition: transform .18s; }
-  .j-day:not([open]) .j-day-head::after { transform: rotate(-90deg); }
-  .j-day-num { font-size: var(--fs-small); font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--accent); background: transparent; padding: 0; border-radius: 0; flex: none; }
-  .j-day-num::after { content: "–"; margin-left: 6px; color: var(--ink-soft); font-weight: 500; }
-  .j-day-head h3 { margin: 0; font-size: var(--fs-small); letter-spacing: -.01em; flex: 1; }
-  .j-day-count { font-size: var(--fs-small); color: var(--ink-faint); font-family: var(--font-mono); }
 
-  .j-list { display: flex; flex-direction: column; }
-  .j-entry { position: relative; display: block; cursor: pointer; }
-  .j-system { cursor: default; }
-  .j-entry::before { content: ""; position: absolute; top: 0; bottom: -8px; left: 35px; z-index: 1; width: 2px; background: color-mix(in srgb, var(--ink-faint) 46%, var(--line)); }
-  .j-entry:last-child::before { bottom: 8px; }
-  .j-time { position: absolute; top: 17px; left: 11px; z-index: 2; width: 50px; border-radius: 999px; background: var(--surface);
     font-family: var(--font-mono); font-size: var(--fs-small); color: var(--ink-soft); padding: 1px 0; text-align: center; }
-  .j-time-empty { background: transparent; }
-  .j-card-note ~ .j-time, .j-note .j-time { background: var(--surface-2); }
-  .j-card { position: relative; display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
     padding: 11px 12px 11px 82px; margin-bottom: 8px; }
-  .j-card-note { background: var(--surface-2); }
-  .j-card-system { min-height: 0; background: color-mix(in srgb, var(--surface-2) 38%, transparent); border-style: dashed; border-color: color-mix(in srgb, var(--line) 58%, transparent); padding-top: 4px; padding-bottom: 4px; }
-  .j-system .j-time { background: color-mix(in srgb, var(--surface-2) 84%, var(--surface)); }
-  .j-system .j-time-empty { background: transparent; }
-  .j-body { flex: 1; min-width: 0; }
   .j-head { display: flex; align-items: baseline; gap: 8px; }
   .j-head b { min-width: 0; font-size: var(--fs-title); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .j-system .j-head b { font-size: var(--fs-small); font-weight: 650; color: var(--ink-soft); }
   .j-attrs { min-width: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: nowrap; }
   .j-cat, .j-attr { display: inline-flex; align-items: center; max-width: 100%; border-radius: 7px; padding: 2px 6px;
     background: var(--surface-2); font-size: var(--fs-caption); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .j-cat { letter-spacing: 0; font-weight: 750; }
   .j-attr { color: var(--ink-soft); font-weight: 650; }
   .j-auto { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); font-weight: 800; min-width: 22px; justify-content: center; }
-  .j-card-note .j-cat, .j-card-note .j-attr { background: var(--surface); }
   .j-cat-note { color: var(--ink-soft); }
-  .j-body p { margin: 5px 0 7px; font-size: var(--fs-small); color: var(--ink-soft); line-height: 1.45; }
-  .j-card-note .j-body p { color: var(--ink); font-style: italic; }
   .j-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  /* Logbuch: Tage als Kapitel (journal.js) */
+  .jt-sprung { display: block; width: 100%; margin: 0 0 12px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
+  .jt-tag { margin: 0 0 30px; }
+  .jt-kopf { margin: 0 2px 10px; }
+  .jt-num { display: inline-block; margin-right: 8px; color: var(--accent); font-size: var(--fs-small); font-weight: 800; }
+  .jt-kopf h3 { display: inline; margin: 0; font-size: var(--fs-title); letter-spacing: -.01em; }
+  .jt-zeile { margin-top: 3px; color: var(--ink-soft); font-size: var(--fs-small); }
+  .jt-karte, .jt-platz { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin: 0 0 10px; }
+  .jt-route { display: block; width: 100%; height: 64px; margin: 0 0 6px; }
+  .jt-wetter { display: flex; align-items: baseline; gap: 10px; font-size: var(--fs-small); }
+  .jt-leise { color: var(--ink-faint); font-size: var(--fs-small); }
+  .jt-verlauf { margin-top: 8px; border-top: 1px solid var(--line); }
+  .jt-verlauf > summary { list-style: none; cursor: pointer; padding: 9px 0 4px; color: var(--ink-soft); font-size: var(--fs-small); }
+  .jt-verlauf > summary::-webkit-details-marker { display: none; }
+  .jt-verlauf > summary::after { content: " ▾"; font-size: 11px; color: var(--ink-faint); }
+  .jt-verlauf:not([open]) > summary::after { content: " ▸"; }
+  .jt-vz { display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); align-items: center; gap: 6px; padding: 5px 0; font-size: var(--fs-small); }
+  .jt-vz span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jt-zeit { color: var(--ink-faint); font-family: var(--font-mono); font-size: 12px; }
+  .jt-vi { display: inline-flex; color: var(--ink-faint); }
+  .jt-vi svg, .jt-ikon svg { width: 14px; height: 14px; }
+  .jt-nacht { color: var(--accent); }
+  .jt-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; }
+  .jt-ph b { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-title); font-weight: 650; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jt-ikon { display: inline-flex; flex: none; color: var(--ink-soft); }
+  .jt-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-small); }
+  .jt-anm { margin-top: 8px; }
+  .jt-anm-text { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: 1.5; white-space: pre-wrap; }
+  .jt-gekuerzt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .jt-mehrlink, .jt-anm-leer { border: 0; background: transparent; padding: 3px 0; color: var(--ink-faint); font: inherit; font-size: var(--fs-small); cursor: pointer; text-align: left; }
+  .jt-mehrlink { color: var(--accent); font-weight: 700; }
+  .jt-anm-feld { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: var(--fs-body); resize: vertical; }
+  .jt-anm-knoepfe { display: flex; gap: 8px; margin-top: 8px; }
+  .jt-btn { border: 1px solid var(--accent); border-radius: 10px; background: transparent; color: var(--accent); padding: 7px 14px; font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
+  .jt-btn-leise { border-color: var(--line); color: var(--ink-soft); }
+  .jt-btn:disabled { opacity: .5; }
+  .jt-fotos { position: relative; display: grid; gap: 4px; margin: 10px 0 0; border-radius: 12px; overflow: hidden; }
+  .jt-fotos img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface-2); cursor: zoom-in; }
+  .jt-fotos-1 { grid-template-columns: 1fr; aspect-ratio: 16 / 10; }
+  .jt-fotos-2 { grid-template-columns: 1fr 1fr; aspect-ratio: 2 / 1; }
+  .jt-fotos-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 3 / 2; }
+  .jt-fotos-3 img:first-child { grid-row: span 2; }
+  .jt-mehr { position: absolute; right: 8px; bottom: 8px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--app-bg) 82%, transparent); color: var(--ink); font-size: var(--fs-small); font-weight: 700; }
+  .jt-details { margin-top: 10px; border-top: 1px solid var(--line); }
+  .jt-details > summary { list-style: none; cursor: pointer; padding: 9px 0 4px; color: var(--accent); font-size: var(--fs-small); font-weight: 700; }
+  .jt-details > summary::-webkit-details-marker { display: none; }
+  .jt-details > summary::after { content: " ▾"; font-size: 11px; }
+  .jt-details:not([open]) > summary::after { content: " ▸"; }
+  .jt-details .jt-btn { margin-top: 10px; }
+  .jt-kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: var(--fs-small); }
+  .jt-kv span { color: var(--ink-soft); }
+  .jt-kv em { font-style: normal; font-family: var(--font-mono); font-size: 12px; text-align: right; }
+  .jt-folge { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; color: var(--ink-faint); font-size: var(--fs-small); }
+  .jt-folge span:first-child { display: inline-flex; color: var(--accent); }
+  .jt-notiz { margin: 0 2px 14px; padding: 2px 0 2px 12px; border-left: 3px solid var(--accent); cursor: pointer; }
+  .jt-notiz b { display: block; font-size: var(--fs-small); color: var(--ink-soft); }
+  .jt-notiz p { margin: 3px 0 0; color: var(--ink); font-size: var(--fs-body); line-height: 1.55; font-style: italic; white-space: pre-wrap; }
   .j-photos { display: flex; gap: 6px; overflow-x: auto; margin: 2px 0 7px; scrollbar-width: none; }
   .j-photos::-webkit-scrollbar { display: none; }
   .j-photos img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex: none; border: 1px solid var(--line); }
