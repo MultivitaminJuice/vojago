@@ -11,7 +11,7 @@ import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
 import { kartenAnsicht, kachelAdresse, routenPfad } from "../mini-karte.js";
 import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
-import { ohneFoto, titelbildId, geschriebenText } from "../tagebuch.js";
+import { ohneFoto, titelbildId } from "../tagebuch.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
 
@@ -282,11 +282,11 @@ function verlaufBlock(tag, offen, km = 0) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
-// Eingeklappte Strecken und Stellplatz-/Orts-Karten werden auf dem Gerät gemerkt.
-const KARTE_ZU_KEY = "vojago.logbuch.karteZu";
-const PLATZ_ZU_KEY = "vojago.logbuch.platzZu";
-const ladeZu = (key = KARTE_ZU_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
-const speichereZu = (menge, key = KARTE_ZU_KEY) => { try { localStorage.setItem(key, JSON.stringify([...menge].slice(-600))); } catch { /* Speicher blockiert */ } };
+// Standardmäßig sind Strecke und Stellplatz-/Orts-Karten zu; aufgeklappte merkt sich das Gerät.
+const KARTE_OFFEN_KEY = "vojago.logbuch.karteOffen";
+const PLATZ_OFFEN_KEY = "vojago.logbuch.platzOffen";
+const ladeOffen = (key = KARTE_OFFEN_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+const speichereOffen = (menge, key = KARTE_OFFEN_KEY) => { try { localStorage.setItem(key, JSON.stringify([...menge].slice(-600))); } catch { /* Speicher blockiert */ } };
 
 /**
  * Strecke des Tages: Karte, Wetter, Kilometer und Verlauf. Bleibt auch bei einem
@@ -300,7 +300,7 @@ function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
   if (!zeichnung && !info && !verlauf) return null;
   const kurz = [wetter ? [wetter.symbol, wetter.temp].filter(Boolean).join(" ") : "", tag.km ? `${kmText(tag.km)} km` : ""].filter(Boolean).join(" · ");
   const schluessel = `${tripId}|${tag.key}`;
-  const karte = el("details.jt-karte", { open: !ladeZu().has(schluessel) }, [
+  const karte = el("details.jt-karte", { open: ladeOffen().has(schluessel) }, [
     el("summary.jt-karte-kopf", {}, [
       el("span", { text: zeichnung ? "Strecke" : "Verlauf" }),
       kurz ? el("span.jt-leise.jt-karte-kurz", { text: kurz }) : null,
@@ -314,9 +314,9 @@ function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
     verlauf,
   ]);
   karte.addEventListener("toggle", () => {
-    const zu = ladeZu();
-    if (karte.open) zu.delete(schluessel); else zu.add(schluessel);
-    speichereZu(zu);
+    const offen = ladeOffen();
+    if (karte.open) offen.add(schluessel); else offen.delete(schluessel);
+    speichereOffen(offen);
   });
   return karte;
 }
@@ -399,7 +399,7 @@ function platzKarte(entry) {
     el("span.jt-leise", { text: nacht ? (place.nights > 1 ? `${place.nights} Nächte` : "1 Nacht") : timeLabel(place.at) }),
   ]);
   const meta = [stars(place.stars), besuchsText(place)].filter(Boolean);
-  const karte = el(`details.jt-platz${nacht ? ".jt-stellplatz" : ""}`, { open: !ladeZu(PLATZ_ZU_KEY).has(place.id) }, [
+  const karte = el(`details.jt-platz${nacht ? ".jt-stellplatz" : ""}`, { open: ladeOffen(PLATZ_OFFEN_KEY).has(place.id) }, [
     kopf,
     meta.length ? el("div.jt-meta", {}, meta.map((m) => el("span", { text: m, style: m.startsWith("★") ? { color: "var(--accent)" } : {} }))) : null,
     anmerkung(place),
@@ -409,9 +409,9 @@ function platzKarte(entry) {
   karte.addEventListener("toggle", (e) => {
     // Nur das Ein-/Ausklappen der Karte selbst, nicht das der "Details" darin.
     if (e.target !== karte) return;
-    const zu = ladeZu(PLATZ_ZU_KEY);
-    if (karte.open) zu.delete(place.id); else zu.add(place.id);
-    speichereZu(zu, PLATZ_ZU_KEY);
+    const offen = ladeOffen(PLATZ_OFFEN_KEY);
+    if (karte.open) offen.add(place.id); else offen.delete(place.id);
+    speichereOffen(offen, PLATZ_OFFEN_KEY);
   });
   return karte;
 }
@@ -455,7 +455,7 @@ function titelbild(foto, info) {
   })]);
 }
 
-/** Der erzählte Tag: Titelbild, Autorenzeile mit Wetter, dann Absätze und Fotos in der Reihenfolge des Textes. */
+/** Der erzählte Tag: Titelbild, dann Absätze und Fotos in der Reihenfolge des Textes, am Ende der Autor. */
 function tagebuchBlock(eintrag, tag) {
   const fotos = new Map(tagebuchFotos(eintrag.id).map((f) => [f.id, f]));
   const info = tagebuchCaption(eintrag, tag);
@@ -464,17 +464,16 @@ function tagebuchBlock(eintrag, tag) {
   const cover = coverId ? fotos.get(coverId) : null;
   const rest = ohneFoto(eintrag.blocks, cover?.id);
   const autor = eintrag.author || "";
-  const wann = geschriebenText(tag.key, eintrag.createdAt);
   return el("div.jt-erzaehlt", {}, [
     cover ? titelbild(cover, info) : null,
-    el("div.jt-autor", {}, [
-      autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
-      el("span", { text: [autor, wann].filter(Boolean).join(" · ") }),
-    ]),
     ...rest.map((b) => {
       if (b.t === "text") return el("p.jt-text", { text: b.text });
       return fotoCollage(b.ids.map((id) => fotos.get(id)).filter(Boolean), info);
     }),
+    autor ? el("div.jt-autor", {}, [
+      el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }),
+      el("span", { text: autor }),
+    ]) : null,
     state.gast ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
   ]);
 }
@@ -508,8 +507,8 @@ function tagKapitel(tag, t, eintrag) {
   return el("section.jt-tag", { dataset: { tag: tag.key } }, [
     el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
     gedankenstuetze(tag, hatErzaehlung, zeile, t.id),
-    eintrag ? tagebuchBlock(eintrag, tag) : einladung(tag, t),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
+    eintrag ? tagebuchBlock(eintrag, tag) : einladung(tag, t),
   ]);
 }
 
