@@ -806,7 +806,7 @@
   .jt-platz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
   .jt-platz:not([open]) > summary::after { content: "▸"; }
   .jt-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; }
-  .jt-ph b { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-title); font-weight: 650; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jt-ph b { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-small); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jt-ikon { display: inline-flex; flex: none; color: var(--ink-soft); }
   .jt-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-small); }
   .jt-anm { margin-top: 8px; }
@@ -843,7 +843,7 @@
   .jt-notiz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
   .jt-notiz:not([open]) > summary::after { content: "▸"; }
   .jt-notiz > summary .jt-leise { margin-left: auto; }
-  .jt-n-kurz { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; color: var(--ink); font-size: var(--fs-body); }
+  .jt-n-kurz { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; color: var(--ink); font-size: var(--fs-small); }
   .jt-notiz[open] > summary .jt-n-kurz { display: none; }
   .jt-n-inhalt { cursor: pointer; }
   .jt-notiz b { display: block; font-size: var(--fs-small); color: var(--ink-soft); }
