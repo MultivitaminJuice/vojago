@@ -282,15 +282,27 @@ function verlaufBlock(tag, offen, km = 0) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
-function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false, zeile = "") {
-  // Ist der Tag erzählt, gehören Route und Wetter in den Kopf der Erzählung — hier bleibt nur der Verlauf
-  // (mit den Kilometern in der grauen Zeile).
-  const zeichnung = nurVerlauf ? null : kartenbild(tag);
-  const wetter = nurVerlauf ? null : tag.wetter;
-  const verlauf = verlaufBlock(tag, !hatErzaehlung, nurVerlauf ? tag.km : 0);
-  const info = !nurVerlauf && (wetter || zeile);
+const KARTE_ZU_KEY = "vojago.logbuch.karteZu";
+const ladeZu = () => { try { return new Set(JSON.parse(localStorage.getItem(KARTE_ZU_KEY) || "[]")); } catch { return new Set(); } };
+const speichereZu = (menge) => { try { localStorage.setItem(KARTE_ZU_KEY, JSON.stringify([...menge].slice(-400))); } catch { /* Speicher blockiert */ } };
+
+/**
+ * Strecke des Tages: Karte, Wetter, Kilometer und Verlauf. Bleibt auch bei einem
+ * erzählten Tag stehen, lässt sich aber einklappen (der Zustand wird je Tag gemerkt).
+ */
+function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
+  const zeichnung = kartenbild(tag);
+  const wetter = tag.wetter;
+  const verlauf = verlaufBlock(tag, !hatErzaehlung);
+  const info = Boolean(wetter || zeile);
   if (!zeichnung && !info && !verlauf) return null;
-  return el("div.jt-karte", {}, [
+  const kurz = [wetter ? [wetter.symbol, wetter.temp].filter(Boolean).join(" ") : "", tag.km ? `${kmText(tag.km)} km` : ""].filter(Boolean).join(" · ");
+  const schluessel = `${tripId}|${tag.key}`;
+  const karte = el("details.jt-karte", { open: !ladeZu().has(schluessel) }, [
+    el("summary.jt-karte-kopf", {}, [
+      el("span", { text: zeichnung ? "Strecke" : "Verlauf" }),
+      kurz ? el("span.jt-leise.jt-karte-kurz", { text: kurz }) : null,
+    ]),
     zeichnung,
     info ? el("div.jt-wetter", {}, [
       wetter ? el("span", { text: [wetter.symbol, wetter.temp].filter(Boolean).join(" ") }) : null,
@@ -299,6 +311,12 @@ function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false, zeile = "") {
     ]) : null,
     verlauf,
   ]);
+  karte.addEventListener("toggle", () => {
+    const zu = ladeZu();
+    if (karte.open) zu.delete(schluessel); else zu.add(schluessel);
+    speichereZu(zu);
+  });
+  return karte;
 }
 
 function stars(n) { return n ? "★".repeat(n) + "☆".repeat(5 - n) : ""; }
@@ -439,13 +457,11 @@ function tagebuchBlock(eintrag, tag) {
   const rest = ohneFoto(eintrag.blocks, cover?.id);
   const autor = eintrag.author || "";
   const wann = geschriebenText(tag.key, eintrag.createdAt);
-  const wetter = tag.wetter ? [tag.wetter.symbol, tag.wetter.temp].filter(Boolean).join(" ") : "";
   return el("div.jt-erzaehlt", {}, [
     cover ? titelbild(cover, info) : null,
     el("div.jt-autor", {}, [
       autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
       el("span", { text: [autor, wann].filter(Boolean).join(" · ") }),
-      wetter ? el("span.jt-autor-wetter", { text: wetter }) : null,
     ]),
     ...rest.map((b) => {
       if (b.t === "text") return el("p.jt-text", { text: b.text });
@@ -483,9 +499,8 @@ function tagKapitel(tag, t, eintrag) {
   const inhalt = [...karten, ...notizen].sort((a, b) => String(a.at).localeCompare(String(b.at)));
   return el("section.jt-tag", { dataset: { tag: tag.key } }, [
     el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
-    eintrag ? tagebuchBlock(eintrag, tag) : null,
-    gedankenstuetze(tag, hatErzaehlung, Boolean(eintrag), zeile),
-    eintrag ? null : einladung(tag, t),
+    gedankenstuetze(tag, hatErzaehlung, zeile, t.id),
+    eintrag ? tagebuchBlock(eintrag, tag) : einladung(tag, t),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
   ]);
 }

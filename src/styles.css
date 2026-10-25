@@ -766,6 +766,13 @@
   .jt-kartenbild { position: relative; width: 100%; aspect-ratio: 340 / 150; margin: 0 0 8px; border-radius: 10px; overflow: hidden; background: var(--map-bg); }
   .jt-buehne { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
   .jt-kachel { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .jt-karte-kopf { display: flex; align-items: baseline; gap: 10px; list-style: none; cursor: pointer; margin: -2px 0 2px; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 650; }
+  .jt-karte-kopf::-webkit-details-marker { display: none; }
+  .jt-karte-kopf::after { content: "▾"; margin-left: auto; font-size: 11px; color: var(--ink-faint); }
+  .jt-karte:not([open]) > .jt-karte-kopf { margin-bottom: -2px; }
+  .jt-karte:not([open]) > .jt-karte-kopf::after { content: "▸"; }
+  .jt-karte[open] .jt-karte-kurz { display: none; }
+  .jt-karte[open] > .jt-karte-kopf { margin-bottom: 8px; }
   .jt-route { position: absolute; left: 0; top: 0; width: 340px; height: 150px; }
   .jt-quelle { position: absolute; right: 0; bottom: 0; padding: 1px 6px; border-radius: 6px 0 0 0; background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--ink-faint); font-size: 10px; }
   /* Im Dunkelmodus wie die große Karte abdunkeln (Werte entsprechen kachelPaint in map-style.js) */
@@ -844,6 +851,8 @@
   .tag-hinweis { color: var(--ink-faint); font-size: var(--fs-small); }
   .tag-text { display: block; width: 100%; min-height: 96px; padding: 8px 2px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; line-height: 1.55; resize: none; outline: none; }
   .tag-text::placeholder { color: var(--ink-faint); }
+  .tag-aktionen { display: flex; align-items: center; }
+  .tag-weg { margin-left: auto; margin-right: 0; color: var(--ink-faint); font-weight: 600; }
   .tag-add { margin-right: 18px; border: 0; background: transparent; padding: 6px 0 14px; color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
   .tag-fotos { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
   .tag-fotos .photo-thumb { width: 72px; }

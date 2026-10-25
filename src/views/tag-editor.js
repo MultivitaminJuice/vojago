@@ -139,7 +139,7 @@ function zeichne() {
   const absatzKnopf = el("button.tag-add", { type: "button", text: "＋ Absatz", on: { click: () => {
     blocks.push({ t: "text", text: "" });
     zeichne();
-    [...$("#tag-blocks").querySelectorAll("textarea")].at(-1)?.focus();
+    fokussiereLetztenAbsatz();
   } } });
   const zeigeAbsatz = () => {
     const l = blocks[blocks.length - 1];
@@ -156,9 +156,13 @@ function zeichne() {
       queueMicrotask(() => wachse(feld));
       knoten.push(feld);
       const naechster = blocks[i + 1];
-      if (!naechster || naechster.t !== "fotos") {
-        knoten.push(el("button.tag-add", { type: "button", text: "＋ Fotos", on: { click: () => waehleFotos({ nachBlock: i, feld }) } }));
-      }
+      const kannEntfernen = blocks.filter((x) => x.t === "text").length > 1;
+      knoten.push(el("div.tag-aktionen", {}, [
+        !naechster || naechster.t !== "fotos"
+          ? el("button.tag-add", { type: "button", text: "＋ Fotos", on: { click: () => waehleFotos({ nachBlock: i, feld }) } })
+          : null,
+        kannEntfernen ? el("button.tag-add.tag-weg", { type: "button", text: "Absatz entfernen", on: { click: (e) => entferneAbsatz(b, e.currentTarget) } }) : null,
+      ]));
     } else {
       knoten.push(el("div.tag-fotos", {}, [
         ...b.ids.map((id) => el("div.photo-thumb", {}, [
@@ -172,6 +176,39 @@ function zeichne() {
   knoten.push(absatzKnopf);
   zeigeAbsatz();
   render(box, knoten);
+}
+
+/**
+ * Fokus auf den letzten Absatz setzen, ohne dass der Browser dafür den äußeren Bildschirm
+ * verschiebt (er würde die unten wartenden Blätter freilegen) — nur der Editor scrollt.
+ */
+function fokussiereLetztenAbsatz() {
+  const feld = [...$("#tag-blocks").querySelectorAll("textarea")].at(-1);
+  if (!feld) return;
+  feld.focus({ preventScroll: true });
+  const koerper = feld.closest(".sheet-body");
+  if (koerper) koerper.scrollTop += feld.getBoundingClientRect().top - koerper.getBoundingClientRect().top - 80;
+}
+
+/** Absatz entfernen: ein leerer sofort, einer mit Text erst nach einer zweiten Berührung. */
+function entferneAbsatz(block, knopf) {
+  if (block.text.trim() && !knopf.dataset.sicher) {
+    knopf.dataset.sicher = "1";
+    knopf.textContent = "Wirklich entfernen?";
+    setTimeout(() => { if (knopf.isConnected) { delete knopf.dataset.sicher; knopf.textContent = "Absatz entfernen"; } }, 3500);
+    return;
+  }
+  blocks = blocks.filter((x) => x !== block);
+  // Foto-Gruppen, die dadurch aneinanderstoßen, verschmelzen; ein Absatz bleibt immer übrig.
+  blocks = blocks.reduce((out, b) => {
+    const letzter = out[out.length - 1];
+    if (b.t === "fotos" && letzter?.t === "fotos") letzter.ids = [...letzter.ids, ...b.ids];
+    else out.push(b);
+    return out;
+  }, []);
+  if (!blocks.some((x) => x.t === "text")) blocks.push({ t: "text", text: "" });
+  sichereEntwurf();
+  zeichne();
 }
 
 let fotoZiel = null;
@@ -250,6 +287,8 @@ async function entferneFoto(gruppe, fotoId) {
   try {
     await deletePhoto(fotoId);
     removePhoto(fotoId);
+    // Die letzte entfernte Aufnahme nimmt auch ihre leere Gruppe mit.
+    if (!gruppe.ids.length) { blocks = blocks.filter((b) => b !== gruppe); zeichne(); }
     sichereEntwurf();
   } catch (err) {
     gruppe.ids = vorher;
