@@ -330,8 +330,12 @@
   .drive-day-list { display: flex; flex-direction: column; }
   .log-create { position: relative; }
   /* Reisekarte und "Anzeigen"-Zeile bleiben beim Scrollen im Logbuch oben stehen */
-  .log-sticky { position: sticky; top: 0; z-index: 8; margin: -14px -14px 12px; padding: 14px 14px 8px; background: var(--app-bg); border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .log-sticky { position: sticky; top: 0; z-index: 8; margin: -14px -14px 12px; padding: 14px 14px 8px; pointer-events: none; }
   .log-sticky .trip-context-bar.in-flow { margin: 0; }
+  /* Wie auf der Karte: Reise-Karte und Menü schweben als Milchglas über dem Inhalt, der darunter wegscrollt. */
+  .log-sticky .trip-context-card, .log-sticky .map-context-toggle, .log-sticky .log-menue { pointer-events: auto; }
+  .log-sticky .trip-context-card { background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(10px); box-shadow: var(--shadow); }
+  .log-sticky .map-context-toggle { background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(8px); box-shadow: var(--shadow); }
   .log-mehr { position: relative; }
   .log-mehr svg { width: 20px; height: 20px; }
   .log-mehr.hat-filter::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
