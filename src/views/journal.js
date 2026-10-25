@@ -423,18 +423,31 @@ function notizTitelEigen(note) {
   return Boolean(titel) && !text.startsWith(titel);
 }
 
+const NOTIZ_OFFEN_KEY = "vojago.logbuch.notizOffen";
+
+/** Eine Notiz als einklappbares Zitat: zu nur der Anfang mit Uhrzeit, auf der ganze Text mit Fotos. */
 function notizZitat(note) {
   const fotos = notePhotos(note.id);
   const ort = note.besuchId ? state.places.find((p) => p.id === note.besuchId) : null;
-  return el("article.jt-notiz", { on: { click: kartenKlick(() => openNote(note), fotos) } }, [
-    notizTitelEigen(note) ? el("b", { text: noteTitle(note) }) : null,
-    el("p", { text: note.text }),
-    fotoCollage(fotos, noteCaption(note)),
-    el("div.jt-meta", {}, [
-      el("span", { text: timeLabel(note.at) }),
-      ort ? el("span", { text: `bei ${ort.title}` }) : null,
+  const kurz = (notizTitelEigen(note) ? noteTitle(note) : String(note.text || "")).trim().replace(/\s+/g, " ");
+  const karte = el("details.jt-notiz", { open: ladeOffen(NOTIZ_OFFEN_KEY).has(note.id) }, [
+    el("summary.jt-ph", {}, [
+      el("span.jt-n-kurz", { text: kurz || "Notiz" }),
+      el("span.jt-leise", { text: timeLabel(note.at) }),
+    ]),
+    el("div.jt-n-inhalt", { on: { click: kartenKlick(() => openNote(note), fotos) } }, [
+      notizTitelEigen(note) ? el("b", { text: noteTitle(note) }) : null,
+      el("p", { text: note.text }),
+      fotoCollage(fotos, noteCaption(note)),
+      ort ? el("div.jt-meta", {}, [el("span", { text: `bei ${ort.title}` })]) : null,
     ]),
   ]);
+  karte.addEventListener("toggle", () => {
+    const offen = ladeOffen(NOTIZ_OFFEN_KEY);
+    if (karte.open) offen.add(note.id); else offen.delete(note.id);
+    speichereOffen(offen, NOTIZ_OFFEN_KEY);
+  });
+  return karte;
 }
 
 /** Lightbox-Beschriftung zu einem Tagebuch-Foto: Tag und Anfang des Textes. */

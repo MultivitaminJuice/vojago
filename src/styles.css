@@ -833,7 +833,15 @@
   .jt-kv em { font-style: normal; font-family: var(--font-mono); font-size: 12px; text-align: right; }
   .jt-folge { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; color: var(--ink-faint); font-size: var(--fs-small); }
   .jt-folge span:first-child { display: inline-flex; color: var(--accent); }
-  .jt-notiz { margin: 0 2px 14px; padding: 2px 0 2px 12px; border-left: 3px solid var(--accent); cursor: pointer; }
+  .jt-notiz { margin: 0 2px 14px; padding: 2px 0 2px 12px; border-left: 3px solid var(--accent); }
+  .jt-notiz > summary { list-style: none; }
+  .jt-notiz > summary::-webkit-details-marker { display: none; }
+  .jt-notiz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
+  .jt-notiz:not([open]) > summary::after { content: "▸"; }
+  .jt-notiz > summary .jt-leise { margin-left: auto; }
+  .jt-n-kurz { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; color: var(--ink); font-size: var(--fs-body); }
+  .jt-notiz[open] > summary .jt-n-kurz { display: none; }
+  .jt-n-inhalt { cursor: pointer; }
   .jt-notiz b { display: block; font-size: var(--fs-small); color: var(--ink-soft); }
   .jt-notiz p { margin: 3px 0 0; color: var(--ink); font-size: var(--fs-body); line-height: 1.55; font-style: italic; white-space: pre-wrap; }
   /* Tagebuch: erzählter Tag im Logbuch und der Editor "Tag erzählen" */
