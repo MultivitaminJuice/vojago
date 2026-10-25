@@ -282,9 +282,11 @@ function verlaufBlock(tag, offen, km = 0) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
+// Eingeklappte Strecken und Stellplatz-/Orts-Karten werden auf dem Gerät gemerkt.
 const KARTE_ZU_KEY = "vojago.logbuch.karteZu";
-const ladeZu = () => { try { return new Set(JSON.parse(localStorage.getItem(KARTE_ZU_KEY) || "[]")); } catch { return new Set(); } };
-const speichereZu = (menge) => { try { localStorage.setItem(KARTE_ZU_KEY, JSON.stringify([...menge].slice(-400))); } catch { /* Speicher blockiert */ } };
+const PLATZ_ZU_KEY = "vojago.logbuch.platzZu";
+const ladeZu = (key = KARTE_ZU_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+const speichereZu = (menge, key = KARTE_ZU_KEY) => { try { localStorage.setItem(key, JSON.stringify([...menge].slice(-600))); } catch { /* Speicher blockiert */ } };
 
 /**
  * Strecke des Tages: Karte, Wetter, Kilometer und Verlauf. Bleibt auch bei einem
@@ -388,24 +390,30 @@ function platzKarte(entry) {
     ]);
   }
   const fotos = placePhotos(place.id);
-  const kopf = el("div.jt-ph", {
-    on: { click: kartenKlick(() => openPlace(place), fotos) },
-    ...(state.gast ? {} : { role: "button", tabindex: "0" }),
-  }, [
+  // Die Kopfzeile klappt die Karte ein und aus; Bearbeiten steckt unter "Details".
+  const kopf = el("summary.jt-ph", {}, [
     el(`b${nacht ? ".jt-nacht-titel" : ""}`, {}, [
       el(`span.jt-ikon${nacht ? ".jt-nacht" : ""}`, {}, icon(nacht ? ICON.moon : ICON.pin, 16)),
       place.title,
     ]),
     el("span.jt-leise", { text: nacht ? (place.nights > 1 ? `${place.nights} Nächte` : "1 Nacht") : timeLabel(place.at) }),
   ]);
-  const meta = [stars(place.stars), besuchsText(place), nacht ? "" : "", ].filter(Boolean);
-  return el(`article.jt-platz${nacht ? ".jt-stellplatz" : ""}`, {}, [
+  const meta = [stars(place.stars), besuchsText(place)].filter(Boolean);
+  const karte = el(`details.jt-platz${nacht ? ".jt-stellplatz" : ""}`, { open: !ladeZu(PLATZ_ZU_KEY).has(place.id) }, [
     kopf,
     meta.length ? el("div.jt-meta", {}, meta.map((m) => el("span", { text: m, style: m.startsWith("★") ? { color: "var(--accent)" } : {} }))) : null,
     anmerkung(place),
     fotoCollage(fotos, placeCaption(place)),
     detailsBlock(place),
   ]);
+  karte.addEventListener("toggle", (e) => {
+    // Nur das Ein-/Ausklappen der Karte selbst, nicht das der "Details" darin.
+    if (e.target !== karte) return;
+    const zu = ladeZu(PLATZ_ZU_KEY);
+    if (karte.open) zu.delete(place.id); else zu.add(place.id);
+    speichereZu(zu, PLATZ_ZU_KEY);
+  });
+  return karte;
 }
 
 /** Der Titel einer Notiz ist nur dann eine eigene Zeile, wenn er nicht bloß der Textanfang ist. */

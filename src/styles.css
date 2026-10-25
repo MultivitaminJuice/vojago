@@ -797,6 +797,10 @@
   .jt-vi { display: inline-flex; color: var(--ink-faint); }
   .jt-vi svg, .jt-ikon svg { width: 14px; height: 14px; }
   .jt-nacht { color: var(--accent); }
+  .jt-platz > summary { list-style: none; }
+  .jt-platz > summary::-webkit-details-marker { display: none; }
+  .jt-platz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
+  .jt-platz:not([open]) > summary::after { content: "▸"; }
   .jt-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; }
   .jt-ph b { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-title); font-weight: 650; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jt-ikon { display: inline-flex; flex: none; color: var(--ink-soft); }
