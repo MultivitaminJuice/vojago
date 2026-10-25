@@ -483,11 +483,11 @@ function tagebuchBlock(eintrag, tag) {
       if (b.t === "text") return el("p.jt-text", { text: b.text });
       return fotoCollage(b.ids.map((id) => fotos.get(id)).filter(Boolean), info);
     }),
-    autor ? el("div.jt-autor", {}, [
-      el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }),
-      el("span", { text: autor }),
+    autor || !state.gast ? el("div.jt-autor", {}, [
+      autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
+      autor ? el("span", { text: autor }) : null,
+      state.gast ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
     ]) : null,
-    state.gast ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
   ]);
 }
 

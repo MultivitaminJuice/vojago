@@ -805,7 +805,8 @@
   .jt-platz > summary::-webkit-details-marker { display: none; }
   .jt-platz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
   .jt-platz:not([open]) > summary::after { content: "▸"; }
-  .jt-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; }
+  .jt-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 650; }
+  .jt-ph .jt-leise, .jt-karte-kopf .jt-leise { color: inherit; font-weight: inherit; flex: none; white-space: nowrap; }
   .jt-ph b { min-width: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-small); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jt-ikon { display: inline-flex; flex: none; color: var(--ink-soft); }
   .jt-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; color: var(--ink-faint); font-size: var(--fs-small); }
@@ -843,7 +844,7 @@
   .jt-notiz > summary::after { content: "▾"; flex: none; font-size: 11px; color: var(--ink-faint); }
   .jt-notiz:not([open]) > summary::after { content: "▸"; }
   .jt-notiz > summary .jt-leise { margin-left: auto; }
-  .jt-n-kurz { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; color: var(--ink); font-size: var(--fs-small); }
+  .jt-n-kurz { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
   .jt-notiz[open] > summary .jt-n-kurz { display: none; }
   .jt-n-inhalt { cursor: pointer; }
   .jt-notiz b { display: block; font-size: var(--fs-small); color: var(--ink-soft); }
@@ -857,7 +858,7 @@
   .jt-autor-wetter { margin-left: auto; color: var(--ink-soft); white-space: nowrap; }
   .jt-text { margin: 0 2px 12px; color: var(--ink); font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
   .jt-erzaehlt .jt-fotos { margin: 0 0 12px; }
-  .jt-bearbeiten { border: 0; background: transparent; padding: 4px 2px; color: var(--ink-faint); font: inherit; font-size: var(--fs-small); cursor: pointer; }
+  .jt-bearbeiten { margin-left: auto; border: 0; background: transparent; padding: 4px 2px; color: var(--ink-faint); font: inherit; font-size: var(--fs-small); cursor: pointer; }
   .jt-einladung { margin: 0 0 10px; padding: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 14px; text-align: center; }
   .jt-einladung b { display: block; font-size: var(--fs-title); }
   .jt-einladung .jt-leise { margin: 4px 0 10px; }
@@ -870,6 +871,8 @@
   .tag-aktionen { display: flex; align-items: center; }
   .tag-weg { margin-left: auto; margin-right: 0; color: var(--ink-faint); font-weight: 600; }
   .tag-add { margin-right: 18px; border: 0; background: transparent; padding: 6px 0 14px; color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
+  .tag-leiste { position: sticky; bottom: -16px; z-index: 2; display: flex; align-items: center; margin: 0 -16px 8px; padding: 4px 16px 0; background: var(--app-bg); border-top: 1px solid var(--line); }
+  .tag-leiste .tag-add { padding: 12px 0; }
   .tag-fotos { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
   .tag-fotos .photo-thumb { width: 72px; }
   .tag-plus { width: 72px; height: 72px; border: 1px dashed var(--line); border-radius: 12px; background: transparent; color: var(--accent); font-size: 22px; cursor: pointer; }

@@ -130,6 +130,9 @@ function wachse(feld) {
   feld.style.height = `${Math.max(feld.scrollHeight, 96)}px`;
 }
 
+// Absatz, in dem zuletzt geschrieben wurde, und die Cursorstelle darin: dort landen eingefügte Fotos.
+let aktiv = { block: null, stelle: 0 };
+
 function zeichne() {
   const box = $("#tag-blocks");
   if (!box) return;
@@ -140,6 +143,13 @@ function zeichne() {
     blocks.push({ t: "text", text: "" });
     zeichne();
     fokussiereLetztenAbsatz();
+  } } });
+  const fotoKnopf = el("button.tag-add", { type: "button", text: "📷 Foto einfügen", on: { click: () => {
+    // Dorthin, wo zuletzt geschrieben wurde; sonst ans Ende des letzten Absatzes.
+    const texte = blocks.filter((x) => x.t === "text");
+    const ziel = blocks.includes(aktiv.block) ? aktiv.block : texte[texte.length - 1];
+    const stelle = ziel === aktiv.block ? aktiv.stelle : ziel.text.length;
+    waehleFotos({ nachBlock: blocks.indexOf(ziel), stelle });
   } } });
   const zeigeAbsatz = () => {
     const l = blocks[blocks.length - 1];
@@ -152,15 +162,13 @@ function zeichne() {
         placeholder: i === 0 ? "Was war los? Wo wart ihr, was habt ihr gesehen?" : "Weiter …",
       });
       feld.value = b.text;
-      feld.addEventListener("input", () => { b.text = feld.value; wachse(feld); sichereEntwurf(); zeigeAbsatz(); });
+      const merkeStelle = () => { aktiv = { block: b, stelle: feld.selectionStart ?? feld.value.length }; };
+      feld.addEventListener("input", () => { b.text = feld.value; wachse(feld); sichereEntwurf(); zeigeAbsatz(); merkeStelle(); });
+      for (const ereignis of ["focus", "click", "keyup", "select"]) feld.addEventListener(ereignis, merkeStelle);
       queueMicrotask(() => wachse(feld));
       knoten.push(feld);
-      const naechster = blocks[i + 1];
       const kannEntfernen = blocks.filter((x) => x.t === "text").length > 1;
       knoten.push(el("div.tag-aktionen", {}, [
-        !naechster || naechster.t !== "fotos"
-          ? el("button.tag-add", { type: "button", text: "＋ Fotos", on: { click: () => waehleFotos({ nachBlock: i, feld }) } })
-          : null,
         kannEntfernen ? el("button.tag-add.tag-weg", { type: "button", text: "Absatz entfernen", on: { click: (e) => entferneAbsatz(b, e.currentTarget) } }) : null,
       ]));
     } else {
@@ -173,7 +181,7 @@ function zeichne() {
       ]));
     }
   });
-  knoten.push(absatzKnopf);
+  knoten.push(el("div.tag-leiste", {}, [fotoKnopf, absatzKnopf]));
   zeigeAbsatz();
   render(box, knoten);
 }
@@ -237,21 +245,29 @@ async function fotosGewaehlt(e) {
   const hinweis = fotoTagHinweis(dateien, current.dayKey, tage);
   if (hinweis) $("#tag-day-hint").textContent = `${hinweis.anzahl} ${hinweis.anzahl === 1 ? "Foto ist" : "Fotos sind"} wohl von Tag ${hinweis.nummer}.`;
 
-  // Zielblock bestimmen: an eine vorhandene Foto-Gruppe anhängen, sonst nach dem Absatz
-  // (an der Cursorstelle geteilt) eine neue Gruppe einfügen.
+  // Zielblock bestimmen: an eine vorhandene Foto-Gruppe anhängen, sonst an der Cursorstelle
+  // eine neue Gruppe einfügen (mitten im Text wird der Absatz geteilt, am Anfang kommt sie davor).
   let gruppe;
   if (ziel.anBlock != null) gruppe = blocks[ziel.anBlock];
   else {
     const i = ziel.nachBlock;
     const text = blocks[i];
-    const stelle = ziel.feld?.selectionStart ?? text.text.length;
-    if (stelle > 0 && stelle < text.text.length) {
-      const hinten = text.text.slice(stelle).replace(/^\s+/, "");
-      text.text = text.text.slice(0, stelle).replace(/\s+$/, "");
-      blocks.splice(i + 1, 0, { t: "text", text: hinten });
+    const stelle = Math.min(ziel.stelle ?? text.text.length, text.text.length);
+    const folgende = blocks[i + 1];
+    if (stelle === 0 && text.text.trim()) {
+      gruppe = { t: "fotos", ids: [] };
+      blocks.splice(i, 0, gruppe);
+    } else if (stelle >= text.text.length && folgende?.t === "fotos") {
+      gruppe = folgende;
+    } else {
+      if (stelle < text.text.length) {
+        const hinten = text.text.slice(stelle).replace(/^\s+/, "");
+        text.text = text.text.slice(0, stelle).replace(/\s+$/, "");
+        blocks.splice(i + 1, 0, { t: "text", text: hinten });
+      }
+      gruppe = { t: "fotos", ids: [] };
+      blocks.splice(i + 1, 0, gruppe);
     }
-    gruppe = { t: "fotos", ids: [] };
-    blocks.splice(i + 1, 0, gruppe);
   }
 
   const id = await sichereEintrag();
