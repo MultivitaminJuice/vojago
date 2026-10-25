@@ -1,5 +1,10 @@
 // Darstellungswerte der Karte (rein, ohne MapLibre — dadurch testbar).
 //
+// CARTO verlangt einen (kostenlosen) API-Schlüssel für die Kacheln. Er steht nicht im
+// Repository, sondern wird beim Bauen aus CARTO_API_KEY eingesetzt (siehe
+// scripts/build-site.mjs und README) und ist danach in den Kachel-Adressen sichtbar.
+export const CARTO_KEY = typeof __CARTO_API_KEY__ === "string" ? __CARTO_API_KEY__ : "";
+
 // Kartenstil (Einstellungen → Darstellung): "farbig" = CARTO Voyager (Wasser blau,
 // Wälder und Parks grün, deutliche Straßen), "dezent" = CARTO Positron (neutral grau).
 export const KARTENSTILE = ["farbig", "dezent"];

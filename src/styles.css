@@ -329,6 +329,15 @@
   .drive-day-count { flex: none; font-family: var(--font-mono); font-size: var(--fs-small); color: var(--ink-faint); }
   .drive-day-list { display: flex; flex-direction: column; }
   .log-create { position: relative; }
+  /* Reisekarte und "Anzeigen"-Zeile bleiben beim Scrollen im Logbuch oben stehen */
+  .log-sticky { position: sticky; top: 0; z-index: 8; margin: -14px -14px 12px; padding: 14px 14px 8px; background: var(--app-bg); border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .log-sticky .trip-context-bar.in-flow { margin: 0 0 8px; }
+  .log-sticky .log-toolbar { height: 40px; margin: 0; grid-template-columns: minmax(0, 1fr) 40px; }
+  .log-sticky .quick-add { width: 40px; height: 40px; border-radius: 12px; }
+  .log-anzeigen { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink-soft); font: inherit; font-size: var(--fs-small); text-align: left; cursor: pointer; }
+  .log-anzeigen span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-anzeigen svg { width: 16px; height: 16px; flex: none; }
+  .log-anzeigen-menu { left: 0; right: auto; top: 46px; min-width: 240px; }
   #current-trip { display: none !important; }
   .trip-picker { position: absolute; inset: 0; z-index: 65; display: grid; align-items: end; background: rgba(0,0,0,.34); padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   .trip-picker[hidden] { display: none; }
@@ -748,13 +757,25 @@
   .j-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   /* Logbuch: Tage als Kapitel (journal.js) */
   .jt-sprung { display: block; width: 100%; margin: 0 0 12px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--accent); font: inherit; font-size: var(--fs-small); font-weight: 700; cursor: pointer; }
-  .jt-tag { margin: 0 0 30px; }
-  .jt-kopf { margin: 0 2px 10px; }
+  .jt-tag { margin: 0; }
+  .jt-tag + .jt-tag { margin-top: 34px; padding-top: 28px; border-top: 1px solid color-mix(in srgb, var(--ink-faint) 38%, var(--line)); }
+  .jt-kopf { margin: 0 0 12px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
   .jt-num { display: inline-block; margin-right: 8px; color: var(--accent); font-size: var(--fs-small); font-weight: 800; }
   .jt-kopf h3 { display: inline; margin: 0; font-size: var(--fs-title); letter-spacing: -.01em; }
   .jt-zeile { margin-top: 3px; color: var(--ink-soft); font-size: var(--fs-small); }
   .jt-karte, .jt-platz { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin: 0 0 10px; }
-  .jt-route { display: block; width: 100%; height: 64px; margin: 0 0 6px; }
+  .jt-kartenbild { position: relative; width: 100%; aspect-ratio: 340 / 150; margin: 0 0 8px; border-radius: 10px; overflow: hidden; background: var(--map-bg); }
+  .jt-buehne { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .jt-kachel { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .jt-route { position: absolute; left: 0; top: 0; width: 340px; height: 150px; }
+  .jt-quelle { position: absolute; right: 0; bottom: 0; padding: 1px 6px; border-radius: 6px 0 0 0; background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--ink-faint); font-size: 10px; }
+  /* Im Dunkelmodus wie die große Karte abdunkeln (Werte entsprechen kachelPaint in map-style.js) */
+  :root[data-theme="dark"] .jt-kachel { filter: brightness(.5) contrast(1.25) saturate(1.3); }
+  :root[data-theme="dark"] .jt-kachel-dezent { filter: brightness(.5) contrast(1.25) saturate(.8); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .jt-kachel { filter: brightness(.5) contrast(1.25) saturate(1.3); }
+    :root:not([data-theme="light"]) .jt-kachel-dezent { filter: brightness(.5) contrast(1.25) saturate(.8); }
+  }
   .jt-wetter { display: flex; align-items: baseline; gap: 10px; font-size: var(--fs-small); }
   .jt-leise { color: var(--ink-faint); font-size: var(--fs-small); }
   .jt-verlauf { margin-top: 8px; border-top: 1px solid var(--line); }

@@ -8,7 +8,9 @@ import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, cat
 import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js";
 import { speichereOrt, wetterZeile } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
-import { tageDerReise, routenGeometrie } from "../journal-days.js";
+import { tageDerReise } from "../journal-days.js";
+import { kartenAnsicht, kachelAdresse, routenPfad } from "../mini-karte.js";
+import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
 import { ohneFoto, titelbildId, geschriebenText } from "../tagebuch.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
@@ -99,14 +101,28 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
   openNote = onNoteClick;
   openTag = onTagClick || (() => {});
 
-  $$("#log-filter button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const key = btn.dataset.logFilter || "";
+  $$("#log-anzeigen-menu [data-log-filter]").forEach((sw) => {
+    sw.addEventListener("click", () => {
+      const key = sw.dataset.logFilter || "";
       if (!key) return;
       if (logFilters.has(key)) logFilters.delete(key);
       else logFilters.add(key);
       renderJournal();
     });
+  });
+
+  // "Anzeigen"-Zeile klappt das kleine Menü mit den drei Schaltern auf und zu.
+  const knopf = $("#log-anzeigen-btn");
+  const menue = $("#log-anzeigen-menu");
+  const schliessen = () => { menue?.classList.remove("open"); knopf?.setAttribute("aria-expanded", "false"); };
+  knopf?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const offen = !menue.classList.contains("open");
+    menue.classList.toggle("open", offen);
+    knopf.setAttribute("aria-expanded", String(offen));
+  });
+  document.addEventListener("click", (e) => {
+    if (menue?.classList.contains("open") && !menue.contains(e.target) && !knopf.contains(e.target)) schliessen();
   });
 }
 
@@ -172,12 +188,15 @@ function matchesLogFilter(entry) {
   return false;
 }
 
+const FILTER_NAMEN = { night: "Stellplätze", place: "Orte", note: "Notizen" };
+
 function renderLogFilterButtons() {
-  $$("#log-filter button").forEach((btn) => {
-    const key = btn.dataset.logFilter || "";
-    btn.setAttribute("aria-pressed", String(logFilters.has(key)));
-    btn.textContent = { note: "Notizen", place: "Orte", night: "Stellplätze" }[key] || btn.textContent;
+  $$("#log-anzeigen-menu [data-log-filter]").forEach((sw) => {
+    sw.setAttribute("aria-checked", String(logFilters.has(sw.dataset.logFilter)));
   });
+  const aktiv = Object.keys(FILTER_NAMEN).filter((k) => logFilters.has(k));
+  const text = $("#log-anzeigen-text");
+  if (text) text.textContent = aktiv.length === 3 ? "Alles anzeigen" : aktiv.length ? `Zeigt: ${aktiv.map((k) => FILTER_NAMEN[k]).join(", ")}` : "Nichts ausgewählt";
 }
 
 /* ---------- Bausteine ---------- */
@@ -214,20 +233,42 @@ function fotoCollage(fotos, info) {
   ]);
 }
 
-function routenZeichnung(tag) {
-  const B = 260, H = 64;
-  const geo = routenGeometrie(tag.punkte, B, H, 8, 80);
-  if (!geo) return null;
-  const svg = svgEl("svg", { viewBox: `0 0 ${B} ${H}`, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
-  svg.appendChild(svgEl("path", { d: geo.d, fill: "none", stroke: "var(--accent)", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+const KARTE_B = 340, KARTE_H = 150;
+
+/** Mini-Karte des Tages: echte Kartenkacheln (Wasser, Wald, Straßen, Ortsnamen) mit der Route darüber. */
+function kartenbild(tag) {
+  const ansicht = kartenAnsicht(tag.punkte, KARTE_B, KARTE_H);
+  if (!ansicht) return null;
+  const vorlage = kachelUrl(gueltigerKartenstil(state.config.kartenstil), CARTO_KEY);
+  const svg = svgEl("svg", { viewBox: `0 0 ${KARTE_B} ${KARTE_H}`, width: KARTE_B, height: KARTE_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
+  const d = routenPfad(tag.punkte, ansicht.projiziere);
+  // Dunkler Rand unter der Linie, damit sie auf hellem wie dunklem Grund lesbar bleibt.
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: "rgba(8,20,22,.55)", "stroke-width": 6, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 3.2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+  const punkt = (lon, lat, r, fuell) => {
+    const q = ansicht.projiziere(lon, lat);
+    svg.appendChild(svgEl("circle", { cx: q.x.toFixed(1), cy: q.y.toFixed(1), r, fill: fuell, stroke: "rgba(8,20,22,.7)", "stroke-width": 1.5 }));
+  };
   for (const e of tag.eintraege) {
-    if (e.kind !== "place" || e.data.catId === "uebernachtung" || !Number.isFinite(e.data.lon)) continue;
-    const q = geo.projiziere(e.data.lon, e.data.lat);
-    svg.appendChild(svgEl("circle", { cx: q.x.toFixed(1), cy: q.y.toFixed(1), r: 3, fill: "var(--ink-soft)" }));
+    if (e.kind === "place" && e.data.catId !== "uebernachtung" && Number.isFinite(e.data.lon)) punkt(e.data.lon, e.data.lat, 3.5, "#c9d6d2");
   }
-  svg.appendChild(svgEl("circle", { cx: geo.start.x.toFixed(1), cy: geo.start.y.toFixed(1), r: 4, fill: "var(--ink)" }));
-  svg.appendChild(svgEl("circle", { cx: geo.ende.x.toFixed(1), cy: geo.ende.y.toFixed(1), r: 4, fill: "var(--accent)" }));
-  return svg;
+  const erster = tag.punkte[0], letzter = tag.punkte[tag.punkte.length - 1];
+  punkt(erster.lon, erster.lat, 5, "#fff");
+  punkt(letzter.lon, letzter.lat, 5, "var(--accent)");
+
+  const buehne = el("div.jt-buehne", { style: { width: `${KARTE_B}px`, height: `${KARTE_H}px` } }, [
+    ...ansicht.kacheln.map((k) => el(`img.jt-kachel${gueltigerKartenstil(state.config.kartenstil) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
+      src: kachelAdresse(vorlage, k), alt: "", loading: "lazy", draggable: "false",
+      style: { left: `${k.links.toFixed(1)}px`, top: `${k.oben.toFixed(1)}px` },
+    })),
+    svg,
+  ]);
+  const box = el("div.jt-kartenbild", {}, [buehne, el("span.jt-quelle", { text: "© OpenStreetMap · © CARTO" })]);
+  // Die Bühne hat feste Maße (Kacheln sind Pixel); auf die tatsächliche Kartenbreite skalieren.
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => { buehne.style.transform = `scale(${box.clientWidth / KARTE_B})`; }).observe(box);
+  }
+  return box;
 }
 
 /** Verlauf des Tages: Start, Stopps, Übernachtung. Ohne Erzählung offen, sonst eine graue Zeile. */
@@ -245,7 +286,7 @@ function verlaufBlock(tag, offen) {
 
 function gedankenstuetze(tag, hatErzaehlung, nurVerlauf = false) {
   // Ist der Tag erzählt, gehören Route und Wetter in den Kopf der Erzählung — hier bleibt nur der Verlauf.
-  const zeichnung = nurVerlauf ? null : routenZeichnung(tag);
+  const zeichnung = nurVerlauf ? null : kartenbild(tag);
   const wetter = nurVerlauf ? null : tag.wetter;
   const verlauf = verlaufBlock(tag, !hatErzaehlung);
   if (!zeichnung && !wetter && !verlauf) return null;

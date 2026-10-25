@@ -1,7 +1,6 @@
 // Logbuch: die Reise als Folge von Tagen (Kapiteln). Rein rechnend, ohne DOM —
 // journal.js zeichnet daraus Kopf, Gedankenstütze, Stellplatz-Karten und Notizen.
 import { localDayKey, tripDayNumberFromKeys } from "./day-utils.js";
-import { bounds } from "./geo.js";
 
 export const kurzeAdresse = (text) => (text || "").split(",").slice(0, 2).join(",").trim();
 
@@ -21,27 +20,6 @@ export function tagesWetter(wetterListe) {
   }
   const [text, e] = [...zaehler.entries()].sort((a, b) => b[1].n - a[1].n)[0] || ["", { symbol: "" }];
   return { temp: min === max ? `${min}°` : `${min} bis ${max}°`, text, symbol: e.symbol };
-}
-
-/** Routenzeichnung eines Tages, eingepasst in w × h; `projiziere` setzt Stopps in dieselbe Zeichnung. */
-export function routenGeometrie(points, w, h, pad = 8, maxPunkte = 80) {
-  const gueltig = (points || []).filter((p) => Number.isFinite(p.lon) && Number.isFinite(p.lat));
-  if (gueltig.length < 2) return null;
-  const schritt = Math.max(1, Math.ceil(gueltig.length / maxPunkte));
-  const pts = gueltig.filter((_, i) => i % schritt === 0);
-  if (pts[pts.length - 1] !== gueltig[gueltig.length - 1]) pts.push(gueltig[gueltig.length - 1]);
-
-  const b = bounds(gueltig);
-  const mitteLat = (b.minLat + b.maxLat) / 2;
-  const breiteFaktor = Math.cos((mitteLat * Math.PI) / 180);
-  const spanX = Math.max((b.maxLon - b.minLon) * breiteFaktor, 1e-6);
-  const spanY = Math.max(b.maxLat - b.minLat, 1e-6);
-  const scale = Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY);
-  const ox = pad + ((w - 2 * pad) - spanX * scale) / 2;
-  const oy = pad + ((h - 2 * pad) - spanY * scale) / 2;
-  const projiziere = (lon, lat) => ({ x: ox + (lon - b.minLon) * breiteFaktor * scale, y: oy + (b.maxLat - lat) * scale });
-  const punkt = (p) => { const q = projiziere(p.lon, p.lat); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; };
-  return { d: "M" + pts.map(punkt).join(" L"), projiziere, start: projiziere(gueltig[0].lon, gueltig[0].lat), ende: projiziere(gueltig.at(-1).lon, gueltig.at(-1).lat) };
 }
 
 /** Die Ereignisse eines Tages in zeitlicher Folge: Start, Stopps, Übernachtung. */

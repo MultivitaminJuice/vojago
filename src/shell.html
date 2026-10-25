@@ -152,17 +152,23 @@
         </section>
         <section class="view" id="view-logbuch" role="tabpanel">
           <div class="pad">
-            <div class="trip-context-bar in-flow">
-              <button class="trip-context-card" id="trip-context-logbuch" aria-label="Reise auswählen"></button>
-            </div>
-            <div class="log-create">
-              <div class="log-toolbar">
-                <div class="log-filter" id="log-filter" role="group" aria-label="Einträge filtern">
-                  <button data-log-filter="night" aria-pressed="true">Stellplätze</button>
-                  <button data-log-filter="place" aria-pressed="true">Orte</button>
-                  <button data-log-filter="note" aria-pressed="true">Notizen</button>
+            <div class="log-sticky">
+              <div class="trip-context-bar in-flow">
+                <button class="trip-context-card" id="trip-context-logbuch" aria-label="Reise auswählen"></button>
+              </div>
+              <div class="log-create">
+                <div class="log-toolbar">
+                  <button class="log-anzeigen" id="log-anzeigen-btn" type="button" aria-expanded="false" aria-controls="log-anzeigen-menu">
+                    <span id="log-anzeigen-text">Alles anzeigen</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  <button class="quick-add" id="log-add" aria-label="Eintrag hinzufügen">＋</button>
                 </div>
-                <button class="quick-add" id="log-add" aria-label="Eintrag hinzufügen">＋</button>
+                <div class="menu-card log-anzeigen-menu" id="log-anzeigen-menu" role="group" aria-label="Einträge filtern">
+                  <div class="lm-row"><span class="lm-l">Stellplätze</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Stellplätze anzeigen" data-log-filter="night"></button></div>
+                  <div class="lm-row"><span class="lm-l">Orte</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Orte anzeigen" data-log-filter="place"></button></div>
+                  <div class="lm-row"><span class="lm-l">Notizen</span><button class="switch sm" role="switch" aria-checked="true" aria-label="Notizen anzeigen" data-log-filter="note"></button></div>
+                </div>
               </div>
             </div>
             <div id="journal"></div>

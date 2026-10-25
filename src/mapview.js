@@ -8,7 +8,7 @@ const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
 import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, meterProPixel } from "./geo.js";
-import { kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
+import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
 import { tippEintraege, naechsterTreffer } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
@@ -21,7 +21,6 @@ import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility
 // nicht im Repository, sondern wird beim Bauen aus der Umgebungsvariable
 // CARTO_API_KEY eingesetzt (siehe scripts/build-site.mjs und README). Er ist
 // danach in der Kachel-URL der ausgelieferten App sichtbar — dafür ist er gedacht.
-const CARTO_KEY = typeof __CARTO_API_KEY__ === "string" ? __CARTO_API_KEY__ : "";
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
 
 let map = null;

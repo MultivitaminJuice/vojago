@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tagesWetter, routenGeometrie, tagesVerlauf, tageDerReise, kurzeAdresse } from "../journal-days.js";
+import { tagesWetter, tagesVerlauf, tageDerReise, kurzeAdresse } from "../journal-days.js";
 
 const ort = (id, catId, at, extra = {}) => ({ kind: "place", at, data: { id, title: id, catId, at, ...extra } });
 const notiz = (id, at) => ({ kind: "note", at, data: { id, at } });
@@ -11,18 +11,6 @@ test("tagesWetter: Spanne der Temperaturen und häufigster Zustand, ohne Daten n
   const w = tagesWetter([{ temp: 14.2, text: "klar", symbol: "S" }, { temp: 19.4, text: "klar", symbol: "S" }, { temp: 16, text: "bedeckt", symbol: "B" }]);
   assert.deepEqual(w, { temp: "14 bis 19°", text: "klar", symbol: "S" });
   assert.equal(tagesWetter([{ temp: 17, text: "klar" }]).temp, "17°");
-});
-
-test("routenGeometrie: braucht zwei Punkte, bleibt im Rahmen und setzt Stopps in dieselbe Zeichnung", () => {
-  assert.equal(routenGeometrie([{ lon: 10, lat: 50 }], 260, 70), null);
-  const pts = Array.from({ length: 300 }, (_, i) => ({ lon: 10 + i * 0.001, lat: 50 + Math.sin(i / 20) * 0.01 }));
-  const g = routenGeometrie(pts, 260, 70, 8, 60);
-  assert.ok(g.d.startsWith("M"));
-  assert.ok(g.d.split("L").length <= 62);
-  for (const q of [g.start, g.ende]) { assert.ok(q.x >= 7.9 && q.x <= 252.1); assert.ok(q.y >= 7.9 && q.y <= 62.1); }
-  assert.ok(g.ende.x > g.start.x);
-  const mitte = g.projiziere(10.15, 50);
-  assert.ok(mitte.x > g.start.x && mitte.x < g.ende.x);
 });
 
 test("tagesVerlauf: Start, Stopps und Nacht in zeitlicher Folge, Fortführungen zählen nicht", () => {
