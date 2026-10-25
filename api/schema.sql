@@ -161,7 +161,9 @@ CREATE TABLE IF NOT EXISTS photos (
 );
 -- Kein Index auf besuch_id hier — siehe db/schema.sql für die Begründung.
 CREATE INDEX IF NOT EXISTS photos_note ON photos (note_id);
-CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id);
+-- Kein Index auf tagebuch_id hier: auf einer bestehenden Datenbank fehlt die Spalte noch,
+-- und dieses Schema läuft bei jedem Start VOR der Nachrüstung — ensureTagebuch()
+-- (api/router.js) legt den Index nach dem ALTER TABLE an.
 
 CREATE TABLE IF NOT EXISTS vehicles (
   id           TEXT PRIMARY KEY,

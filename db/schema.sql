@@ -195,7 +195,9 @@ CREATE TABLE IF NOT EXISTS photos (
 -- Kein Index auf besuch_id hier — dieselbe Begründung wie bei notes oben,
 -- ensureOrteBesuche() (api/router.js) legt ihn lazy und sicher an.
 CREATE INDEX IF NOT EXISTS photos_note ON photos (note_id);
-CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id);
+-- Kein Index auf tagebuch_id hier: auf einer bestehenden Datenbank fehlt die Spalte noch,
+-- und dieses Schema läuft bei jedem Start VOR der Nachrüstung — ensureTagebuch()
+-- (api/router.js) legt den Index nach dem ALTER TABLE an.
 
 CREATE TABLE IF NOT EXISTS vehicles (
   id           TEXT PRIMARY KEY,
