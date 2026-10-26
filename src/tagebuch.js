@@ -36,12 +36,13 @@ export const alleFotoIds = (blocks) => (blocks || []).flatMap((b) => (b.t === "f
 export const hatInhalt = (blocks) => bereinigeBlocks(blocks).length > 0;
 
 /**
- * Das Titelbild des Tages: das erste Foto — aber nur, wenn der Eintrag mit Fotos
- * beginnt. Steht ein Foto mitten im Text, bleibt es dort und wird nicht nach oben gezogen.
+ * Das Titelbild des Tages: das eine Foto, mit dem der Eintrag beginnt. Beginnt er mit
+ * mehreren Fotos, bilden sie zusammen eine Collage am Anfang (kein einzelnes Titelbild);
+ * steht ein Foto mitten im Text, bleibt es dort und wird nicht nach oben gezogen.
  */
 export function titelbildId(blocks) {
   const erster = bereinigeBlocks(blocks)[0];
-  return erster?.t === "fotos" ? erster.ids[0] : null;
+  return erster?.t === "fotos" && erster.ids.length === 1 ? erster.ids[0] : null;
 }
 
 /** Blöcke ohne ein bestimmtes Foto (das als Titelbild gezeigt wird); leere Gruppen entfallen. */
@@ -52,7 +53,7 @@ export function ohneFoto(blocks, id) {
 
 /**
  * Fotos eines Eintrags, die in keinem Block stehen (hochgeladen, aber noch nicht platziert):
- * als Foto-Gruppe an den Anfang — das erste wird damit zum Titelbild, bis man es selbst platziert.
+ * als Foto-Gruppe an den Anfang — ein einzelnes wird Titelbild, mehrere eine Collage, bis man sie selbst platziert.
  */
 export function mitVerwaistenFotos(blocks, fotoIds) {
   const drin = new Set(alleFotoIds(blocks));

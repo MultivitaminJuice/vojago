@@ -524,5 +524,5 @@ export const clearEditor = () => {
   current = null;
 };
 
-// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Anfang des Tages, das erste als Titelbild (siehe mitVerwaistenFotos).
+// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Anfang des Tages, als Titelbild oder Collage (siehe mitVerwaistenFotos).
 export const verwendeteFotos = () => alleFotoIds(blocks);

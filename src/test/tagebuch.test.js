@@ -22,7 +22,9 @@ test("bereinigeBlocks: leere Absätze und Gruppen entfallen, Foto-Gruppen hinter
 test("Titelbild nur, wenn der Eintrag mit Fotos beginnt; ohneFoto nimmt es aus den Blöcken, leere Gruppen entfallen", () => {
   const blocks = [{ t: "fotos", ids: ["a"] }, { t: "text", text: "y" }, { t: "fotos", ids: ["b", "c"] }];
   assert.equal(titelbildId(blocks), "a");
-  assert.equal(titelbildId([{ t: "text", text: "" }, ...blocks]), "a");   // ein leeres Feld davor zählt nicht
+  assert.equal(titelbildId([{ t: "fotos", ids: ["a", "b"] }, { t: "text", text: "y" }]), null);   // mehrere Fotos am Anfang: Collage, kein Titelbild
+  assert.equal(titelbildId([{ t: "fotos", ids: ["a"] }, { t: "text", text: "y" }]), "a");
+  assert.equal(titelbildId([{ t: "text", text: "" }, { t: "fotos", ids: ["a"] }, { t: "text", text: "y" }]), "a");   // ein leeres Feld davor zählt nicht
   // Ein Foto mitten im Text bleibt dort, es wird nicht zum Titelbild.
   assert.equal(titelbildId([{ t: "text", text: "x" }, { t: "fotos", ids: ["a"] }]), null);
   assert.equal(titelbildId([{ t: "text", text: "x" }]), null);
@@ -33,8 +35,9 @@ test("Titelbild nur, wenn der Eintrag mit Fotos beginnt; ohneFoto nimmt es aus d
 test("mitVerwaistenFotos: Fotos des Eintrags, die in keinem Block stehen, kommen an den Anfang", () => {
   const blocks = [{ t: "fotos", ids: ["a"] }];
   assert.deepEqual(mitVerwaistenFotos(blocks, ["a", "b"]), [{ t: "fotos", ids: ["b"] }, { t: "fotos", ids: ["a"] }]);
-  // Zusammen mit Text: das unplatzierte Foto wird Titelbild.
+  // Zusammen mit Text: ein unplatziertes Foto wird Titelbild, mehrere werden eine Collage.
   assert.equal(titelbildId(mitVerwaistenFotos([{ t: "text", text: "x" }], ["n"])), "n");
+  assert.equal(titelbildId(mitVerwaistenFotos([{ t: "text", text: "x" }], ["n", "m"])), null);
   assert.equal(mitVerwaistenFotos(blocks, ["a"]), blocks);
 });
 
