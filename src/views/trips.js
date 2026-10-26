@@ -11,7 +11,7 @@ import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.
 import { isConfigured, createTrip, updateTrip, deleteTrip as apiDeleteTrip, assignDrive, updateDriveKind } from "../api.js";
 import { wetterZeile } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
-import { miniRoute, elevationProfile, speedProfile } from "./charts.js";
+import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
 import { tagNachbar, tagNavigation } from "../day-nav.js";
 import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
@@ -760,19 +760,36 @@ function renderSummaryFacts(summary, t) {
  * zeigen. Gehören als reine Auswertung zum Gesamt-Reiter, wo sie auch ohne
  * Sheet-Umweg sichtbar sind. */
 function renderGesamtCharts(t) {
-  const maxBar = Math.max(...t.bars, 1);
   return [
-    el("div.gcard", {}, [
-      el("h3", { text: "Kilometer pro Tag" }),
-      el("div.bars", {}, t.bars.map((v, i) =>
-        el("div.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""), {}, [
-          el("div.col", { style: { height: `${(v / maxBar) * 100}%` } }),
-          el("small", { text: t.barLabels[i] }),
-        ]))),
-    ]),
+    el("div.gcard", {}, [el("h3", { text: "Kilometer pro Tag" }), kmBalken(t)]),
     el("div.gcard", {}, [el("h3", { text: "Höhenprofil" }), elevationProfile(t.path)]),
     el("div.gcard", {}, [el("h3", { text: "Geschwindigkeit" }), speedProfile(t.path)]),
   ];
+}
+
+/** Balkendiagramm mit Skala; ein Tipp auf einen Balken zeigt dessen Kilometer darüber. */
+function kmBalken(t) {
+  const { max, ticks } = skala(Math.max(...t.bars, 0));
+  const proz = (v) => `${(v / max) * 100}%`;
+  const balken = t.bars.map((v, i) => {
+    const knopf = el("button.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""), {
+      type: "button", "aria-pressed": "false", "aria-label": `${t.barLabels[i]}: ${kmText(v)} km`,
+      on: { click: () => {
+        const an = knopf.getAttribute("aria-pressed") !== "true";
+        for (const b of knopf.parentElement.children) b.setAttribute("aria-pressed", "false");
+        knopf.setAttribute("aria-pressed", String(an));
+      } },
+    }, [el("div.col", { style: { height: proz(v) } }, [el("span.wert", { text: `${kmText(v)} km` })])]);
+    return knopf;
+  });
+  return el("div.balken", {}, [
+    el("div.balken-achse", {}, ticks.map((v) => el("span", { text: kmText(v), style: { bottom: proz(v) } }))),
+    el("div.balken-flaeche", {}, [
+      ...ticks.map((v) => el("i.gitter", { style: { bottom: proz(v) } })),
+      el("div.bars", {}, balken),
+    ]),
+    el("div.balken-namen", {}, t.barLabels.map((name) => el("small", { text: name }))),
+  ]);
 }
 
 function renderGesamtActions(t) {

@@ -52,6 +52,23 @@ export function miniRoute(trip, w, h) {
  */
 const MAX_PUNKTE = 400;
 
+/**
+ * Skala für ein Balkendiagramm: der höchste Wert wird auf einen "runden" Schritt
+ * (1, 2 oder 5 mal Zehnerpotenz) aufgerundet, damit die Achse z. B. 0 · 200 · 400 · 600
+ * zeigt und der höchste Balken nicht an der Oberkante klebt.
+ */
+export function skala(max, ziele = 3) {
+  if (!(max > 0) || !Number.isFinite(max)) return { max: 1, schritt: 1, ticks: [0, 1] };
+  const roh = max / ziele;
+  const potenz = 10 ** Math.floor(Math.log10(roh));
+  const f = roh / potenz;
+  const schritt = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * potenz;
+  const oben = Math.ceil(max / schritt - 1e-9) * schritt;
+  const ticks = [];
+  for (let v = 0; v <= oben + schritt / 2; v += schritt) ticks.push(Math.round(v * 1e6) / 1e6);
+  return { max: oben, schritt, ticks };
+}
+
 /** Auf höchstens `n` Punkte verkleinern: Mittelwert je gleich großem Abschnitt. */
 export function zusammenfassen(werte, n) {
   if (werte.length <= n) return werte;

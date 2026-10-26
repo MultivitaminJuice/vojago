@@ -29,3 +29,15 @@ test("zusammenfassen: sehr lange Reihen (200 000 Punkte) gehen ohne Fehler", () 
   assert.equal(reihe.length, 400);
   assert.ok(reihe.every((v) => v === 5));
 });
+
+test("skala: runde Schritte, höchster Wert passt darunter", async () => {
+  const { skala } = await import("../views/charts.js");
+  assert.deepEqual(skala(558).ticks, [0, 200, 400, 600]);
+  assert.equal(skala(558).max, 600);
+  assert.deepEqual(skala(73).ticks, [0, 50, 100]);
+  assert.deepEqual(skala(1000).ticks, [0, 500, 1000]);
+  assert.deepEqual(skala(4.2).ticks, [0, 2, 4, 6].slice(0, skala(4.2).ticks.length));
+  assert.ok(skala(4.2).max >= 4.2);
+  assert.deepEqual(skala(0), { max: 1, schritt: 1, ticks: [0, 1] });
+  assert.deepEqual(skala(-3).ticks, [0, 1]);
+});

@@ -602,11 +602,20 @@
   .stat .k { font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); }
   .stat .v { font-family: var(--font-mono); font-size: 19px; font-weight: 600; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
   .stat .u { font-size: var(--fs-caption); color: var(--ink-soft); }
-  .bars { display: flex; align-items: flex-end; gap: 7px; height: 100px; }
-  .bars .b { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
-  .bars .b .col { width: 100%; max-width: 24px; border-radius: 6px 6px 3px 3px; background: color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
-  .bars .b.hl .col { background: var(--accent); }
-  .bars .b small { font-size: var(--fs-caption); color: var(--ink-faint); font-family: var(--font-mono); }
+  /* Kilometer pro Tag: Skala links, Hilfslinien, antippbare Balken, Namen darunter */
+  .balken { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 100px auto; column-gap: 8px; padding-top: 16px; }
+  .balken-achse { position: relative; grid-row: 1; min-width: 22px; }
+  .balken-achse span { position: absolute; right: 0; transform: translateY(50%); font-size: var(--fs-caption); line-height: 1; color: var(--ink-faint); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .balken-flaeche { position: relative; grid-row: 1; }
+  .balken-flaeche .gitter { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line); opacity: .6; pointer-events: none; }
+  .balken-namen { grid-column: 2; grid-row: 2; display: flex; gap: 7px; margin-top: 6px; }
+  .balken-namen small { flex: 1; text-align: center; font-size: var(--fs-caption); color: var(--ink-faint); font-family: var(--font-mono); }
+  .bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 7px; }
+  .bars .b { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .bars .b .col { position: relative; width: 100%; max-width: 24px; border-radius: 6px 6px 3px 3px; background: color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
+  .bars .b.hl .col, .bars .b[aria-pressed="true"] .col { background: var(--accent); }
+  .bars .b .wert { display: none; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 3px; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-size: var(--fs-caption); font-family: var(--font-mono); white-space: nowrap; z-index: 2; pointer-events: none; }
+  .bars .b[aria-pressed="true"] .wert { display: block; }
   .profile-wrap { position: relative; }
   .profile { width: 100%; height: 84px; display: block; }
   .profile-range { position: absolute; top: 2px; left: 4px; font-family: var(--font-mono, monospace); font-size: 12px; font-weight: 700; line-height: 1.2; pointer-events: none; }
