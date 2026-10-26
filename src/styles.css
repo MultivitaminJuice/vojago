@@ -878,6 +878,11 @@
   .jt-autor-wetter { margin-left: auto; color: var(--ink-soft); white-space: nowrap; }
   .jt-text { margin: 0 2px 12px; color: var(--ink); font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
   .jt-erzaehlt .jt-fotos { margin: 0 0 12px; }
+  /* Ein einzelnes Foto im erzählten Tag wird nicht beschnitten, sondern in seinem eigenen Format gezeigt. */
+  .jt-erzaehlt .jt-fotos-1 { aspect-ratio: auto; }
+  .jt-erzaehlt .jt-fotos-1 img { height: auto; max-height: 78vh; object-fit: contain; }
+  .jt-titel { aspect-ratio: auto; }
+  .jt-titel img { height: auto; max-height: 78vh; object-fit: contain; }
   .jt-bearbeiten { margin-left: auto; border: 0; background: transparent; padding: 4px 2px; color: var(--ink-faint); font: inherit; font-size: var(--fs-small); cursor: pointer; }
   .jt-einladung { margin: 0 0 10px; padding: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 14px; text-align: center; }
   .jt-einladung b { display: block; font-size: var(--fs-title); }
