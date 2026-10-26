@@ -688,6 +688,16 @@
     .pad { max-width: 780px; margin: 0 auto; padding: 26px 24px 40px; }
     .stat-grid { gap: 12px; }
 
+    /* Reisen und Logbuch füllen wie die Karte die ganze Breite; die Inhalte ordnen sich in Spalten an,
+       der Text in den Karten bleibt dabei in lesbarer Breite. */
+    #view-reise .pad, #view-logbuch .pad { max-width: none; }
+    .travel-detail:has(#route-summary-panel > *) { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: 0 20px; align-items: start; }
+    #trip-segment { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0 14px; align-items: start; }
+    #trip-segment > .trip-actions, #trip-segment > .callout { grid-column: 1 / -1; }
+    #journal { column-width: 400px; column-gap: 18px; }
+    #journal > .jt-tag { break-inside: avoid; }
+    #journal > .jt-sprung, #journal > .callout { column-span: all; }
+
     /* Karte: Bedienelemente etwas großzügiger, Popover nicht über die volle Breite */
     .popover { left: 16px; right: auto; bottom: 16px; width: 420px; }
     .legend { left: 16px; bottom: 16px; }
@@ -716,6 +726,7 @@
   }
   @media (min-width: 1400px) {
     .pad { max-width: 900px; }
+    #view-reise .pad, #view-logbuch .pad { max-width: none; }
   }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
