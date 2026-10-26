@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseBlocks, bereinigeBlocks, titelbildId, ohneFoto, mitVerwaistenFotos, geschriebenText, tageFuerEditor, standardTag, fotoTagHinweis, hatInhalt } from "../tagebuch.js";
+import { ablageFotos, ordneBlocks, entferneFotoAusBlocks, textTrennstellen, setzeFoto, parseBlocks, bereinigeBlocks, titelbildId, ohneFoto, mitVerwaistenFotos, geschriebenText, tageFuerEditor, standardTag, fotoTagHinweis, hatInhalt } from "../tagebuch.js";
 
 test("parseBlocks: liest JSON-Text oder Liste, verwirft Unbrauchbares", () => {
   assert.deepEqual(parseBlocks('[{"t":"text","text":"a"},{"t":"fotos","ids":["x",5]},{"t":"video"}]'), [{ t: "text", text: "a" }, { t: "fotos", ids: ["x"] }]);
@@ -68,4 +68,55 @@ test("fotoTagHinweis: nennt den Reisetag, zu dem die meisten Fotos eher passen",
   const h = fotoTagHinweis([datei("2026-07-13T10:00:00"), datei("2026-07-13T11:00:00"), datei("2026-07-14T09:00:00")], "2026-07-14", tage);
   assert.deepEqual(h, { key: "2026-07-13", nummer: 2, anzahl: 2 });
   assert.equal(fotoTagHinweis([datei("2025-01-01T10:00:00")], "2026-07-14", tage), null, "Fotos außerhalb der Reise ergeben keinen Hinweis");
+});
+
+const T = (text) => ({ t: "text", text });
+const F = (...ids) => ({ t: "fotos", ids });
+
+test("ablageFotos: Fotos des Eintrags, die in keiner Gruppe stehen", () => {
+  assert.deepEqual(ablageFotos([T("a"), F("x")], ["x", "y", "z"]), ["y", "z"]);
+  assert.deepEqual(ablageFotos([], undefined), []);
+});
+
+test("ordneBlocks: leere Gruppen weg, Gruppen verschmelzen, ein Absatz bleibt", () => {
+  assert.deepEqual(ordneBlocks([F("a"), F(), F("b")]), [F("a", "b"), T("")]);
+  assert.deepEqual(ordneBlocks([T("x"), F(), T("")]), [T("x"), T("")]);
+});
+
+test("entferneFotoAusBlocks: nimmt das Foto aus der Gruppe, leere Gruppe verschwindet", () => {
+  assert.deepEqual(entferneFotoAusBlocks([T("x"), F("a", "b")], "a"), [T("x"), F("b")]);
+  assert.deepEqual(entferneFotoAusBlocks([T("x"), F("a")], "a"), [T("x")]);
+});
+
+test("textTrennstellen: jeder Zeilenumbruch, aber nicht am Rand", () => {
+  assert.deepEqual(textTrennstellen("eins\nzwei"), [{ von: 4, bis: 5 }]);
+  assert.deepEqual(textTrennstellen("eins\n\nzwei \n drei"), [{ von: 4, bis: 6 }, { von: 10, bis: 13 }]);
+  assert.deepEqual(textTrennstellen("\nanfang"), []);
+  assert.deepEqual(textTrennstellen("ende\n"), []);
+  assert.deepEqual(textTrennstellen("ohne umbruch"), []);
+});
+
+test("setzeFoto: zwischen zwei Absätze, an eine Gruppe grenzend verschmilzt es", () => {
+  assert.deepEqual(setzeFoto([T("a"), T("b")], "x", { art: "zwischen", index: 1 }), [T("a"), F("x"), T("b")]);
+  assert.deepEqual(setzeFoto([T("a"), F("y"), T("b")], "x", { art: "zwischen", index: 1 }), [T("a"), F("x", "y"), T("b")]);
+  assert.deepEqual(setzeFoto([T("a"), F("y"), T("b")], "x", { art: "zwischen", index: 2 }), [T("a"), F("y", "x"), T("b")]);
+});
+
+test("setzeFoto: mitten im Absatz teilt ihn", () => {
+  const ergebnis = setzeFoto([T("Morgens los.\n\nAbends Picknick.")], "x", { art: "text", block: 0, von: 12, bis: 14 });
+  assert.deepEqual(ergebnis, [T("Morgens los."), F("x"), T("Abends Picknick.")]);
+});
+
+test("setzeFoto: Verschieben im selben Block und zwischen Gruppen", () => {
+  // a b c -> c vor a
+  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "c", { art: "gruppe", block: 1, index: 0 }), [T("t"), F("c", "a", "b")]);
+  // a b c -> a hinter c (Position 3 vor dem Entfernen)
+  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "a", { art: "gruppe", block: 1, index: 3 }), [T("t"), F("b", "c", "a")]);
+  // einziges Foto einer Gruppe in eine spätere Gruppe: die leere Gruppe verschwindet, Indizes bleiben richtig
+  assert.deepEqual(setzeFoto([F("a"), T("t"), F("b")], "a", { art: "gruppe", block: 2, index: 1 }), [T("t"), F("b", "a")]);
+});
+
+test("setzeFoto: ein Foto aus der Ablage kommt neu hinzu", () => {
+  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 0 }), [F("n"), T("a")]);
+  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 1 }), [T("a"), F("n")]);
 });

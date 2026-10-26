@@ -51,6 +51,85 @@ export function mitVerwaistenFotos(blocks, fotoIds) {
   return fehlend.length ? [...blocks, { t: "fotos", ids: fehlend }] : blocks;
 }
 
+/** Fotos eines Eintrags, die in keinem Block stehen: die "Ablage" im Editor, in der Reihenfolge von `fotoIds`. */
+export function ablageFotos(blocks, fotoIds) {
+  const drin = new Set(alleFotoIds(blocks));
+  return (fotoIds || []).filter((id) => !drin.has(id));
+}
+
+/**
+ * Für den Editor: leere Foto-Gruppen entfernen, aufeinanderfolgende Gruppen
+ * verschmelzen und mindestens einen Absatz behalten. Leere Absätze bleiben —
+ * dort wird vielleicht gerade geschrieben.
+ */
+export function ordneBlocks(blocks) {
+  const out = [];
+  for (const b of blocks || []) {
+    if (b.t === "fotos") {
+      if (!b.ids.length) continue;
+      const letzter = out[out.length - 1];
+      if (letzter?.t === "fotos") letzter.ids = [...letzter.ids, ...b.ids];
+      else out.push({ t: "fotos", ids: [...b.ids] });
+    } else out.push({ t: "text", text: b.text });
+  }
+  if (!out.some((b) => b.t === "text")) out.push({ t: "text", text: "" });
+  return out;
+}
+
+/** Foto aus allen Gruppen nehmen (es bleibt am Eintrag und landet damit in der Ablage). */
+export const entferneFotoAusBlocks = (blocks, id) =>
+  ordneBlocks((blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)));
+
+/**
+ * Stellen, an denen ein Absatz geteilt werden kann, um dort ein Foto einzufügen:
+ * jeder Zeilenumbruch (samt Leerzeilen drumherum), nicht am Anfang oder Ende.
+ * Liefert [{ von, bis }]: der Text vorher endet bei `von`, der nachher beginnt bei `bis`.
+ */
+export function textTrennstellen(text) {
+  const out = [];
+  const re = /[ \t]*\n[ \t\n]*/g;
+  let m;
+  while ((m = re.exec(text || ""))) {
+    const von = m.index;
+    const bis = m.index + m[0].length;
+    if (von > 0 && bis < text.length) out.push({ von, bis });
+  }
+  return out;
+}
+
+/**
+ * Ein Foto an eine neue Stelle setzen (oder erstmals einsetzen). Ziele:
+ *  - { art: "gruppe", block, index }: in die Foto-Gruppe `block` an Position `index`
+ *  - { art: "zwischen", index }: als eigene Gruppe vor Block `index` (grenzt sie an eine Gruppe, verschmilzt sie damit)
+ *  - { art: "text", block, von, bis }: den Absatz `block` an dieser Stelle teilen und das Foto dazwischen setzen
+ * Die Indizes beziehen sich auf `blocks` vor dem Verschieben.
+ */
+export function setzeFoto(blocks, id, ziel) {
+  const kopie = (blocks || []).map((b) => (b.t === "fotos" ? { t: "fotos", ids: [...b.ids] } : { t: "text", text: b.text }));
+  let index = ziel.index;
+  // Die alte Stelle leeren; leere Gruppen bleiben vorerst stehen, damit die Indizes des Ziels stimmen.
+  kopie.forEach((b, i) => {
+    if (b.t !== "fotos") return;
+    const k = b.ids.indexOf(id);
+    if (k < 0) return;
+    b.ids.splice(k, 1);
+    if (ziel.art === "gruppe" && ziel.block === i && k < index) index -= 1;
+  });
+  if (ziel.art === "gruppe") {
+    const g = kopie[ziel.block];
+    if (g?.t === "fotos") g.ids.splice(Math.max(0, Math.min(index, g.ids.length)), 0, id);
+    else kopie.push({ t: "fotos", ids: [id] });
+  } else if (ziel.art === "text" && kopie[ziel.block]?.t === "text") {
+    const text = kopie[ziel.block].text;
+    const vorn = text.slice(0, ziel.von).replace(/\s+$/, "");
+    const hinten = text.slice(ziel.bis ?? ziel.von).replace(/^\s+/, "");
+    kopie.splice(ziel.block, 1, { t: "text", text: vorn }, { t: "fotos", ids: [id] }, { t: "text", text: hinten });
+  } else {
+    kopie.splice(Math.max(0, Math.min(ziel.index ?? kopie.length, kopie.length)), 0, { t: "fotos", ids: [id] });
+  }
+  return ordneBlocks(kopie);
+}
+
 /** SQLite liefert "JJJJ-MM-TT HH:MM:SS" in UTC ohne Zeitzone. */
 const dbZeit = (text) => {
   const s = String(text || "");
