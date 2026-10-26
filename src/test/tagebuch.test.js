@@ -78,14 +78,24 @@ test("ablageFotos: Fotos des Eintrags, die in keiner Gruppe stehen", () => {
   assert.deepEqual(ablageFotos([], undefined), []);
 });
 
-test("ordneBlocks: leere Gruppen weg, Gruppen verschmelzen, ein Absatz bleibt", () => {
-  assert.deepEqual(ordneBlocks([F("a"), F(), F("b")]), [F("a", "b"), T("")]);
-  assert.deepEqual(ordneBlocks([T("x"), F(), T("")]), [T("x"), T("")]);
+test("ordneBlocks: Gruppen verschmelzen, Text steht am Anfang und Ende, leere Gruppen weg", () => {
+  assert.deepEqual(ordneBlocks([F("a"), F(), F("b")]), [T(""), F("a", "b"), T("")]);
+  assert.deepEqual(ordneBlocks([]), [T("")]);
+  assert.deepEqual(ordneBlocks([T("x"), F()]), [T("x")]);
+});
+
+test("ordneBlocks: benachbarte Texte werden zu einem verbunden, leere Texte zwischen Gruppen entfallen", () => {
+  assert.deepEqual(ordneBlocks([T("eins"), T("zwei")]), [T("eins\n\nzwei")]);
+  assert.deepEqual(ordneBlocks([T("eins"), T("")]), [T("eins")]);
+  assert.deepEqual(ordneBlocks([T("a"), F("x"), T(""), F("y"), T("b")]), [T("a"), F("x", "y"), T("b")]);
+  assert.deepEqual(ordneBlocks([T("a"), F("x"), T("  \n"), T("b")]), [T("a"), F("x"), T("b")]);
 });
 
 test("entferneFotoAusBlocks: nimmt das Foto aus der Gruppe, leere Gruppe verschwindet", () => {
-  assert.deepEqual(entferneFotoAusBlocks([T("x"), F("a", "b")], "a"), [T("x"), F("b")]);
+  assert.deepEqual(entferneFotoAusBlocks([T("x"), F("a", "b")], "a"), [T("x"), F("b"), T("")]);
   assert.deepEqual(entferneFotoAusBlocks([T("x"), F("a")], "a"), [T("x")]);
+  // Der Text um das Foto herum wächst wieder zusammen.
+  assert.deepEqual(entferneFotoAusBlocks([T("vorher"), F("a"), T("nachher")], "a"), [T("vorher\n\nnachher")]);
 });
 
 test("textTrennstellen: jeder Zeilenumbruch, aber nicht am Rand", () => {
@@ -98,6 +108,7 @@ test("textTrennstellen: jeder Zeilenumbruch, aber nicht am Rand", () => {
 
 test("setzeFoto: zwischen zwei Absätze, an eine Gruppe grenzend verschmilzt es", () => {
   assert.deepEqual(setzeFoto([T("a"), T("b")], "x", { art: "zwischen", index: 1 }), [T("a"), F("x"), T("b")]);
+  assert.deepEqual(setzeFoto([T("a")], "x", { art: "zwischen", index: 1 }), [T("a"), F("x"), T("")]);
   assert.deepEqual(setzeFoto([T("a"), F("y"), T("b")], "x", { art: "zwischen", index: 1 }), [T("a"), F("x", "y"), T("b")]);
   assert.deepEqual(setzeFoto([T("a"), F("y"), T("b")], "x", { art: "zwischen", index: 2 }), [T("a"), F("y", "x"), T("b")]);
 });
@@ -109,14 +120,14 @@ test("setzeFoto: mitten im Absatz teilt ihn", () => {
 
 test("setzeFoto: Verschieben im selben Block und zwischen Gruppen", () => {
   // a b c -> c vor a
-  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "c", { art: "gruppe", block: 1, index: 0 }), [T("t"), F("c", "a", "b")]);
+  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "c", { art: "gruppe", block: 1, index: 0 }), [T("t"), F("c", "a", "b"), T("")]);
   // a b c -> a hinter c (Position 3 vor dem Entfernen)
-  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "a", { art: "gruppe", block: 1, index: 3 }), [T("t"), F("b", "c", "a")]);
+  assert.deepEqual(setzeFoto([T("t"), F("a", "b", "c")], "a", { art: "gruppe", block: 1, index: 3 }), [T("t"), F("b", "c", "a"), T("")]);
   // einziges Foto einer Gruppe in eine spätere Gruppe: die leere Gruppe verschwindet, Indizes bleiben richtig
-  assert.deepEqual(setzeFoto([F("a"), T("t"), F("b")], "a", { art: "gruppe", block: 2, index: 1 }), [T("t"), F("b", "a")]);
+  assert.deepEqual(setzeFoto([F("a"), T("t"), F("b")], "a", { art: "gruppe", block: 2, index: 1 }), [T("t"), F("b", "a"), T("")]);
 });
 
 test("setzeFoto: ein Foto aus der Ablage kommt neu hinzu", () => {
-  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 0 }), [F("n"), T("a")]);
-  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 1 }), [T("a"), F("n")]);
+  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 0 }), [T(""), F("n"), T("a")]);
+  assert.deepEqual(setzeFoto([T("a")], "n", { art: "zwischen", index: 1 }), [T("a"), F("n"), T("")]);
 });

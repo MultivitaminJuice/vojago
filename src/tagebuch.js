@@ -57,22 +57,41 @@ export function ablageFotos(blocks, fotoIds) {
   return (fotoIds || []).filter((id) => !drin.has(id));
 }
 
+const textLeer = (b) => b.t === "text" && !b.text.trim();
+
+/** Zwei Textstücke zu einem Absatzfluss verbinden (Leerzeile dazwischen); ein leeres verschwindet. */
+const verbinde = (a, b) => {
+  if (!a.trim()) return b;
+  if (!b.trim()) return a;
+  return `${a.replace(/\s+$/, "")}\n\n${b.replace(/^\s+/, "")}`;
+};
+
 /**
- * Für den Editor: leere Foto-Gruppen entfernen, aufeinanderfolgende Gruppen
- * verschmelzen und mindestens einen Absatz behalten. Leere Absätze bleiben —
- * dort wird vielleicht gerade geschrieben.
+ * Für den Editor: die Blöcke in eine feste Form bringen. Text steht nur noch
+ * zwischen Foto-Gruppen (benachbarte Texte werden verbunden), leere Gruppen und
+ * leere Texte zwischen zwei Gruppen entfallen, Gruppen verschmelzen — und am
+ * Anfang und am Ende steht immer ein Textfeld zum Weiterschreiben.
  */
 export function ordneBlocks(blocks) {
   const out = [];
   for (const b of blocks || []) {
+    const oben = out[out.length - 1];
     if (b.t === "fotos") {
       if (!b.ids.length) continue;
-      const letzter = out[out.length - 1];
-      if (letzter?.t === "fotos") letzter.ids = [...letzter.ids, ...b.ids];
-      else out.push({ t: "fotos", ids: [...b.ids] });
+      if (oben?.t === "fotos") { oben.ids = [...oben.ids, ...b.ids]; continue; }
+      // Leerer Text zwischen zwei Gruppen: weg, die Gruppen verschmelzen.
+      if (oben && textLeer(oben) && out[out.length - 2]?.t === "fotos") {
+        out.pop();
+        out[out.length - 1].ids = [...out[out.length - 1].ids, ...b.ids];
+        continue;
+      }
+      out.push({ t: "fotos", ids: [...b.ids] });
+    } else if (oben?.t === "text") {
+      oben.text = verbinde(oben.text, b.text);
     } else out.push({ t: "text", text: b.text });
   }
-  if (!out.some((b) => b.t === "text")) out.push({ t: "text", text: "" });
+  if (out[0]?.t !== "text") out.unshift({ t: "text", text: "" });
+  if (out[out.length - 1].t !== "text") out.push({ t: "text", text: "" });
   return out;
 }
 

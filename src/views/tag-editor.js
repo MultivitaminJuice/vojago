@@ -89,7 +89,7 @@ function laden(tripId, dayKey) {
   $("#tag-day").value = dayKey;
   const kopie = (liste) => JSON.parse(JSON.stringify(liste));
   let start = eintrag ? kopie(eintrag.blocks) : [];
-  snapshot = JSON.stringify(bereinigeBlocks(start));
+  snapshot = JSON.stringify(bereinigeBlocks(ordneBlocks(start)));
 
   const entwurf = lies(entwurfKey(tripId, dayKey));
   const stand = Date.parse(String(eintrag?.updatedAt || "").replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(eintrag?.updatedAt || "") ? "" : "Z")) || 0;
@@ -145,35 +145,18 @@ function zeichne() {
   if (!box) return;
   const knoten = [];
   zeilen = [];
-  // "＋ Absatz" erscheint, sobald der letzte Absatz Text hat (oder Fotos am Ende stehen) — ohne neu zu zeichnen,
-  // damit beim Tippen weder Fokus noch Tastatur verloren gehen.
-  const absatzKnopf = el("button.tag-add", { type: "button", text: "＋ Absatz", on: { click: () => {
-    blocks.push({ t: "text", text: "" });
-    zeichne();
-    fokussiereLetztenAbsatz();
-  } } });
-  const zeigeAbsatz = () => {
-    const l = blocks[blocks.length - 1];
-    absatzKnopf.hidden = !(l?.t === "fotos" || (l?.t === "text" && l.text.trim()));
-  };
   blocks.forEach((b, i) => {
     if (b.t === "text") {
       const feld = el("textarea.tag-text", {
-        rows: i === 0 ? 3 : 1, "aria-label": i === 0 ? "Was war heute los?" : "Weiterer Absatz",
+        rows: i === 0 ? 3 : 1, "aria-label": i === 0 ? "Was war heute los?" : "Weiter erzählen",
         placeholder: i === 0 ? "Was war los? Wo wart ihr, was habt ihr gesehen?" : "Weiter …",
       });
       feld.value = b.text;
       const merkeStelle = () => { aktiv = { block: b, stelle: feld.selectionStart ?? feld.value.length }; };
-      feld.addEventListener("input", () => { b.text = feld.value; wachse(feld); sichereEntwurf(); zeigeAbsatz(); merkeStelle(); });
+      feld.addEventListener("input", () => { b.text = feld.value; wachse(feld); sichereEntwurf(); merkeStelle(); });
       for (const ereignis of ["focus", "click", "keyup", "select"]) feld.addEventListener(ereignis, merkeStelle);
       queueMicrotask(() => wachse(feld));
-      const kannEntfernen = blocks.filter((x) => x.t === "text").length > 1;
-      const wurzel = el("div.tag-block", {}, [
-        feld,
-        el("div.tag-aktionen", {}, [
-          kannEntfernen ? el("button.tag-add.tag-weg", { type: "button", text: "Absatz entfernen", on: { click: (e) => entferneAbsatz(b, e.currentTarget) } }) : null,
-        ]),
-      ]);
+      const wurzel = el("div.tag-block", {}, [feld]);
       zeilen.push({ block: i, wurzel, feld });
       knoten.push(wurzel);
     } else {
@@ -195,14 +178,12 @@ function zeichne() {
   knoten.push(el("div.tag-leiste", {}, [
     el("div.tag-leiste-knoepfe", {}, [
       el("button.tag-add", { type: "button", text: "📷 Fotos wählen", on: { click: waehleFotos } }),
-      absatzKnopf,
     ]),
     ablage.length ? el("div.tag-ablage", {}, [
       el("small.tag-hinweis", { text: "Noch nicht im Text · antippen: an den Cursor · halten und ziehen: an eine Stelle" }),
       el("div.tag-ablage-reihe", {}, ablage.map(ablageFoto)),
     ]) : null,
   ]));
-  zeigeAbsatz();
   render(box, knoten);
 }
 
@@ -403,31 +384,6 @@ function zugAbbruch() {
 
 /** Neu zeichnen, aber nicht mitten in einem Zug (das würde das gezogene Foto samt Ereignissen verlieren). */
 const zeichneWennRuhig = () => { if (!zug) zeichne(); };
-
-/**
- * Fokus auf den letzten Absatz setzen, ohne dass der Browser dafür den äußeren Bildschirm
- * verschiebt (er würde die unten wartenden Blätter freilegen) — nur der Editor scrollt.
- */
-function fokussiereLetztenAbsatz() {
-  const feld = [...$("#tag-blocks").querySelectorAll("textarea")].at(-1);
-  if (!feld) return;
-  feld.focus({ preventScroll: true });
-  const koerper = feld.closest(".sheet-body");
-  if (koerper) koerper.scrollTop += feld.getBoundingClientRect().top - koerper.getBoundingClientRect().top - 80;
-}
-
-/** Absatz entfernen: ein leerer sofort, einer mit Text erst nach einer zweiten Berührung. */
-function entferneAbsatz(block, knopf) {
-  if (block.text.trim() && !knopf.dataset.sicher) {
-    knopf.dataset.sicher = "1";
-    knopf.textContent = "Wirklich entfernen?";
-    setTimeout(() => { if (knopf.isConnected) { delete knopf.dataset.sicher; knopf.textContent = "Absatz entfernen"; } }, 3500);
-    return;
-  }
-  blocks = ordneBlocks(blocks.filter((x) => x !== block));
-  sichereEntwurf();
-  zeichne();
-}
 
 function waehleFotos() {
   if (!current) return;
