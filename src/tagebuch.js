@@ -35,8 +35,14 @@ export function bereinigeBlocks(blocks) {
 export const alleFotoIds = (blocks) => (blocks || []).flatMap((b) => (b.t === "fotos" ? b.ids : []));
 export const hatInhalt = (blocks) => bereinigeBlocks(blocks).length > 0;
 
-/** Das Titelbild des Tages: das erste Foto des Eintrags. */
-export const titelbildId = (blocks) => alleFotoIds(blocks)[0] || null;
+/**
+ * Das Titelbild des Tages: das erste Foto — aber nur, wenn der Eintrag mit Fotos
+ * beginnt. Steht ein Foto mitten im Text, bleibt es dort und wird nicht nach oben gezogen.
+ */
+export function titelbildId(blocks) {
+  const erster = bereinigeBlocks(blocks)[0];
+  return erster?.t === "fotos" ? erster.ids[0] : null;
+}
 
 /** Blöcke ohne ein bestimmtes Foto (das als Titelbild gezeigt wird); leere Gruppen entfallen. */
 export function ohneFoto(blocks, id) {

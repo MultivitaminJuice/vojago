@@ -44,6 +44,10 @@ export function initTagEditor({ onChange, onOpen }) {
   $("#tag-save").addEventListener("click", () => save());
   $("#tag-day").addEventListener("change", (e) => wechsleTag(e.target.value));
   $("#tag-photo-input").addEventListener("change", fotosGewaehlt);
+  // Ein Foto ist nie als Text ablegbar: das System-Ziehen eines Bildes würde sonst seine Adresse in einen Absatz schreiben.
+  const fremd = (e) => { const t = [...(e.dataTransfer?.types || [])]; if (t.some((x) => x === "Files" || x === "text/uri-list" || x === "text/html")) e.preventDefault(); };
+  $("#tag-blocks").addEventListener("dragover", fremd);
+  $("#tag-blocks").addEventListener("drop", fremd);
 
   let loeschenBereit = null;
   $("#tag-delete").addEventListener("click", async (e) => {
@@ -180,7 +184,7 @@ function zeichne() {
       el("button.tag-add", { type: "button", text: "📷 Fotos wählen", on: { click: waehleFotos } }),
     ]),
     ablage.length ? el("div.tag-ablage", {}, [
-      el("small.tag-hinweis", { text: "Noch nicht im Text · antippen: an den Cursor · halten und ziehen: an eine Stelle" }),
+      el("small.tag-hinweis", { text: "Antippen: an den Cursor · Halten und ziehen: an eine Stelle" }),
       el("div.tag-ablage-reihe", {}, ablage.map(ablageFoto)),
     ]) : null,
   ]));
@@ -237,24 +241,49 @@ function fotoZiehbar(knoten, id, herkunft) {
   });
 }
 
-/** Höhe, die der Text bis zu einer Stelle in einem Eingabefeld einnimmt — misst per unsichtbarer Kopie. */
-function messeTrennstellen(feld, text) {
-  const stellen = textTrennstellen(text);
-  if (!stellen.length) return [];
+/**
+ * Mögliche Schnittstellen in einem Eingabefeld: das Ende jeder sichtbaren Zeile
+ * (an einer Wortgrenze) und jeder Zeilenumbruch. So lässt sich ein Foto auch
+ * mitten in einem langen Absatz einsetzen. Gemessen wird an einer unsichtbaren
+ * Kopie des Feldes; y ist der Abstand der Schnittlinie von der Oberkante des Feldes.
+ */
+function messeZeilen(feld, text) {
+  if (!text.trim()) return [];
   const css = getComputedStyle(feld);
   const spiegel = document.createElement("div");
   spiegel.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;white-space:pre-wrap;overflow-wrap:break-word;box-sizing:border-box;width:${feld.clientWidth + parseFloat(css.borderLeftWidth) + parseFloat(css.borderRightWidth)}px;font:${css.font};letter-spacing:${css.letterSpacing};line-height:${css.lineHeight};padding:${css.padding};border:${css.border}`;
   document.body.appendChild(spiegel);
-  const zeile = parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.5;
+  const hoehe = parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.5;
+  const oben = parseFloat(css.paddingTop) + parseFloat(css.borderTopWidth);
   const unten = parseFloat(css.paddingBottom) + parseFloat(css.borderBottomWidth);
-  const hoehe = (t) => { spiegel.textContent = t; return spiegel.offsetHeight; };
-  const ergebnis = stellen.map(({ von, bis }) => {
-    const ende = hoehe(text.slice(0, von)) - unten;             // Unterkante der Zeile davor
-    const anfang = hoehe(`${text.slice(0, bis)}x`) - unten - zeile; // Oberkante der Zeile danach
-    return { von, bis, y: (ende + anfang) / 2 };
-  });
+  const zeilenVon = (t) => { spiegel.textContent = t; return Math.round((spiegel.offsetHeight - oben - unten) / hoehe); };
+  const gesamt = zeilenVon(text);
+  const stellen = new Map();
+  for (let k = 1; k < gesamt; k++) {
+    // Das längste Textstück, das noch in k Zeilen passt, endet am Ende der k-ten Zeile.
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mitte = (lo + hi + 1) >> 1;
+      if (zeilenVon(text.slice(0, mitte)) <= k) lo = mitte; else hi = mitte - 1;
+    }
+    let i = lo;
+    if (i < text.length && !/\s/.test(text[i])) {            // mitten in einem Wort: zurück zur Wortgrenze
+      const w = text.slice(0, i).search(/\s\S*$/);
+      if (w < 0) continue;
+      i = w;
+    }
+    const von = text.slice(0, i).replace(/\s+$/, "").length;
+    const rest = text.slice(i);
+    const bis = i + (rest.length - rest.replace(/^\s+/, "").length);
+    if (von <= 0 || bis >= text.length) continue;
+    const y = oben + k * hoehe;
+    const alt = stellen.get(`${von}:${bis}`);
+    if (alt) alt.ys.push(y); else stellen.set(`${von}:${bis}`, { von, bis, ys: [y] });
+  }
   spiegel.remove();
-  return ergebnis;
+  // Eine Leerzeile erzeugt zwei Linien mit derselben Schnittstelle: die Marke kommt in die Mitte.
+  return [...stellen.values()].map(({ von, bis, ys }) => ({ von, bis, y: ys.reduce((a, b) => a + b, 0) / ys.length }));
 }
 
 function zugStart(quelle, id, herkunft, pos) {
@@ -266,25 +295,38 @@ function zugStart(quelle, id, herkunft, pos) {
   document.body.classList.add("tag-zieht");
   zug = {
     id, herkunft, quelle, geist, marke, pos, ziel: null,
-    trenn: new Map(zeilen.filter((z) => z.feld).map((z) => [z.block, messeTrennstellen(z.feld, blocks[z.block].text)])),
+    trenn: new Map(zeilen.filter((z) => z.feld).map((z) => [z.block, messeZeilen(z.feld, blocks[z.block].text)])),
     raf: requestAnimationFrame(zugTakt),
-    nachher: false,
+    start: performance.now(), randSeit: 0,
   };
+  // Während des Ziehens soll nichts anderes scrollen; der Editor scrollt nur selbst am Rand.
+  const koerper = $("#tag-blocks")?.closest(".sheet-body");
+  if (koerper) { zug.koerper = koerper; zug.overflow = koerper.style.overflowY; koerper.style.overflowY = "hidden"; }
   zugAnzeige();
 }
 
-/** Jeder Bildschirm-Takt: am Rand scrollen und das Ziel neu bestimmen (der Inhalt wandert dabei unter dem Finger). */
-function zugTakt() {
+/**
+ * Jeder Bildschirm-Takt: am Rand langsam scrollen (erst nach kurzem Verweilen, damit ein
+ * Ziel in Randnähe nicht davonläuft) und das Ziel neu bestimmen, weil der Inhalt wandert.
+ */
+function zugTakt(jetzt = performance.now()) {
   if (!zug) return;
-  const koerper = $("#tag-blocks")?.closest(".sheet-body");
+  const koerper = zug.koerper;
   const leiste = $(".tag-leiste")?.getBoundingClientRect();
   if (koerper && leiste) {
     const k = koerper.getBoundingClientRect();
-    const RAND = 70;
+    const RAND = 56;
     const oben = zug.pos.y - k.top;
-    const unten = (leiste.top - 6) - zug.pos.y;
-    if (oben < RAND) koerper.scrollTop -= Math.ceil(((RAND - Math.max(oben, 0)) / RAND) * 14);
-    else if (unten < RAND && unten > 0) koerper.scrollTop += Math.ceil(((RAND - unten) / RAND) * 14);
+    const unten = (leiste.top - 4) - zug.pos.y;
+    const richtung = oben < RAND ? -1 : unten < RAND && unten > 0 ? 1 : 0;
+    if (!richtung) zug.randSeit = 0;
+    else {
+      zug.randSeit ||= jetzt;
+      if (jetzt - zug.randSeit > 350) {
+        const naehe = richtung < 0 ? RAND - Math.max(oben, 0) : RAND - unten;
+        koerper.scrollTop += richtung * Math.max(1, Math.ceil((naehe / RAND) * 7));
+      }
+    }
   }
   zugAnzeige();
   zug.raf = requestAnimationFrame(zugTakt);
@@ -357,6 +399,7 @@ function zugAufraeumen() {
   cancelAnimationFrame(zug.raf);
   zug.geist.remove();
   zug.marke.remove();
+  if (zug.koerper) zug.koerper.style.overflowY = zug.overflow || "";
   zug.quelle.classList.remove("zieht");
   document.body.classList.remove("tag-zieht");
   $(".tag-leiste")?.classList.remove("ziel");

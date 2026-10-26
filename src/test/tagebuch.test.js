@@ -19,11 +19,14 @@ test("bereinigeBlocks: leere Absätze und Gruppen entfallen, Foto-Gruppen hinter
   assert.equal(hatInhalt([{ t: "fotos", ids: ["a"] }]), true);
 });
 
-test("Titelbild ist das erste Foto; ohneFoto nimmt es aus den Blöcken, leere Gruppen entfallen", () => {
-  const blocks = [{ t: "text", text: "x" }, { t: "fotos", ids: ["a"] }, { t: "text", text: "y" }, { t: "fotos", ids: ["b", "c"] }];
+test("Titelbild nur, wenn der Eintrag mit Fotos beginnt; ohneFoto nimmt es aus den Blöcken, leere Gruppen entfallen", () => {
+  const blocks = [{ t: "fotos", ids: ["a"] }, { t: "text", text: "y" }, { t: "fotos", ids: ["b", "c"] }];
   assert.equal(titelbildId(blocks), "a");
+  assert.equal(titelbildId([{ t: "text", text: "" }, ...blocks]), "a");   // ein leeres Feld davor zählt nicht
+  // Ein Foto mitten im Text bleibt dort, es wird nicht zum Titelbild.
+  assert.equal(titelbildId([{ t: "text", text: "x" }, { t: "fotos", ids: ["a"] }]), null);
   assert.equal(titelbildId([{ t: "text", text: "x" }]), null);
-  assert.deepEqual(ohneFoto(blocks, "a"), [{ t: "text", text: "x" }, { t: "text", text: "y" }, { t: "fotos", ids: ["b", "c"] }]);
+  assert.deepEqual(ohneFoto(blocks, "a"), [{ t: "text", text: "y" }, { t: "fotos", ids: ["b", "c"] }]);
   assert.equal(ohneFoto(blocks, null), blocks);
 });
 

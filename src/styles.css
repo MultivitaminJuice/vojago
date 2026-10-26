@@ -901,6 +901,7 @@
   .photo-thumb.klein { flex: none; width: 60px; cursor: pointer; }
   .photo-thumb button.sicher { width: auto; padding: 0 8px; border-radius: 11px; background: var(--crit); color: #fff; font-size: 11px; }
   .tag-fotos .photo-thumb, .photo-thumb.klein { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .tag-fotos .photo-thumb img, .photo-thumb.klein img { pointer-events: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
   .photo-thumb.zieht { opacity: .3; }
   .tag-geist { position: fixed; left: 0; top: 0; z-index: 400; width: 72px; height: 72px; border-radius: 12px; overflow: hidden; pointer-events: none; box-shadow: 0 10px 26px rgba(0,0,0,.4); border: 2px solid var(--accent); }
   .tag-geist img { width: 100%; height: 100%; object-fit: cover; display: block; }
