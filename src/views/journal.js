@@ -523,11 +523,15 @@ function tagKapitel(tag, t, eintrag) {
     ? (tag.von && tag.nach ? `${kmText(tag.km)} km von ${tag.von} nach ${tag.nach}` : `${kmText(tag.km)} km`)
     : folgeNur ? "Ruhetag am Stellplatz" : "";
   const inhalt = [...karten, ...notizen].sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  return el("section.jt-tag", { dataset: { tag: tag.key } }, [
-    el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
+  // Die technische Seite des Tages (Strecke, Stellplätze, Orte, Notizen) dient als Gedankenstütze, solange
+  // noch nichts erzählt ist, und steht dann vor der Einladung; ist der Tag erzählt, kommt sie ans Ende.
+  const technik = [
     gedankenstuetze(tag, hatErzaehlung, zeile, t.id, !eintrag),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
-    eintrag ? tagebuchBlock(eintrag, tag) : einladung(tag, t),
+  ];
+  return el("section.jt-tag", { dataset: { tag: tag.key } }, [
+    el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
+    ...(eintrag ? [tagebuchBlock(eintrag, tag), ...technik] : [...technik, einladung(tag, t)]),
   ]);
 }
 
