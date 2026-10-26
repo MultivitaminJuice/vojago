@@ -282,8 +282,9 @@ function verlaufBlock(tag, offen, km = 0) {
   return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
 }
 
-// Standardmäßig sind Strecke und Stellplatz-/Orts-Karten zu; aufgeklappte merkt sich das Gerät.
+// Standardmäßig sind Strecke (außer an Tagen ohne Eintrag) und Stellplatz-/Orts-Karten zu; was man umstellt, merkt sich das Gerät.
 const KARTE_OFFEN_KEY = "vojago.logbuch.karteOffen";
+const KARTE_ZU_KEY = "vojago.logbuch.karteGeschlossen";
 const PLATZ_OFFEN_KEY = "vojago.logbuch.platzOffen";
 const ladeOffen = (key = KARTE_OFFEN_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
 const speichereOffen = (menge, key = KARTE_OFFEN_KEY) => { try { localStorage.setItem(key, JSON.stringify([...menge].slice(-600))); } catch { /* Speicher blockiert */ } };
@@ -292,7 +293,7 @@ const speichereOffen = (menge, key = KARTE_OFFEN_KEY) => { try { localStorage.se
  * Strecke des Tages: Karte, Wetter, Kilometer und Verlauf. Bleibt auch bei einem
  * erzählten Tag stehen, lässt sich aber einklappen (der Zustand wird je Tag gemerkt).
  */
-function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
+function gedankenstuetze(tag, hatErzaehlung, zeile, tripId, ohneEintrag) {
   const zeichnung = kartenbild(tag);
   const wetter = tag.wetter;
   const verlauf = verlaufBlock(tag, !hatErzaehlung);
@@ -300,7 +301,7 @@ function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
   if (!zeichnung && !info && !verlauf) return null;
   const kurz = [wetter ? [wetter.symbol, wetter.temp].filter(Boolean).join(" ") : "", tag.km ? `${kmText(tag.km)} km` : ""].filter(Boolean).join(" · ");
   const schluessel = `${tripId}|${tag.key}`;
-  const karte = el("details.jt-karte", { open: ladeOffen().has(schluessel) }, [
+  const karte = el("details.jt-karte", { open: ladeOffen().has(schluessel) || (ohneEintrag && !ladeOffen(KARTE_ZU_KEY).has(schluessel)) }, [
     el("summary.jt-karte-kopf", {}, [
       el("span", { text: zeichnung ? "Strecke" : "Verlauf" }),
       kurz ? el("span.jt-leise.jt-karte-kurz", { text: kurz }) : null,
@@ -314,9 +315,12 @@ function gedankenstuetze(tag, hatErzaehlung, zeile, tripId) {
     verlauf,
   ]);
   karte.addEventListener("toggle", () => {
+    // Ohne Eintrag ist die Strecke von selbst offen — dann merken wir auch, was zugeklappt wurde.
     const offen = ladeOffen();
-    if (karte.open) offen.add(schluessel); else offen.delete(schluessel);
+    const zu = ladeOffen(KARTE_ZU_KEY);
+    if (karte.open) { offen.add(schluessel); zu.delete(schluessel); } else { offen.delete(schluessel); zu.add(schluessel); }
     speichereOffen(offen);
+    speichereOffen(zu, KARTE_ZU_KEY);
   });
   return karte;
 }
@@ -519,7 +523,7 @@ function tagKapitel(tag, t, eintrag) {
   const inhalt = [...karten, ...notizen].sort((a, b) => String(a.at).localeCompare(String(b.at)));
   return el("section.jt-tag", { dataset: { tag: tag.key } }, [
     el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
-    gedankenstuetze(tag, hatErzaehlung, zeile, t.id),
+    gedankenstuetze(tag, hatErzaehlung, zeile, t.id, !eintrag),
     ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
     eintrag ? tagebuchBlock(eintrag, tag) : einladung(tag, t),
   ]);
