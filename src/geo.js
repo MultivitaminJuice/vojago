@@ -212,3 +212,18 @@ export function routenTreffer(path, lon, lat, toleranzM, lueckeMs = 300_000) {
   }
   return durchfahrten.map((d) => ({ punkt: d.punkt, index: d.index, abstandM: Math.sqrt(d.abstand2) }));
 }
+
+/**
+ * Von mehreren Durchfahrten nur die, die wirklich an derselben Stelle liegen wie
+ * die dem Finger nächste. Bei weitem Zoom sind 22 Pixel viele Kilometer — dann
+ * lägen sonst Hin-, Rückweg und Abstecher auf getrennten Straßen im Tipp-Bereich,
+ * obwohl sie nur auf dem Bildschirm übereinanderliegen. `maxM` deckt den Versatz
+ * zweier Fahrten auf derselben Straße ab (Spur, GPS-Rauschen, Messabstand).
+ */
+export function gleicheStelle(treffer, maxM = 100) {
+  if (treffer.length < 2) return treffer;
+  const anker = treffer.reduce((b, t) => (t.abstandM < b.abstandM ? t : b)).punkt;
+  const mLat = 111_320;
+  const mLon = 111_320 * Math.cos((anker.lat * Math.PI) / 180);
+  return treffer.filter((t) => Math.hypot((t.punkt.lon - anker.lon) * mLon, (t.punkt.lat - anker.lat) * mLat) <= maxM);
+}

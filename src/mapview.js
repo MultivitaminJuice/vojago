@@ -7,7 +7,7 @@
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, meterProPixel } from "./geo.js";
+import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, gleicheStelle, meterProPixel } from "./geo.js";
 import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
 import { tippEintraege, naechsterTreffer } from "./route-tip.js";
@@ -149,7 +149,8 @@ function onMapClick(e) {
   const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * meterProPixel(map.getZoom(), lat));
   // Wurde dieselbe Strecke mehrfach befahren (Hin- und Rückweg), gibt es mehrere
   // Durchfahrten an der Stelle — alle werden gezeigt, nicht nur die nächste.
-  const treffer = routenTreffer(tippPfad, lng, lat, toleranz);
+  // Bei weitem Zoom nur die, die real an derselben Stelle liegen (sonst Treffer aus Kilometern Umkreis).
+  const treffer = gleicheStelle(routenTreffer(tippPfad, lng, lat, toleranz));
   if (!treffer.length) return;
   const anker = naechsterTreffer(treffer).punkt;
   const { eintraege, weitere } = tippEintraege(treffer);

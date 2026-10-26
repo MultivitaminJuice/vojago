@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { routenTipp, tippEintraege, naechsterTreffer } from "../route-tip.js";
-import { routenTreffer, meterProPixel } from "../geo.js";
+import { routenTreffer, gleicheStelle, meterProPixel } from "../geo.js";
 
 test("routenTipp: Tag, Datum, Uhrzeit, Kilometer, Tempo und Höhe", () => {
   const t = routenTipp({ day: 4, time: "2026-10-21T12:32:10.000Z", cum: 1240.4, spd: 81.6, elev: 411.7 });
@@ -53,6 +53,24 @@ test("routenTreffer: ohne Zeitstempel trennt ein großer Indexabstand", () => {
   const ohne = (i) => ({ lon: 10, lat: 50, cum: i });
   const pfad = [...Array.from({ length: 5 }, (_, i) => ohne(i)), ...Array.from({ length: 40 }, () => ({ lon: 11, lat: 51 })), ...Array.from({ length: 5 }, (_, i) => ohne(i))];
   assert.equal(routenTreffer(pfad, 10, 50, 50).length, 2);
+});
+
+test("gleicheStelle: weit entfernte Straßen im großen Tipp-Bereich zählen nicht als dieselbe Stelle", () => {
+  // Bei weitem Zoom liegen 3 km Toleranz im Tipp-Bereich: Hinweg, Rückweg auf derselben Straße
+  // und eine Parallelstraße 2 km weiter nördlich.
+  const parallel = Array.from({ length: 11 }, (_, i) => punkt(i, new Date(Date.UTC(2026, 9, 23, 9, i)).toISOString(), { lat: 50.018 }));
+  const treffer = routenTreffer([...hinweg, ...rueckweg, ...parallel], 10.005, 50.0005, 3000);
+  assert.equal(treffer.length, 3);
+  const gleich = gleicheStelle(treffer);
+  assert.equal(gleich.length, 2);
+  assert.ok(gleich.every((t) => t.punkt.lat < 50.001));
+});
+
+test("gleicheStelle: eine einzelne Durchfahrt bleibt, mehrere auf derselben Straße bleiben alle", () => {
+  const eine = routenTreffer(hinweg, 10.005, 50, 50);
+  assert.equal(gleicheStelle(eine).length, 1);
+  assert.deepEqual(gleicheStelle([]), []);
+  assert.equal(gleicheStelle(routenTreffer([...hinweg, ...rueckweg], 10.005, 50.00001, 50)).length, 2);
 });
 
 test("tippEintraege: bei mehreren Durchfahrten nummeriert, ab dem Limit wird nur gezählt", () => {
