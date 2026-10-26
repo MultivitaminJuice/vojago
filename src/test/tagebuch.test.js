@@ -30,9 +30,11 @@ test("Titelbild nur, wenn der Eintrag mit Fotos beginnt; ohneFoto nimmt es aus d
   assert.equal(ohneFoto(blocks, null), blocks);
 });
 
-test("mitVerwaistenFotos: Fotos des Eintrags, die in keinem Block stehen, kommen ans Ende", () => {
+test("mitVerwaistenFotos: Fotos des Eintrags, die in keinem Block stehen, kommen an den Anfang", () => {
   const blocks = [{ t: "fotos", ids: ["a"] }];
-  assert.deepEqual(mitVerwaistenFotos(blocks, ["a", "b"]), [{ t: "fotos", ids: ["a"] }, { t: "fotos", ids: ["b"] }]);
+  assert.deepEqual(mitVerwaistenFotos(blocks, ["a", "b"]), [{ t: "fotos", ids: ["b"] }, { t: "fotos", ids: ["a"] }]);
+  // Zusammen mit Text: das unplatzierte Foto wird Titelbild.
+  assert.equal(titelbildId(mitVerwaistenFotos([{ t: "text", text: "x" }], ["n"])), "n");
   assert.equal(mitVerwaistenFotos(blocks, ["a"]), blocks);
 });
 

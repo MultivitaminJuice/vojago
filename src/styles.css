@@ -899,7 +899,14 @@
   .tag-ablage-reihe { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; }
   .tag-ablage-reihe::-webkit-scrollbar { display: none; }
   .photo-thumb.klein { flex: none; width: 60px; cursor: pointer; }
-  .photo-thumb button.sicher { width: auto; padding: 0 8px; border-radius: 11px; background: var(--crit); color: #fff; font-size: 11px; }
+  .tag-loeschen { margin: 4px 0 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--crit) 45%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--crit) 8%, var(--surface)); }
+  .tag-loeschen-kopf { display: flex; gap: 12px; align-items: center; }
+  .tag-loeschen-kopf img { flex: none; width: 64px; height: 64px; border-radius: 10px; object-fit: cover; }
+  .tag-loeschen-kopf b { display: block; font-size: 16px; }
+  .tag-loeschen-kopf span { display: block; margin-top: 2px; color: var(--ink-soft); font-size: var(--fs-small); line-height: 1.35; }
+  .tag-loeschen-knoepfe { display: flex; gap: 10px; margin-top: 12px; }
+  .tag-loeschen-knoepfe button { flex: 1; min-height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .tag-loeschen-knoepfe button.gefahr { border-color: var(--crit); background: var(--crit); color: #fff; }
   .tag-fotos .photo-thumb, .photo-thumb.klein { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .tag-fotos .photo-thumb img, .photo-thumb.klein img { pointer-events: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
   .photo-thumb.zieht { opacity: .3; }

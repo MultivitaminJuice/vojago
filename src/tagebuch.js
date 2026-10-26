@@ -50,11 +50,14 @@ export function ohneFoto(blocks, id) {
   return bereinigeBlocks((blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)));
 }
 
-/** Fotos eines Eintrags, die in keinem Block stehen (z. B. hochgeladen, dann nicht gespeichert) — als Foto-Gruppe ans Ende. */
+/**
+ * Fotos eines Eintrags, die in keinem Block stehen (hochgeladen, aber noch nicht platziert):
+ * als Foto-Gruppe an den Anfang — das erste wird damit zum Titelbild, bis man es selbst platziert.
+ */
 export function mitVerwaistenFotos(blocks, fotoIds) {
   const drin = new Set(alleFotoIds(blocks));
   const fehlend = (fotoIds || []).filter((id) => !drin.has(id));
-  return fehlend.length ? [...blocks, { t: "fotos", ids: fehlend }] : blocks;
+  return fehlend.length ? [{ t: "fotos", ids: fehlend }, ...blocks] : blocks;
 }
 
 /** Fotos eines Eintrags, die in keinem Block stehen: die "Ablage" im Editor, in der Reihenfolge von `fotoIds`. */

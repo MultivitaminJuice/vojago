@@ -90,6 +90,7 @@ export function openTagEditor({ tripId, dayKey = null }) {
 function laden(tripId, dayKey) {
   const eintrag = tagebuchFuer(tripId, dayKey);
   current = { tripId, dayKey, id: eintrag?.id || null };
+  loeschFrage = null;
   $("#tag-day").value = dayKey;
   const kopie = (liste) => JSON.parse(JSON.stringify(liste));
   let start = eintrag ? kopie(eintrag.blocks) : [];
@@ -141,6 +142,7 @@ let aktiv = { block: null, stelle: 0 };
 // Die gezeichneten Blöcke (für die Zielsuche beim Ziehen): { block, wurzel, feld? , gruppe? }
 let zeilen = [];
 let zug = null;
+let loeschFrage = null;   // Foto der Ablage, bei dem gerade "Endgültig löschen?" gefragt wird
 
 const fotoIds = () => (current?.id ? tagebuchFotos(current.id).map((p) => p.id) : []);
 
@@ -183,27 +185,37 @@ function zeichne() {
     el("div.tag-leiste-knoepfe", {}, [
       el("button.tag-add", { type: "button", text: "📷 Fotos wählen", on: { click: waehleFotos } }),
     ]),
-    ablage.length ? el("div.tag-ablage", {}, [
-      el("small.tag-hinweis", { text: "Antippen: an den Cursor · Halten und ziehen: an eine Stelle" }),
-      el("div.tag-ablage-reihe", {}, ablage.map(ablageFoto)),
-    ]) : null,
+    ablage.includes(loeschFrage) ? loeschDialog(loeschFrage)
+      : ablage.length ? el("div.tag-ablage", {}, [
+        el("small.tag-hinweis", { text: "Antippen: an den Cursor · Halten und ziehen: an eine Stelle" }),
+        el("div.tag-ablage-reihe", {}, ablage.map(ablageFoto)),
+      ]) : null,
   ]));
   render(box, knoten);
 }
 
+/** Rückfrage vor dem endgültigen Löschen: groß, mit dem Foto, damit nichts versehentlich verschwindet. */
+function loeschDialog(id) {
+  const schliessen = () => { loeschFrage = null; zeichne(); };
+  return el("div.tag-loeschen", { role: "alertdialog", "aria-label": "Foto löschen?" }, [
+    el("div.tag-loeschen-kopf", {}, [
+      el("img", { src: photoUrl(id), alt: "" }),
+      el("div", {}, [el("b", { text: "Foto endgültig löschen?" }), el("span", { text: "Es verschwindet auch aus dem Konto und lässt sich nicht zurückholen." })]),
+    ]),
+    el("div.tag-loeschen-knoepfe", {}, [
+      el("button", { type: "button", text: "Abbrechen", on: { click: schliessen } }),
+      el("button.gefahr", { type: "button", text: "Löschen", on: { click: () => { loeschFrage = null; loescheFoto(id); } } }),
+    ]),
+  ]);
+}
+
 /** Ein Foto der Ablage: antippen setzt es an den Cursor, halten und ziehen an eine beliebige Stelle. */
 function ablageFoto(id) {
+  // Endgültig weg — deshalb erst nach der Rückfrage (siehe loeschFrage in zeichne).
   const loeschen = el("button", { type: "button", "aria-label": "Foto löschen", text: "✕", on: { click: (e) => {
     e.stopPropagation();
-    // Endgültig weg — deshalb erst nach einer zweiten Berührung.
-    if (!loeschen.dataset.sicher) {
-      loeschen.dataset.sicher = "1";
-      loeschen.textContent = "Löschen?";
-      loeschen.classList.add("sicher");
-      setTimeout(() => { if (loeschen.isConnected) { delete loeschen.dataset.sicher; loeschen.textContent = "✕"; loeschen.classList.remove("sicher"); } }, 3000);
-      return;
-    }
-    loescheFoto(id);
+    loeschFrage = id;
+    zeichne();
   } } });
   const thumb = el("div.photo-thumb.klein", { dataset: { id }, on: { click: () => setzeAnCursor(id) } }, [
     el("img", { src: photoUrl(id), loading: "lazy", alt: "", draggable: false }),
@@ -242,10 +254,9 @@ function fotoZiehbar(knoten, id, herkunft) {
 }
 
 /**
- * Mögliche Schnittstellen in einem Eingabefeld: das Ende jeder sichtbaren Zeile
- * (an einer Wortgrenze) und jeder Zeilenumbruch. So lässt sich ein Foto auch
- * mitten in einem langen Absatz einsetzen. Gemessen wird an einer unsichtbaren
- * Kopie des Feldes; y ist der Abstand der Schnittlinie von der Oberkante des Feldes.
+ * Mögliche Schnittstellen in einem Eingabefeld: jeder Zeilen- und Absatzumbruch
+ * des Textes (nicht der automatische Umbruch am Zeilenende). Gemessen wird an einer
+ * unsichtbaren Kopie des Feldes; y ist der Abstand der Schnittlinie von der Oberkante des Feldes.
  */
 function messeZeilen(feld, text) {
   if (!text.trim()) return [];
@@ -277,6 +288,8 @@ function messeZeilen(feld, text) {
     const rest = text.slice(i);
     const bis = i + (rest.length - rest.replace(/^\s+/, "").length);
     if (von <= 0 || bis >= text.length) continue;
+    // Nur echte Zeilen- und Absatzgrenzen sind Einfügestellen, nicht jeder Zeilenumbruch des Umbruchs.
+    if (!text.slice(von, bis).includes("\n")) continue;
     const y = oben + k * hoehe;
     const alt = stellen.get(`${von}:${bis}`);
     if (alt) alt.ys.push(y); else stellen.set(`${von}:${bis}`, { von, bis, ys: [y] });
@@ -479,6 +492,7 @@ async function loescheFoto(fotoId) {
     await deletePhoto(fotoId);
     removePhoto(fotoId);
     zeichneWennRuhig();
+    toast("Foto gelöscht");
   } catch (err) {
     toast(err.message || "Foto konnte nicht gelöscht werden");
   }
@@ -510,5 +524,5 @@ export const clearEditor = () => {
   current = null;
 };
 
-// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Ende (siehe mitVerwaistenFotos).
+// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Anfang des Tages, das erste als Titelbild (siehe mitVerwaistenFotos).
 export const verwendeteFotos = () => alleFotoIds(blocks);

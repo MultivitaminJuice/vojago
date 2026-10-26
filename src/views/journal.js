@@ -476,7 +476,7 @@ function titelbild(foto, info) {
 function tagebuchBlock(eintrag, tag) {
   const fotos = new Map(tagebuchFotos(eintrag.id).map((f) => [f.id, f]));
   const info = tagebuchCaption(eintrag, tag);
-  // Fotos, die noch in der Ablage des Editors liegen, erscheinen am Ende des Tages — nichts geht verloren.
+  // Fotos, die noch in der Ablage des Editors liegen, erscheinen am Anfang des Tages (das erste als Titelbild), bis man sie platziert — nichts geht verloren.
   const bloecke = mitVerwaistenFotos(eintrag.blocks, [...fotos.keys()]);
   const coverId = titelbildId(bloecke.filter((b) => b.t !== "fotos" || b.ids.some((id) => fotos.has(id)))
     .map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((id) => fotos.has(id)) } : b)));
