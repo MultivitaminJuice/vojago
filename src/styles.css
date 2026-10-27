@@ -724,9 +724,8 @@
     .travel-detail:has(#route-summary-panel > *) { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: 0 20px; align-items: start; }
     #trip-segment { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0 14px; align-items: start; }
     #trip-segment > .trip-actions, #trip-segment > .callout { grid-column: 1 / -1; }
-    #journal { column-width: 400px; column-gap: 18px; }
-    #journal > .jt-tag { break-inside: avoid; }
-    #journal > .jt-sprung, #journal > .callout { column-span: all; }
+    .jt-spalten { display: flex; align-items: flex-start; gap: 18px; }
+    .jt-spalte { flex: 1; min-width: 0; }
 
     /* Karte: Bedienelemente etwas großzügiger, Popover nicht über die volle Breite */
     /* Auswahl-Dialoge in der Mitte statt am unteren Rand, nicht über die ganze Breite */

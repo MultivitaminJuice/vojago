@@ -583,13 +583,45 @@ export function renderJournal() {
     ? el("button.jt-sprung", { type: "button", text: "Zum aktuellen Tag", on: { click: () => {
       // Nur im Logbuch-Bereich scrollen: scrollIntoView würde auch den
       // äußeren Bildschirm verschieben und die unten wartenden Blätter freilegen.
-      const alle = container.querySelectorAll("section.jt-tag");
-      const ziel = alle[alle.length - 1];
+      const ziel = tageKnoten[tageKnoten.length - 1];
       const ansicht = container.closest(".view");
       if (!ziel || !ansicht) return;
       const oben = ansicht.scrollTop + ziel.getBoundingClientRect().top - ansicht.getBoundingClientRect().top - 8;
       ansicht.scrollTo({ top: Math.max(0, oben), behavior: "smooth" });
     } } })
     : null;
-  render(container, [sprung, ...tage.map((tag) => tagKapitel(tag, t, tagebuch.get(tag.key)))]);
+  tageKnoten = tage.map((tag) => tagKapitel(tag, t, tagebuch.get(tag.key)));
+  render(container, [sprung]);
+  spaltenZahl = 0;
+  legeTageAus(container);
+  beobachteSpalten(container);
+}
+
+/* ---------- Tage in Spalten (breite Fenster) ----------
+   Eigene Spalten-Container statt CSS-Spalten: In CSS-Spalten stimmt die Lage der Kartenkacheln
+   (verschoben, skaliert) ab der zweiten Spalte nicht. Die Tage verteilen sich der Reihe nach
+   (Tag 1 links, Tag 2 daneben, Tag 3 wieder links …), je Spalte bleiben sie chronologisch. */
+let tageKnoten = [];      // die gezeichneten Tage in Reihenfolge
+let spaltenZahl = 0;
+let spaltenBeobachter = null;
+const SPALTE_MIN = 400;
+const SPALTE_LUECKE = 18;
+const spaltenFuer = (breite) => Math.max(1, Math.min(3, Math.floor((breite + SPALTE_LUECKE) / (SPALTE_MIN + SPALTE_LUECKE))));
+
+function legeTageAus(container) {
+  const n = spaltenFuer(container.clientWidth);
+  if (n === spaltenZahl) return;
+  spaltenZahl = n;
+  container.querySelector(":scope > .jt-spalten")?.remove();
+  for (const tag of tageKnoten) tag.remove();
+  if (n === 1) { container.append(...tageKnoten); return; }
+  const spalten = Array.from({ length: n }, () => el("div.jt-spalte"));
+  tageKnoten.forEach((tag, i) => spalten[i % n].append(tag));
+  container.append(el("div.jt-spalten", {}, spalten));
+}
+
+function beobachteSpalten(container) {
+  if (spaltenBeobachter || typeof ResizeObserver === "undefined") return;
+  spaltenBeobachter = new ResizeObserver(() => { if (tageKnoten.length) legeTageAus(container); });
+  spaltenBeobachter.observe(container);
 }
