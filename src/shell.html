@@ -435,10 +435,15 @@
               <button data-range-preset="month">dieser Monat</button>
               <button data-range-preset="all">Alles</button>
             </div>
-            <div class="range-fields">
-              <label>Start<input id="range-from" type="datetime-local"></label>
-              <label>Ende<input id="range-to" type="datetime-local"></label>
-            </div>
+            <div id="range-kalender"></div>
+            <div class="range-summe" id="range-summe" aria-live="polite"></div>
+            <details class="range-zeit" id="range-zeit">
+              <summary>Uhrzeit anpassen</summary>
+              <div class="range-fields">
+                <label>Von<input id="range-von-zeit" type="time" value="00:00"></label>
+                <label>Bis<input id="range-bis-zeit" type="time" value="23:59"></label>
+              </div>
+            </details>
             <button class="btn primary" id="range-apply">Zeitraum anzeigen</button>
           </div>
         </div>

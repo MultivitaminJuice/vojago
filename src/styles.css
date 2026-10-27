@@ -367,6 +367,36 @@
   .range-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
   .range-fields label { min-width: 0; display: grid; gap: 6px; color: var(--ink-soft); font-size: var(--fs-caption); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
   .range-fields input { min-width: 0; width: 100%; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-small); padding: 10px 9px; }
+  /* Kalender zum Wählen von Zeitraum und Datum (statt der Browser-Popups) */
+  .range-picker-panel { max-height: min(92dvh, 700px); }
+  .range-summe { min-height: 1.4em; text-align: center; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 650; }
+  .range-zeit summary { cursor: pointer; color: var(--ink-soft); font-size: var(--fs-small); font-weight: 700; }
+  .range-zeit .range-fields { margin-top: 10px; }
+  .kal { display: grid; gap: 8px; }
+  .kal-kopf { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 6px; }
+  .kal-pfeil { height: 40px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+  .kal-titel { height: 40px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); font: inherit; font-size: 16px; font-weight: 750; cursor: pointer; }
+  .kal-pfeil:hover, .kal-titel:hover { background: var(--surface-2); }
+  .kal-woche, .kal-raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .kal-woche { color: var(--ink-faint); font-size: var(--fs-caption); font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: .04em; }
+  .kal-raster { row-gap: 3px; }
+  .kal-tag { height: 42px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-size: 15px; font-variant-numeric: tabular-nums; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .kal-tag:hover { background: var(--surface-2); }
+  .kal-tag.aussen { color: var(--ink-faint); opacity: .6; }
+  .kal-tag.heute { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 21px; }
+  .kal-tag.rolle-mitte { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  .kal-tag.rolle-von, .kal-tag.rolle-bis, .kal-tag.rolle-einzel { background: var(--accent); color: var(--accent-ink); font-weight: 800; opacity: 1; }
+  .kal-tag.rolle-von { border-radius: 21px 0 0 21px; }
+  .kal-tag.rolle-bis { border-radius: 0 21px 21px 0; }
+  .kal-tag.rolle-einzel { border-radius: 21px; }
+  .kal-monate { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .kal-monat { height: 52px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+  .kal-monat.gewaehlt { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+  .kal-body { display: grid; gap: 12px; padding: 14px; overflow-y: auto; }
+  .kal-leer { width: 100%; }
+  .datum-feld { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-small); text-align: left; cursor: pointer; }
+  .datum-feld.leer { color: var(--ink-faint); }
+  .datum-feld:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .trip-list-period { display: grid; gap: 10px; margin: 0 0 14px; }
   .trip-list-period h3 { margin: 0 2px 0; font-size: var(--fs-small); color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em; }
   .trip-list-item { width: 100%; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 13px; padding: 12px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
@@ -699,6 +729,9 @@
     #journal > .jt-sprung, #journal > .callout { column-span: all; }
 
     /* Karte: Bedienelemente etwas großzügiger, Popover nicht über die volle Breite */
+    /* Auswahl-Dialoge in der Mitte statt am unteren Rand, nicht über die ganze Breite */
+    .trip-picker { align-items: center; justify-items: center; }
+    .trip-picker-panel { max-width: 460px; }
     .popover { left: 16px; right: auto; bottom: 16px; width: 420px; }
     .legend { left: 16px; bottom: 16px; }
     .maptools { right: 16px; bottom: 16px; }
