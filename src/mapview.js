@@ -11,6 +11,7 @@ import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfa
 import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
 import { doppeltBefahren, linienBreite } from "./overlap.js";
+import { findeLuecken, abstandZurStrecke, dauerText } from "./luecken.js";
 import { tippEintraege, naechsterTreffer } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
@@ -56,6 +57,8 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         },
         // Doppelt befahrene Stücke (Hin- und Rückweg): verschachtelt über der Route, siehe overlap.js
         "route-doppelt": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
+        // Datenlücken (Tracker hat dazwischen nichts geliefert): gestrichelt über der Verbindungslinie, siehe luecken.js
+        "route-luecken": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
       },
       layers: [
         { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.kartenstil) },
@@ -72,6 +75,9 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         { id: "route-doppelt", type: "line", source: "route-doppelt",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
+        { id: "route-luecken", type: "line", source: "route-luecken",
+          layout: { "line-cap": "butt", "line-join": "round" },
+          paint: { "line-color": "#ffffff", "line-opacity": 0.92, "line-width": 5, "line-dasharray": [1, 1.4] } },
         // Kein statischer "route"-Verlaufslayer mehr hier — der wird pro
         // sichtbarem Segment dynamisch angelegt (siehe zeichneVerlaufsSegmente()
         // weiter unten). Grund: MapLibres line-gradient berechnet
@@ -157,7 +163,7 @@ function onMapClick(e) {
   // Durchfahrten an der Stelle — alle werden gezeigt, nicht nur die nächste.
   // Bei weitem Zoom nur die, die real an derselben Stelle liegen (sonst Treffer aus Kilometern Umkreis).
   const treffer = gleicheStelle(routenTreffer(tippPfad, lng, lat, toleranz));
-  if (!treffer.length) return;
+  if (!treffer.length) { zeigeLueckenTipp(lng, lat, toleranz); return; }
   const anker = naechsterTreffer(treffer).punkt;
   const { eintraege, weitere } = tippEintraege(treffer);
   const inhalt = el("div.rt-liste", {}, [
@@ -175,6 +181,32 @@ function onMapClick(e) {
     .addTo(map);
   tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
   debugLog("map.route-tip", { durchfahrten: treffer.length, abstandM: Math.round(naechsterTreffer(treffer).abstandM) });
+}
+
+/** Tipp auf eine Datenlücke (die gestrichelte Verbindungslinie): sagt, dass dort nichts gemessen wurde. */
+function zeigeLueckenTipp(lng, lat, toleranz) {
+  let nah = null;
+  for (const l of tippLuecken) {
+    const d = abstandZurStrecke(lng, lat, l.von, l.nach);
+    if (d <= toleranz && (!nah || d < nah.d)) nah = { d, l };
+  }
+  if (!nah) return;
+  const { l } = nah;
+  const zeit = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const tag = new Date(l.von.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const mitte = { lon: (l.von.lon + l.nach.lon) / 2, lat: (l.von.lat + l.nach.lat) / 2 };
+  const inhalt = el("div.rt-liste", {}, [el("div.rt", {}, [
+    el("small", { text: "Datenlücke" }),
+    el("b", { text: `${tag} · ${zeit(l.von.time)}–${zeit(l.nach.time)}` }),
+    el("div", { text: `${dauerText(l.sekunden)} ohne Messung · ${l.meter.toLocaleString("de-DE")} m Luftlinie` }),
+    el("small.rt-mehr", { text: "Die Linie verbindet hier nur die Punkte davor und danach." }),
+  ])]);
+  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([mitte.lon, mitte.lat]).addTo(map);
+  tippPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+    .setLngLat([mitte.lon, mitte.lat])
+    .setDOMContent(inhalt)
+    .addTo(map);
+  tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
 }
 
 let pendingDraw = false;
@@ -281,6 +313,26 @@ function zeichneDoppelt(segments, metric, ctx) {
   if (map.getLayer("route-doppelt")) map.moveLayer("route-doppelt");
 }
 
+/**
+ * Datenlücken (mehr als 40 s ohne Messung und mehr als 500 m Luftlinie) gestrichelt über die
+ * Verbindungslinie legen: dort ist die Strecke nicht gefahren worden, sondern nur geradlinig
+ * verbunden. Nutzt die vollen Punkte (nicht die vereinfachte Zeichnung), weil nur sie die Zeiten kennen.
+ */
+let tippLuecken = [];
+function zeichneLuecken(segments) {
+  const quelle = map.getSource("route-luecken");
+  if (!quelle) return;
+  tippLuecken = findeLuecken(segments);
+  quelle.setData({
+    type: "FeatureCollection",
+    features: tippLuecken.map((l) => ({
+      type: "Feature", properties: {},
+      geometry: { type: "LineString", coordinates: [[l.von.lon, l.von.lat], [l.nach.lon, l.nach.lat]] },
+    })),
+  });
+  if (map.getLayer("route-luecken")) map.moveLayer("route-luecken");
+}
+
 /* ---------- Wache: überwachter Bereich als Kreis ---------- */
 let guardZone = null; // { lat, lon, radiusM } oder null
 const GUARD_SOURCE = "guard-zone";
@@ -385,6 +437,7 @@ function zeichneJetzt(options = {}) {
     map.getSource("route-solid").setData(routeDataFromSegments(zeichenSegmente));
     zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
     zeichneDoppelt(zeichenSegmente, state.metric, ctx);
+    zeichneLuecken(segments);
     letzteSignatur = signatur;
   }
   debugLog("map.draw", {
@@ -407,6 +460,8 @@ function drawLiveOnly({ fit = false } = {}) {
   clearGradientLayers();
   map.getSource("route-solid").setData({ type: "FeatureCollection", features: [] });
   map.getSource("route-doppelt")?.setData({ type: "FeatureCollection", features: [] });
+  map.getSource("route-luecken")?.setData({ type: "FeatureCollection", features: [] });
+  tippLuecken = [];
   markers.forEach((m) => m.remove());
   markers = [];
 
