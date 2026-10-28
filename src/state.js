@@ -61,7 +61,7 @@ export const state = {
   // ein wirklich angemeldeter Rückkehrer sah dann trotz gültiger Sitzung
   // erst die eingebaute Demo-Reise, bis der Schalter von Hand umgelegt
   // wurde (live beobachtet, 16. August 2026).
-  config: { device: "", demo: false, theme: "auto", gelaende: false, kartenstil: "farbig" },
+  config: { device: "", demo: false, theme: "auto", gelaende: false, kartenstil: "farbig", lueckenMarkieren: false },
   account: null,     // { username, email, emailVerified, isAdmin } wenn angemeldet
   gast: null,        // { scope, alleReisen, label } wenn per Freigabe-Link geöffnet (nie zusammen mit account)
 };

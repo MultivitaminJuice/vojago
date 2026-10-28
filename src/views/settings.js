@@ -391,6 +391,18 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   }));
   zeigeKartenstil();
 
+  const lueckenSwitch = $("#cfg-luecken");
+  if (lueckenSwitch) {
+    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.lueckenMarkieren)));
+    lueckenSwitch.addEventListener("click", () => {
+      const an = lueckenSwitch.getAttribute("aria-checked") !== "true";
+      lueckenSwitch.setAttribute("aria-checked", String(an));
+      state.config.lueckenMarkieren = an;
+      saveConfig();
+      mapview.setLuecken(an);
+    });
+  }
+
   const demoSwitch = $("#cfg-demo");
   demoSwitch.addEventListener("click", () => {
     state.config.demo = demoSwitch.getAttribute("aria-checked") !== "true";

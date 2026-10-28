@@ -76,7 +76,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
         { id: "route-luecken", type: "line", source: "route-luecken",
-          layout: { "line-cap": "butt", "line-join": "round" },
+          layout: { "line-cap": "butt", "line-join": "round", visibility: state.config.lueckenMarkieren ? "visible" : "none" },
           paint: { "line-color": "#ffffff", "line-opacity": 0.92, "line-width": 5, "line-dasharray": [1, 1.4] } },
         // Kein statischer "route"-Verlaufslayer mehr hier — der wird pro
         // sichtbarem Segment dynamisch angelegt (siehe zeichneVerlaufsSegmente()
@@ -124,6 +124,13 @@ export function setKartenstil(stil) {
   if (!map || !ready) return;
   map.getSource("tiles-light").setTiles([kachelUrl(gueltigerKartenstil(stil), CARTO_KEY)]);
   applyTheme();
+}
+
+/** Datenlücken markieren ein-/ausschalten (Einstellungen → Darstellung); standardmäßig aus. */
+export function setLuecken(on) {
+  if (!map) return;
+  if (map.getLayer("route-luecken")) map.setLayoutProperty("route-luecken", "visibility", on ? "visible" : "none");
+  if (!on) schliesseRoutenTipp();
 }
 
 /** Geländeschummerung ein-/ausschalten (Ebenen-Menü). */
@@ -185,6 +192,7 @@ function onMapClick(e) {
 
 /** Tipp auf eine Datenlücke (die gestrichelte Verbindungslinie): sagt, dass dort nichts gemessen wurde. */
 function zeigeLueckenTipp(lng, lat, toleranz) {
+  if (!state.config.lueckenMarkieren) return;
   let nah = null;
   for (const l of tippLuecken) {
     const d = abstandZurStrecke(lng, lat, l.von, l.nach);
