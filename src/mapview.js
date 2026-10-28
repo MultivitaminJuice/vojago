@@ -10,6 +10,7 @@ import { colorFor, legendFor } from "./colors.js";
 import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, gleicheStelle, meterProPixel } from "./geo.js";
 import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
+import { doppeltBefahren, linienBreite } from "./overlap.js";
 import { tippEintraege, naechsterTreffer } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
@@ -53,6 +54,8 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
           buffer: 512,
           maxzoom: 24,
         },
+        // Doppelt befahrene Stücke (Hin- und Rückweg): verschachtelt über der Route, siehe overlap.js
+        "route-doppelt": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
       },
       layers: [
         { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.kartenstil) },
@@ -66,6 +69,9 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         { id: "route-backfill", type: "line", source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": "#e8802b", "line-opacity": 0.86, "line-width": 5 } },
+        { id: "route-doppelt", type: "line", source: "route-doppelt",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
         // Kein statischer "route"-Verlaufslayer mehr hier — der wird pro
         // sichtbarem Segment dynamisch angelegt (siehe zeichneVerlaufsSegmente()
         // weiter unten). Grund: MapLibres line-gradient berechnet
@@ -253,6 +259,28 @@ function zeichneVerlaufsSegmente(segments, metric, ctx) {
   gradientLayerIds.length = linien.length;
 }
 
+/**
+ * Doppelt befahrene Stücke verschachtelt über die Route legen: die früheste Fahrt breit,
+ * jede spätere schmaler darauf — so ist an jeder Zoomstufe jede Tagesfarbe zu sehen, statt
+ * dass die letzte Fahrt die anderen zudeckt. Nur wo die Farbe die Fahrt kennzeichnet
+ * (Reisetag, Reise); bei Tempo/Höhe/Strecke wäre die Verschachtelung nur ein dickerer Strich.
+ */
+function zeichneDoppelt(segments, metric, ctx) {
+  const quelle = map.getSource("route-doppelt");
+  if (!quelle) return;
+  const daten = { type: "FeatureCollection", features: [] };
+  if (metric === "day" || metric === "trip") {
+    daten.features = doppeltBefahren(segments).map((lauf) => ({
+      type: "Feature",
+      properties: { c: colorFor(lauf.punkt, metric, ctx), w: linienBreite(lauf.rang, lauf.anzahl) },
+      geometry: { type: "LineString", coordinates: lauf.coords },
+    }));
+  }
+  quelle.setData(daten);
+  // Über den Verlaufsebenen, die bei Bedarf neu angelegt werden.
+  if (map.getLayer("route-doppelt")) map.moveLayer("route-doppelt");
+}
+
 /* ---------- Wache: überwachter Bereich als Kreis ---------- */
 let guardZone = null; // { lat, lon, radiusM } oder null
 const GUARD_SOURCE = "guard-zone";
@@ -356,6 +384,7 @@ function zeichneJetzt(options = {}) {
   if (neuGezeichnet) {
     map.getSource("route-solid").setData(routeDataFromSegments(zeichenSegmente));
     zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
+    zeichneDoppelt(zeichenSegmente, state.metric, ctx);
     letzteSignatur = signatur;
   }
   debugLog("map.draw", {
@@ -377,6 +406,7 @@ function drawLiveOnly({ fit = false } = {}) {
   schliesseRoutenTipp();
   clearGradientLayers();
   map.getSource("route-solid").setData({ type: "FeatureCollection", features: [] });
+  map.getSource("route-doppelt")?.setData({ type: "FeatureCollection", features: [] });
   markers.forEach((m) => m.remove());
   markers = [];
 
