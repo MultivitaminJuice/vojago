@@ -82,6 +82,28 @@ tunnel counts, a parked vehicle with a silent router does not.
 | Period | one colour per trip day |
 | km from start | gradient 0 → total km |
 
+## Routes driven more than once
+
+When the same road is driven on several days (out and back), the lines would lie
+exactly on top of each other and the latest drive would hide the others. The map
+finds such stretches (`src/overlap.js`): two drives, separated by a pause of at
+least 5 minutes, whose points are less than 45 m apart for at least 120 m. These
+stretches are drawn again as a nested overlay, the earliest drive widest and each
+later one narrower on top of it, in the colour of its day. The line never moves
+off the road. The overlay is only drawn for the colourings where the colour
+identifies the drive (trip day, trip); short touches such as a crossing or a
+shared parking spot are ignored.
+
+## Gaps in the recorded data
+
+Sometimes the router records nothing for a while (a connection or service hang).
+A gap is a pause of more than 40 s between two points that are more than 500 m
+apart (`src/luecken.js`). The map would join them with a straight line as if that
+stretch had been driven. With "mark data gaps" switched on (Settings → Appearance,
+off by default) such a line gets dashed stripes, and tapping it shows the time,
+duration and straight-line distance of the gap. Statistics and kilometres are
+unchanged.
+
 ## Guard
 
 Anti-theft, implemented in `tracker-backend/src/alarms.js`:

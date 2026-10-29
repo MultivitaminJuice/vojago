@@ -7,13 +7,28 @@ subscription SIM, no third-party tracking service.
 
 ## What it does
 
-- **Map** with route colouring by speed, elevation, period or km from start;
-  zoom/pan and layer toggles (overnight stays, places, km markers).
+- **Map** with route colouring by trip day, speed, elevation or km from start;
+  a colourful or subtle map style, light/dark theme, optional terrain shading
+  and layer toggles (overnight stays, places, km markers). Tapping the route
+  shows day, time, speed and elevation of every pass. Stretches driven more
+  than once (out and back on the same road) are drawn nested, widest for the
+  earliest drive, so every day's colour stays visible. Optionally (off by
+  default) gaps in the recorded data are marked with dashed stripes.
 - **Automatic logbook**: drives, short stops and overnight stays are detected
   on the server from the raw positions — even when the app is closed. Places
   get a name (reverse geocoding) and the weather at the time of the visit.
+- **Travel diary**: one entry per day, written during or after the trip (made
+  for typing on a phone): text with photos placed between the paragraphs.
+  Photos are chosen and uploaded first, wait in a tray, and are then tapped or
+  dragged to the right spot; a single leading photo becomes the cover, several
+  become a collage. The route (with a small map), weather, stops and places
+  are a collapsible aid while a day is still empty and move below the text
+  once it is written.
 - **Trips**: named time spans over the logbook that bundle drives, stays,
-  places, notes and photos, with statistics, elevation and speed profiles.
+  places, notes and photos, with statistics, a kilometres-per-day chart,
+  elevation and speed profiles, and previous/next navigation through days and
+  drives. Any time span can be shown with a built-in calendar range picker
+  (whole days by default).
 - **Your places**: categories, photos, notes, ratings, show-on-map.
 - **Guard** (anti-theft): arm the vehicle at its last reported position, get an
   alarm and a web push notification when it leaves the monitored radius.
@@ -131,6 +146,8 @@ repository for reference and are inactive.
 - [x] Server-side detection of drives, stops and overnight stays from the own
   `positions` table
 - [x] Guard with a single anchor point, debounced alarms, web push and info card
+- [x] Travel diary with a photo tray, calendar range picker, nested drawing of
+  routes driven twice, optional marking of data gaps
 - [x] Two-container stack in production with real trips on a real vehicle
 - [x] CI: tests, build, production audit and full toolchain audit on GitHub
   Actions
