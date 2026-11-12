@@ -1224,3 +1224,22 @@ test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id
   // Zweiter Aufruf der Nachrüstung ist harmlos (idempotent).
   assert.equal((await a("GET", "/api/tagebuch", { cookie })).data.length, 1);
 });
+
+test("/api/route?compact=1 sends a thinned, compact route; without the flag the full list", async (t) => {
+  const env = makeEnv();
+  t.after(() => env.DB.close());
+  const ip = { "cf-connecting-ip": "203.0.113.71" };
+  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const start = Date.UTC(2026, 9, 26, 10, 0, 0);
+  await seedPositions(env, "dev-1", Array.from({ length: 60 }, (_, i) => ({ at: start + i * 1000, lat: 52, lon: 8 + i * 0.0003, speedKmh: 90 })));
+  const q = `deviceId=dev-1&from=${new Date(start).toISOString()}&to=${new Date(start + 60_000).toISOString()}`;
+
+  const voll = await api(env, "GET", `/api/route?${q}`, { cookie: setup.cookie, headers: ip });
+  assert.equal(voll.data.length, 60);
+
+  const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, { cookie: setup.cookie, headers: ip });
+  assert.equal(kompakt.status, 200);
+  assert.equal(kompakt.data.total, 60);
+  assert.ok(kompakt.data.points.length >= 2 && kompakt.data.points.length <= 5);
+  assert.deepEqual(kompakt.data.points[0].slice(0, 3), [start, 52, 8]);
+});
