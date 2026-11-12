@@ -14,6 +14,7 @@ import { health, isConfigured, logout, changePassword, setEmail,
   ingestStatus, setIngestLearning,
   listUsers, createUser, updateUser, deleteUser } from "../api.js";
 import { status as dataStatus, forgetSnapshot, routenAbruf } from "../dataload.js";
+import { clearRoutes } from "../route-store.js";
 import { clearDebugLog, debugCount, debugEnabled, exportDebugLog, preciseDebugDataEnabled, setDebugEnabled, setPreciseDebugDataEnabled } from "../debug.js";
 
 const CAT_COLORS = ["#e8802b", "#3b82c4", "#7a5cd6", "#3f9d5a", "#b5476b", "#caa23a", "#1f9e8f", "#d84a4a", "#4b47a8", "#c24b86"];
@@ -310,6 +311,7 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
 
   $("#cfg-logout").addEventListener("click", async () => {
     try { await logout(); } catch { /* auch bei Fehler abmelden */ }
+    await clearRoutes();
     location.reload();
   });
 

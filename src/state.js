@@ -72,7 +72,14 @@ export function subscribe(fn) {
 }
 
 /** Meldet eine Änderung. `topic` erlaubt gezieltes Neuzeichnen. */
+// Counts every change of the data that trip and day values are computed from.
+// Views use it to keep computed values until something actually changed.
+const DATEN_THEMEN = new Set(["*", "trips", "tripPath", "drives", "notes", "places", "photos", "vehicles", "routeDriveFilter", "config"]);
+let datenStand = 0;
+export const aktuellerDatenStand = () => datenStand;
+
 export function emit(topic = "*") {
+  if (DATEN_THEMEN.has(topic)) datenStand++;
   for (const fn of listeners) fn(topic);
 }
 

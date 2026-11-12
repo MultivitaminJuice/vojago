@@ -3,7 +3,7 @@
 import { state, emit, applyLocalData, applyPreferences, saveConfig, MAP_METRICS } from "./state.js";
 import { loadDemoData } from "./demo.js";
 import {
-  isConfigured, listTrips, listPlaces, listNotes, listTagebuch, listCategories, listPhotos, listVehicles, route as fetchRoute,
+  isConfigured, listTrips, listPlaces, listNotes, listTagebuch, listCategories, listPhotos, listVehicles, route as fetchRoute, routeStand as fetchRouteStand,
   positions as fetchPositions, drives as fetchDrives, loadSettings, listDriveAssignments,
   cacheDriveWeather, weather as fetchWeather,
 } from "./api.js";
@@ -12,6 +12,7 @@ import { debugLog } from "./debug.js";
 import { parseBlocks } from "./tagebuch.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { haengeNeuePunkteAn } from "./path-merge.js";
+import { routeKey, readRoute, writeRoute, clearRoutes, packPath, unpackPath } from "./route-store.js";
 
 /** Zustand des Datenbezugs — die Oberfläche zeigt ihn im Statusband. */
 export const status = { mode: "demo", loading: false, error: null };
@@ -79,6 +80,8 @@ function tripFuerSnapshot(t, routeIds) {
     ...t,
     path: behalten ? routeFuerSnapshot(t.path) : [],
     pathDevice: behalten ? t.pathDevice ?? null : null,
+    pathGeprueft: false,
+    pathStand: null,
   };
 }
 
@@ -90,6 +93,8 @@ function tripMitLetztemStand(t, vorher) {
     pathDevice: vorher.pathDevice ?? null,
     pathGrob: vorher.pathGrob ?? false,
     pfadVollUm: vorher.pfadVollUm ?? 0,
+    pathStand: vorher.pathStand ?? null,
+    pathGeprueft: vorher.pathGeprueft ?? false,
     km: Number.isFinite(vorher.km) ? vorher.km : t.km,
     nights: Number.isFinite(vorher.nights) ? vorher.nights : t.nights,
     peak: Number.isFinite(vorher.peak) ? vorher.peak : t.peak,
@@ -134,7 +139,7 @@ export function restoreSnapshot() {
   state.trips = snapshot.trips;
   // Der Zwischenspeicher hält nur einen ausgedünnten Pfad (siehe routeFuerSnapshot) —
   // als "grob" markieren, bis ein echter Abruf gelungen ist.
-  state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathGrob: Boolean(t.path?.length) }));
+  state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathGrob: Boolean(t.path?.length), pathGeprueft: false }));
   routenAbruf.zwischenspeicher = state.trips.some((t) => t.path?.length);
   state.places = Array.isArray(snapshot.places) ? snapshot.places : [];
   state.notes = Array.isArray(snapshot.notes) ? snapshot.notes : [];
@@ -386,7 +391,7 @@ export function ensureTripPath(trip, { force = false, silent = false } = {}) {
   // Spur des vorherigen Geräts stehen, obwohl Reise/Fahrten längst neu
   // geladen wurden (echter Fund: 05.09.2026, zweites Fahrzeug aktiviert,
   // Karte zeigte weiter nichts).
-  const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathGrob;
+  const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathGrob && trip.pathGeprueft;
   if (!trip || (nochAktuell && !force) || status.mode !== "live") return Promise.resolve();
   if (!state.config.device || !trip.range?.from) return Promise.resolve();
   const schluessel = `${trip.id}|${state.config.device}`;
@@ -404,6 +409,28 @@ async function ladePfad(trip, silent) {
   try {
     const geraet = state.config.device;
     const bis = trip.range.to || new Date().toISOString();
+    const schluessel = routeKey(trip, geraet);
+    // Stored route of this trip: show it right away, before anything is downloaded.
+    if (!trip.path?.length || trip.pathGrob || trip.pathDevice !== geraet) {
+      const gespeichert = await readRoute(schluessel);
+      if (gespeichert?.rows?.length && gespeichert.device === geraet) {
+        uebernehmeGespeichertenPfad(trip, gespeichert);
+        emit(silent ? "tripPath" : "trips");
+      }
+    }
+    // Finished trip with a complete stored route: only ask whether the server
+    // holds the same points. Late deliveries from the router change the count.
+    if (trip.range.to && trip.pathStand && trip.pathDevice === geraet && !trip.pathGrob) {
+      art = "unverändert";
+      const stand = await fetchRouteStand(geraet, trip.range.from, bis);
+      if (stand && stand.total === trip.pathStand.total && stand.lastAt === trip.pathStand.lastAt) {
+        trip.pathGeprueft = true;
+        pfadGelungen();
+        protokolliere({ ok: true, art, empfangen: 0, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
+        return;
+      }
+      art = "komplett";
+    }
     // Nur Neues nachladen: laufende Reise, frischer (nicht grober) Pfad für dasselbe Gerät.
     const letzter = trip.path?.length ? trip.path[trip.path.length - 1] : null;
     const anhaengen = Boolean(letzter?.time) && trip.pathDevice === geraet && !trip.pathGrob && !trip.range.to
@@ -420,21 +447,21 @@ async function ladePfad(trip, silent) {
         return;
       }
       trip.path = zusammen;
+      trip.pathStand = null; // appended pieces: the count no longer matches one download
     } else {
       const positions = await fetchRoute(geraet, trip.range.from, bis);
       empfangen = Array.isArray(positions) ? positions.length : 0;
       trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
       trip.pfadVollUm = Date.now();
+      trip.pathStand = positions?.stand || null;
     }
     trip.pathDevice = geraet;
     trip.pathGrob = false;
-    if (trip.path.length) {
-      trip.km = Math.round(pathLengthKm(trip.path));
-      trip.peak = Math.round(elevationRange(trip.path).max);
-      const tage = tagesKilometer(trip.path);
-      trip.bars = tage.bars;
-      trip.barLabels = tage.labels;
-    }
+    trip.pathGeprueft = true;
+    setzeKennzahlen(trip);
+    writeRoute(schluessel, {
+      device: geraet, rows: packPath(trip.path), stand: trip.pathStand, pfadVollUm: trip.pfadVollUm || 0, savedAt: Date.now(),
+    });
     pfadGelungen();
     protokolliere({ ok: true, art, empfangen, neuePunkte: art === "nur Neues" ? trip.path.length - vorherLaenge : trip.path.length, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
     emit(silent ? "tripPath" : "trips");
@@ -445,6 +472,48 @@ async function ladePfad(trip, silent) {
     if (!silent) setStatus({ error: `Route konnte nicht geladen werden: ${err.message}` });
     else if (pfadFehlerInFolge >= 2 && !status.error) setStatus({ error: VERBINDUNG_HINWEIS });
   }
+}
+
+/** Reise-Kennzahlen aus der Spur (Kilometer, höchster Punkt, Kilometer je Tag). */
+function setzeKennzahlen(trip) {
+  if (!trip.path?.length) return;
+  trip.km = Math.round(pathLengthKm(trip.path));
+  trip.peak = Math.round(elevationRange(trip.path).max);
+  const tage = tagesKilometer(trip.path);
+  trip.bars = tage.bars;
+  trip.barLabels = tage.labels;
+}
+
+function uebernehmeGespeichertenPfad(trip, gespeichert) {
+  trip.path = renumberPathByTripStart(unpackPath(gespeichert.rows), trip);
+  trip.pathDevice = gespeichert.device;
+  trip.pathGrob = false;
+  trip.pathGeprueft = false;
+  trip.pathStand = gespeichert.stand || null;
+  trip.pfadVollUm = gespeichert.pfadVollUm || 0;
+  setzeKennzahlen(trip);
+}
+
+/**
+ * Beim Start: die im Gerät abgelegten Routen aller Reisen übernehmen, damit
+ * Karte, Reise- und Tageswerte sofort stehen. Geprüft bzw. nachgeladen wird
+ * danach wie gewohnt über ensureTripPath().
+ */
+export async function restoreStoredRoutes() {
+  if (state.config.demo || !state.config.device) return;
+  const geraet = state.config.device;
+  let geaendert = false;
+  for (const t of [...state.trips]) {
+    if (t.path?.length && !t.pathGrob && t.pathDevice === geraet) continue;
+    const gespeichert = await readRoute(routeKey(t, geraet));
+    // Die Reise kann inzwischen durch einen frischen Stand ersetzt sein.
+    const aktuell = state.trips.find((x) => x.id === t.id);
+    if (!aktuell || !gespeichert?.rows?.length || gespeichert.device !== geraet) continue;
+    if (aktuell.path?.length && !aktuell.pathGrob && aktuell.pathDevice === geraet) continue;
+    uebernehmeGespeichertenPfad(aktuell, gespeichert);
+    geaendert = true;
+  }
+  if (geaendert) emit("trips");
 }
 
 function pfadGelungen() {
@@ -530,6 +599,7 @@ export function restoreLivePosition() {
  * Position. Betrifft nur den lokalen Spiegel — bei bestehender Verbindung
  * lädt die App danach einfach neu von der API. */
 export function forgetSnapshot() {
+  clearRoutes();
   try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* egal */ }
   try { localStorage.removeItem(LIVE_POSITION_KEY); } catch { /* egal */ }
 }

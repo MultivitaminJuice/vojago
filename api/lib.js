@@ -352,6 +352,7 @@ export function compactRoute(rows, total = rows.length) {
   return {
     v: 1,
     total,
+    lastAt: rows.length ? rows[rows.length - 1].at : null,
     fields: ["at", "lat", "lon", "altitude", "kmh"],
     points: rows.map((r) => [
       r.at, round(r.lat, 6), round(r.lon, 6),

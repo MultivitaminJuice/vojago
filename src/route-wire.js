@@ -8,11 +8,15 @@ const KNOTS_PER_KMH = 1 / 1.852;
 export function decodeRoute(data) {
   if (Array.isArray(data)) return data;
   if (!data || !Array.isArray(data.points)) return [];
-  return data.points.map(([at, lat, lon, altitude, kmh]) => ({
+  const out = data.points.map(([at, lat, lon, altitude, kmh]) => ({
     latitude: lat,
     longitude: lon,
     altitude,
     speed: kmh * KNOTS_PER_KMH,
     fixTime: new Date(at).toISOString(),
   }));
+  // How many points the server holds for this range, before thinning — lets
+  // the app tell later whether a stored route is still complete.
+  out.stand = { total: data.total ?? out.length, lastAt: data.lastAt ?? null };
+  return out;
 }

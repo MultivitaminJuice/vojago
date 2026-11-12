@@ -195,6 +195,9 @@ export const positions = (deviceId) => request(`/api/positions?deviceId=${encode
 // mit Zeitlimit und einer Wiederholung bei Verbindungsproblemen.
 export const drives = (deviceId, from, to) =>
   requestWiederholt(`/api/drives?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs: 120_000 });
+/** Number of recorded points and the newest one in a range (no route data). */
+export const routeStand = (deviceId, from, to) =>
+  request(`/api/route?stand=1&deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs: 20_000 });
 export const route = (deviceId, from, to, { timeoutMs = 120_000 } = {}) =>
   requestWiederholt(`/api/route?compact=1&deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs }).then(decodeRoute);
 /** Bekannte Geräte — bei Traccar dessen Geräteliste, im Selbst-Hosting-

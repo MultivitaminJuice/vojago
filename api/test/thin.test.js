@@ -56,5 +56,5 @@ test("thinPositions: short and empty lists", () => {
 
 test("compactRoute: arrays with rounded values and the original count", () => {
   const out = compactRoute([{ at: 1000, lat: 52.12345678, lon: 8.98765432, altitude: 101.26, speed_kmh: 88.84 }], 7);
-  assert.deepEqual(out, { v: 1, total: 7, fields: ["at", "lat", "lon", "altitude", "kmh"], points: [[1000, 52.123457, 8.987654, 101.3, 88.8]] });
+  assert.deepEqual(out, { v: 1, total: 7, lastAt: 1000, fields: ["at", "lat", "lon", "altitude", "kmh"], points: [[1000, 52.123457, 8.987654, 101.3, 88.8]] });
 });
