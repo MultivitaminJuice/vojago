@@ -24,16 +24,12 @@ const db = new D1Shim(DB_PFAD);
 const fotos = new R2Shim(FOTOS_PFAD);
 const serveStatic = createStaticHandler(PUBLIC_PFAD);
 
-// Dieselben env-Namen wie beim Cloudflare-Betrieb (siehe Kopfkommentar in
-// api/router.js). LOCAL_POSITIONS schaltet Positionen/Fahrten/Stopps auf
-// die eigene positions-Tabelle um (api/lib.js: mapPositionRow/segmentDrives/
-// segmentStops) statt Traccar zu proxen — TRACCAR_* bleibt deshalb bewusst
-// ungesetzt, kein Zugangsdaten-Bedarf mehr für den Selbst-Hosting-Betrieb.
+// Environment handed to api/router.js. DB and PHOTOS are thin adapters over
+// better-sqlite3 and the local file system.
 function buildEnv() {
   return {
     DB: db,
     PHOTOS: fotos,
-    LOCAL_POSITIONS: "1",
     APP_URL: process.env.APP_URL,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "",
     RESEND_API_KEY: process.env.RESEND_API_KEY,

@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const schema = readFileSync(resolve(__dirname, "../../schema.sql"), "utf8");
+const schema = readFileSync(resolve(__dirname, "../../../db/schema.sql"), "utf8");
 
 export class D1Memory {
   constructor() {

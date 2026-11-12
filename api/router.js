@@ -1,25 +1,17 @@
 /**
- * VOJAĜO API — Cloudflare Worker
+ * VOJAĜO API
  *
- * Läuft als Cloudflare-Pages-Funktion unter derselben Adresse wie die App.
- * Der Zugang erfolgt über Anmeldung (Sitzungs-Cookie), nicht mehr per Token.
+ * Runs inside the self-hosted app container (app-backend/src/server.js) and is
+ * served from the same origin as the web app. Access is by login (session
+ * cookie).
  *
- * Zwei Aufgaben:
- *  1. Proxy vor Traccar: hält Zugangsdaten serverseitig, liefert Positionen/Fahrten/Stopps.
- *  2. Eigene Daten in D1: Orte, Reisen, Kategorien, Geofences, Alarme.
+ * It serves positions, drives and stops from the local `positions` table that
+ * the ingest container fills, plus the app's own data: places, trips,
+ * categories, geofences, alarms, notes, diary and photos.
  *
- * Konfiguration (via `wrangler secret put` bzw. Variablen):
- *   TRACCAR_URL       z. B. http://10.8.0.1:8082
- *   TRACCAR_TOKEN     Traccar-API-Token  (alternativ TRACCAR_USER/TRACCAR_PASS)
- *   ALLOWED_ORIGINS   nur nötig, falls die App je von einer anderen Adresse käme
- *   CF_ACCESS_ID      Dienst-Token für Cloudflare Access vor Traccar (Client ID)
- *   CF_ACCESS_SECRET  zugehöriges Geheimnis
- *   DEBUG             "true" liefert Fehlerdetails an den Aufrufer
- *   LOCAL_POSITIONS   nur im Selbst-Hosting-Betrieb (app-backend/)
- *                     gesetzt — Positionen/Fahrten/Stopps
- *                     kommen dann aus der eigenen `positions`-Tabelle in
- *                     env.DB statt von Traccar. Auf Cloudflare NIE gesetzt,
- *                     Verhalten dort unverändert.
+ * Configuration (environment variables of the app container):
+ *   ALLOWED_ORIGINS   only needed if the app were ever served from another origin
+ *   DEBUG             "true" returns error details to the caller
  */
 import {
   corsHeaders, validateOrt, validateBesuch, validateTrip, validateNote, validateTagebuch, validateRange, createRateLimiter, publicError,
@@ -426,32 +418,7 @@ async function ensureDriveAssignmentMode(env) {
   }
 }
 
-/* ---------------- Traccar ---------------- */
-
-function traccarHeaders(env) {
-  const h = { accept: "application/json" };
-  if (env.TRACCAR_TOKEN) h.authorization = `Bearer ${env.TRACCAR_TOKEN}`;
-  else if (env.TRACCAR_USER) h.authorization = "Basic " + btoa(`${env.TRACCAR_USER}:${env.TRACCAR_PASS || ""}`);
-  // Liegt Cloudflare Access vor Traccar, weist sich der Worker per Dienst-Token aus.
-  if (env.CF_ACCESS_ID && env.CF_ACCESS_SECRET) {
-    h["CF-Access-Client-Id"] = env.CF_ACCESS_ID;
-    h["CF-Access-Client-Secret"] = env.CF_ACCESS_SECRET;
-  }
-  return h;
-}
-
-async function traccar(env, path, params = {}) {
-  if (!env.TRACCAR_URL) throw new Error("TRACCAR_URL nicht konfiguriert");
-  const url = new URL(path, env.TRACCAR_URL);
-  for (const [k, v] of Object.entries(params)) if (v != null) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers: traccarHeaders(env) });
-  if (!res.ok) throw new Error(`Traccar antwortete mit ${res.status}`);
-  return res.json();
-}
-
-/* ---------------- Eigene Positionsquelle (Phase 2) ----------------
- * Nur aktiv, wenn env.LOCAL_POSITIONS gesetzt ist (app-backend/src/server.js).
- * Sonst unverändert Traccar — der Cloudflare-Betrieb setzt diese Variable nie. */
+/* ---------------- Positions (local table) ---------------- */
 
 async function holePositionsZeitraum(env, deviceId, from, to) {
   if (!deviceId) return [];
@@ -486,30 +453,23 @@ async function holeLokaleGeraete(env) {
   }));
 }
 
-/** Zentrale Verzweigung: lokale positions-Tabelle oder Traccar-Proxy —
- * damit die eigentlichen Routen unten nicht wissen müssen, woher die Daten
- * kommen. */
+/** Single access point for position data, so the routes below do not need to
+ * know how each kind is derived from the `positions` table. */
 async function positionsQuelle(env, art, { deviceId, from, to } = {}) {
-  if (env.LOCAL_POSITIONS) {
-    switch (art) {
-      case "positions": {
-        if (!deviceId) return [];
-        const { results } = await env.DB.prepare(
-          "SELECT * FROM positions WHERE device_id = ? ORDER BY at DESC LIMIT 1"
-        ).bind(deviceId).all();
-        return results.map(mapPositionRow);
-      }
-      case "route": return (await holePositionsZeitraum(env, deviceId, from, to)).map(mapPositionRow);
-      case "drives": return segmentDrives(await holePositionsZeitraum(env, deviceId, from, to));
-      case "stops": return segmentStops(await holePositionsZeitraum(env, deviceId, from, to));
-      case "devices": return holeLokaleGeraete(env);
+  switch (art) {
+    case "positions": {
+      if (!deviceId) return [];
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM positions WHERE device_id = ? ORDER BY at DESC LIMIT 1"
+      ).bind(deviceId).all();
+      return results.map(mapPositionRow);
     }
+    case "route": return (await holePositionsZeitraum(env, deviceId, from, to)).map(mapPositionRow);
+    case "drives": return segmentDrives(await holePositionsZeitraum(env, deviceId, from, to));
+    case "stops": return segmentStops(await holePositionsZeitraum(env, deviceId, from, to));
+    case "devices": return holeLokaleGeraete(env);
+    default: throw new Error(`unknown position source: ${art}`);
   }
-  const pfad = {
-    positions: "/api/positions", route: "/api/reports/route",
-    drives: "/api/reports/trips", stops: "/api/reports/stops", devices: "/api/devices",
-  }[art];
-  return traccar(env, pfad, { deviceId, from, to });
 }
 
 /** Zeitraum-Berichte teilen sich Prüfung und Aufruf. */
@@ -806,40 +766,16 @@ async function route(request, env) {
       const sitzung = await aktuelleSitzung(request, env);
       if (!sitzung) return reply(request, env, { ok: true, service: "vojago-api", authenticated: false }, 200);
 
-      // Selbst-Hosting (env.LOCAL_POSITIONS): Traccar wird für Positionen gar
-      // nicht mehr angesprochen (siehe positionsQuelle()) — der bisherige
-      // Erreichbarkeits-Test würde hier IMMER "nicht erreichbar" melden
-      // (TRACCAR_URL ist bewusst nicht gesetzt) und das fälschlich wie einen
-      // Fehler aussehen lassen. Stattdessen ehrlich über die eigene
-      // positions-Tabelle berichten.
-      if (env.LOCAL_POSITIONS) {
-        const { results } = await env.DB.prepare(
-          "SELECT COUNT(DISTINCT device_id) AS geraete, COUNT(*) AS positionen, MAX(at) AS letzte FROM positions"
-        ).all();
-        const info = results?.[0] || {};
-        return reply(request, env, {
-          ok: true, service: "vojago-api", authenticated: true,
-          positionsQuelle: "lokal",
-          geraete: info.geraete || 0,
-          positionen: info.positionen || 0,
-          letztePosition: info.letzte ? new Date(info.letzte).toISOString() : null,
-          db: env.DB ? "gebunden" : "fehlt",
-          time: new Date().toISOString(),
-        });
-      }
-
-      let traccarOk = false;
-      let detail = null;
-      try { await traccar(env, "/api/server"); traccarOk = true; }
-      catch (e) { detail = String(e.message || e); }
+      const { results } = await env.DB.prepare(
+        "SELECT COUNT(DISTINCT device_id) AS geraete, COUNT(*) AS positionen, MAX(at) AS letzte FROM positions"
+      ).all();
+      const info = results?.[0] || {};
       return reply(request, env, {
         ok: true, service: "vojago-api", authenticated: true,
-        traccar: traccarOk ? "erreichbar" : "nicht erreichbar", detail,
-        // S1/W6: zeigt ehrlich, ob der Worker sich per Access-Dienst-Token
-        // ausweist — nicht, ob Access selbst vor Traccar aktiv ist (das lässt
-        // sich vom Worker aus nicht prüfen, ohne die Zugangsdaten testweise
-        // wegzulassen, was hier bewusst nicht passiert).
-        traccarAccessAuth: Boolean(env.CF_ACCESS_ID && env.CF_ACCESS_SECRET),
+        positionsQuelle: "lokal",
+        geraete: info.geraete || 0,
+        positionen: info.positionen || 0,
+        letztePosition: info.letzte ? new Date(info.letzte).toISOString() : null,
         db: env.DB ? "gebunden" : "fehlt",
         time: new Date().toISOString(),
       });
@@ -1006,7 +942,7 @@ async function route(request, env) {
     if (!sitzung) return reply(request, env, { error: "nicht angemeldet" }, 401);
 
     try {
-      /* ---- Positionen: Traccar-Proxy oder eigene positions-Tabelle ---- */
+      /* ---- Positions, route, stops, drives from the local positions table ---- */
       if (seg[1] === "positions") {
         return reply(request, env, await positionsQuelle(env, "positions", { deviceId: url.searchParams.get("deviceId") }));
       }

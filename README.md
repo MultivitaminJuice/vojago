@@ -169,7 +169,7 @@ npm run test:smoke
 ```
 
 `npm test` covers pure logic tests and API/D1 integration tests. The local D1
-test adapter loads `api/schema.sql` into an in-memory SQLite database and
+test adapter loads `db/schema.sql` into an in-memory SQLite database and
 calls the real API router.
 
 `npm run test:smoke` builds the app and opens it in a browser with Playwright.
@@ -206,8 +206,8 @@ npm run build
 npm run dev
 ```
 
-This builds the plain PWA and serves it through `wrangler pages dev` (static
-preview without its own API — demo mode). Alternatively, serve the contents of
+This builds the plain PWA and serves it with a small static server on
+http://127.0.0.1:4173 (preview without its own API — demo mode). Alternatively, serve the contents of
 `public/` after the build with any static web server.
 
 For the full local environment including the own API and database (equivalent

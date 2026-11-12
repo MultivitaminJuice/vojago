@@ -6,7 +6,6 @@ node_modules/
 dist/
 build/
 .output/
-.wrangler/
 public/
 test-results/
 playwright-report/
@@ -22,12 +21,6 @@ playwright-report/
 *.log
 .idea/
 .vscode/
-
-# Lokale Infrastruktur-Konfiguration (enthält eigene Kennungen)
-worker/wrangler.toml
-
-# Pages-Konfiguration mit eigener Datenbank-Kennung
-wrangler.toml
 
 # Nur lokal: echte Daten, privates Arbeitstagebuch, Deploy-Notizen, Sperrliste
 # (siehe docs/local-setup.md) — gelangt nie ins Repository.

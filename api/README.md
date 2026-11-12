@@ -33,15 +33,12 @@ See `router.js` for the exact routes, parameters and validation.
 |---|---|
 | `ALLOWED_ORIGINS` | optional, only if the API is used from another origin |
 | `DEBUG` | `true` returns error details to the caller (diagnostics only) |
-| `LOCAL_POSITIONS` | set by the self-hosted container: positions/drives/stops come from the own `positions` table |
 | `APP_URL` | public base address for password-reset / e-mail-verification links |
 | `VAPID_PUBLIC_KEY` | public Web Push key handed to the browser |
 
 ## Database
 
-The current full schema is `db/schema.sql` (used by both containers). The
-single migrations in `api/migrations/` document later changes; `api/schema.sql`
-is the Cloudflare D1 variant of the same tables.
+The full schema is `db/schema.sql` (used by both containers and by the tests).
 
 ## Run the checks
 
