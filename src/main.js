@@ -4,7 +4,7 @@ import "./styles.css";
 import { $, $$, el, render, toast, icon } from "./dom.js";
 import { ICON } from "./icons.js";
 import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
-import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot } from "./dataload.js";
+import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot, restoreStoredRoutes } from "./dataload.js";
 import { authState, login as anmelden, setupAccount, setAngemeldet, forgotPassword, resetPassword, verifyEmail } from "./api.js";
 import { starteGastAnsicht, zeigeGastReise, ladeGastLivePosition, ladeGastRoute } from "./guest.js";
 import { wetterZeile } from "./store.js";
@@ -32,6 +32,7 @@ loadConfig();
 applyTheme(state.config.theme);
 restoreLivePosition();
 restoreSnapshot();
+restoreStoredRoutes();
 
 /* ---------- Die Seite selbst zoomt nicht ----------
    Die Karte bringt ihr eigenes Zoomen mit; das Zoomen der ganzen Seite

@@ -269,6 +269,99 @@ export function mapPositionRow(row) {
   };
 }
 
+/* ---------------- Route thinning ----------------
+ * The tracker records about one point per second. For drawing the route and
+ * the charts most of them carry no information: on a straight road at steady
+ * speed a few points describe the same line. thinPositions() drops a point
+ * only if the route without it stays within all tolerances; the stored data
+ * is never touched. */
+
+const METERS_PER_DEGREE = 111_320;
+
+/**
+ * Returns the rows worth sending (same objects, same order). A row is dropped
+ * only if, on the straight connection of its kept neighbours, the position is
+ * off by at most `maxMeters` and speed and altitude (interpolated over time)
+ * by at most `maxKmh` / `maxAltitude`. Kept in any case: the first and last
+ * row, both rows around every pause of `gapSeconds` or more (so gaps in the
+ * recording stay exactly where they are), and at least one row every
+ * `maxSeconds`.
+ */
+export function thinPositions(rows, { maxMeters = 2, maxKmh = 2, maxAltitude = 3, maxSeconds = 30, gapSeconds = 20 } = {}) {
+  const n = rows?.length || 0;
+  if (n < 3) return rows ? [...rows] : [];
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const cos = Math.cos((rows[0].lat * Math.PI) / 180);
+  const x = new Float64Array(n);
+  const y = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    x[i] = rows[i].lon * METERS_PER_DEGREE * cos;
+    y[i] = rows[i].lat * METERS_PER_DEGREE;
+  }
+  // Split at pauses: both ends stay, nothing is simplified across a pause.
+  const stack = [];
+  let start = 0;
+  for (let i = 1; i < n; i++) {
+    if (rows[i].at - rows[i - 1].at >= gapSeconds * 1000) {
+      keep[i - 1] = keep[i] = 1;
+      stack.push([start, i - 1]);
+      start = i;
+    }
+  }
+  stack.push([start, n - 1]);
+
+  const speed = (r) => (Number.isFinite(r.speed_kmh) ? r.speed_kmh : 0);
+  const alt = (r) => (Number.isFinite(r.altitude) ? r.altitude : 0);
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    if (b - a < 2) continue;
+    const dx = x[b] - x[a];
+    const dy = y[b] - y[a];
+    const len2 = dx * dx + dy * dy;
+    const span = rows[b].at - rows[a].at || 1;
+    let worst = 0;
+    let worstIndex = -1;
+    for (let i = a + 1; i < b; i++) {
+      let t = len2 ? ((x[i] - x[a]) * dx + (y[i] - y[a]) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const f = (rows[i].at - rows[a].at) / span;
+      const score = Math.max(
+        Math.hypot(x[i] - x[a] - t * dx, y[i] - y[a] - t * dy) / maxMeters,
+        Math.abs(speed(rows[i]) - (speed(rows[a]) + f * (speed(rows[b]) - speed(rows[a])))) / maxKmh,
+        Math.abs(alt(rows[i]) - (alt(rows[a]) + f * (alt(rows[b]) - alt(rows[a])))) / maxAltitude,
+      );
+      if (score > worst) { worst = score; worstIndex = i; }
+    }
+    if (worst > 1 || span > maxSeconds * 1000) {
+      if (worst <= 1) worstIndex = (a + b) >> 1; // only the time limit is exceeded
+      keep[worstIndex] = 1;
+      stack.push([a, worstIndex], [worstIndex, b]);
+    }
+  }
+  return rows.filter((_, i) => keep[i]);
+}
+
+/**
+ * Compact wire format of a route: one array per point instead of an object
+ * with repeated keys. `total` is the number of recorded points before
+ * thinning. Decoded in the app by src/route-wire.js.
+ */
+export function compactRoute(rows, total = rows.length) {
+  const round = (v, digits) => { const f = 10 ** digits; return Math.round(v * f) / f; };
+  return {
+    v: 1,
+    total,
+    lastAt: rows.length ? rows[rows.length - 1].at : null,
+    fields: ["at", "lat", "lon", "altitude", "kmh"],
+    points: rows.map((r) => [
+      r.at, round(r.lat, 6), round(r.lon, 6),
+      round(Number.isFinite(r.altitude) ? r.altitude : 0, 1),
+      round(Number.isFinite(r.speed_kmh) ? r.speed_kmh : 0, 1),
+    ]),
+  };
+}
+
 const MAX_LUECKE_MINUTEN = 120; // wie src/route-summary.js: MAX_BEWEGUNGSLUECKE_MINUTEN
 
 function haversineMeter(a, b) {

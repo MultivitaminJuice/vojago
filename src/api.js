@@ -1,6 +1,7 @@
 // Client für die eigene API. Sie läuft unter derselben Adresse wie die App
 // (Cloudflare-Pages-Funktion) — deshalb kein CORS, und die Sitzung reist als
 // Erst-Anbieter-Cookie mit, das auch Safari auf iOS akzeptiert.
+import { decodeRoute } from "./route-wire.js";
 
 async function request(path, options = {}) {
   // `timeoutMs`: bei schlechter Verbindung hängt ein Abruf sonst ewig (ein
@@ -189,12 +190,16 @@ export const updateUser = (id, patch) => request(`/api/users/${id}`, { method: "
 export const deleteUser = (id) => request(`/api/users/${id}`, { method: "DELETE" });
 
 export const positions = (deviceId) => request(`/api/positions?deviceId=${encodeURIComponent(deviceId)}`);
-// Die Fahrten- und Routenabrufe sind groß (Route einer 6-Tage-Reise: ~14 MB) —
+// Drives and routes are large requests (the route is sent thinned and compact,
+// see route-wire.js) —
 // mit Zeitlimit und einer Wiederholung bei Verbindungsproblemen.
 export const drives = (deviceId, from, to) =>
   requestWiederholt(`/api/drives?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs: 120_000 });
+/** Number of recorded points and the newest one in a range (no route data). */
+export const routeStand = (deviceId, from, to) =>
+  request(`/api/route?stand=1&deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs: 20_000 });
 export const route = (deviceId, from, to, { timeoutMs = 120_000 } = {}) =>
-  requestWiederholt(`/api/route?deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs });
+  requestWiederholt(`/api/route?compact=1&deviceId=${encodeURIComponent(deviceId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { timeoutMs }).then(decodeRoute);
 /** Bekannte Geräte — bei Traccar dessen Geräteliste, im Selbst-Hosting-
  * Betrieb die Geräte, die schon einmal an die
  * eigene positions-Tabelle gesendet haben. Fürs Zuordnen einer Geräte-ID
@@ -211,7 +216,7 @@ export const revokeShare = (id) => request(`/api/shares/${id}`, { method: "DELET
 /** Öffentliche Gast-Ansicht — kein Login, der Link-Schlüssel ist der Nachweis. */
 export const fetchShare = (token) => request(`/api/share/${encodeURIComponent(token)}`);
 export const fetchShareRoute = (token, tripId) =>
-  request(`/api/share/${encodeURIComponent(token)}/route?tripId=${encodeURIComponent(tripId)}`);
+  request(`/api/share/${encodeURIComponent(token)}/route?compact=1&tripId=${encodeURIComponent(tripId)}`).then(decodeRoute);
 export const fetchSharePositions = (token, tripId) =>
   request(`/api/share/${encodeURIComponent(token)}/positions?tripId=${encodeURIComponent(tripId)}`);
 export const fetchShareDrives = (token, tripId) =>

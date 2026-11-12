@@ -4,7 +4,7 @@ import { ICON } from "../icons.js";
 import {
   state, trip, activeTrip, tripPlaces, tripNotes, rangeTrips, isRangeTrip,
   endTrip, resumeTrip, startTrip, deleteTrip, showTripOnMap, showAdhocOnMap, setRouteDriveFilter, emit,
-  ROUTE_DRIVE_FILTERS,
+  ROUTE_DRIVE_FILTERS, aktuellerDatenStand,
 } from "../state.js";
 import { starterPath } from "../demo.js";
 import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.js";
@@ -14,6 +14,7 @@ import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
 import { datumFeld } from "../ui/kalender.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
+import { createMemo } from "../memo.js";
 import { tagNachbar, tagNavigation } from "../day-nav.js";
 import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
 import { filteredRouteDrives, itemMatchesRouteFilter, visibleRoutePath } from "../route-visibility.js";
@@ -371,12 +372,20 @@ function selectedTrip() {
   return state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
 }
 
+// Trip and day values are computed once and kept until the data changes
+// (see memo.js); switching views or redrawing no longer recomputes them.
+const werte = createMemo();
+const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathGrob ? "grob" : "voll"}`;
+const merkBedingung = (t) => ({ stand: aktuellerDatenStand(), path: t?.path, laufend: Boolean(t?.live) || isRangeTrip(t) });
+
 function tripSummary(t) {
-  const routeTrip = tripForRouteFilter(t);
-  return summarizeTrip(routeTrip, {
-    drives: routeDrives(t),
-    places: routePlaces(t),
-    notes: routeNotes(t),
+  return werte(merkSchluessel("reise", t), merkBedingung(t), () => {
+    const routeTrip = tripForRouteFilter(t);
+    return summarizeTrip(routeTrip, {
+      drives: routeDrives(t),
+      places: routePlaces(t),
+      notes: routeNotes(t),
+    });
   });
 }
 
@@ -874,11 +883,11 @@ function tageSummariesFor(t) {
   const routeTrip = tripForRouteFilter(t);
   const fahrten = routeDrives(t);
   ensureDrivePreviewPaths(t, fahrten);
-  const summaries = summarizeTripDays(routeTrip, {
+  const summaries = werte(merkSchluessel("tage", t), merkBedingung(t), () => summarizeTripDays(routeTrip, {
     drives: fahrten,
     places: routePlaces(t),
     notes: routeNotes(t),
-  });
+  }));
   return summaries.map((summary) => {
     const preview = summary.path?.length ? summary.path : dayPreviewPath(summary.drives || [], t);
     return preview.length ? { ...summary, path: preview } : summary;

@@ -21,7 +21,7 @@ import {
   validateCategory, validateVehicle,
   isValidEmail, newResetToken, RESET_TOKEN_MINUTES, newVerifyToken, EMAIL_VERIFY_MINUTES,
   newShareToken, isValidShareScope,
-  mapPositionRow, segmentDrives, segmentStops,
+  mapPositionRow, segmentDrives, segmentStops, thinPositions, compactRoute,
   isValidId,
 } from "./lib.js";
 
@@ -465,6 +465,21 @@ async function positionsQuelle(env, art, { deviceId, from, to } = {}) {
       return results.map(mapPositionRow);
     }
     case "route": return (await holePositionsZeitraum(env, deviceId, from, to)).map(mapPositionRow);
+    // Thinned and compact, for drawing: see thinPositions() in lib.js. The
+    // plain "route" stays for clients that still run an older cached app.
+    // Only the number of recorded points and the newest one: lets the app keep
+    // a stored route of a finished trip without downloading it again.
+    case "route-stand": {
+      if (!deviceId) return { total: 0, lastAt: null };
+      const { results } = await env.DB.prepare(
+        "SELECT COUNT(*) AS total, MAX(at) AS last_at FROM positions WHERE device_id = ? AND at >= ? AND at <= ?"
+      ).bind(deviceId, Number.isFinite(Date.parse(from)) ? Date.parse(from) : 0, Number.isFinite(Date.parse(to)) ? Date.parse(to) : Date.now()).all();
+      return { total: results?.[0]?.total || 0, lastAt: results?.[0]?.last_at ?? null };
+    }
+    case "route-compact": {
+      const rows = await holePositionsZeitraum(env, deviceId, from, to);
+      return compactRoute(thinPositions(rows), rows.length);
+    }
     case "drives": return segmentDrives(await holePositionsZeitraum(env, deviceId, from, to));
     case "stops": return segmentStops(await holePositionsZeitraum(env, deviceId, from, to));
     case "devices": return holeLokaleGeraete(env);
@@ -478,7 +493,10 @@ async function rangeReport(request, env, url, art) {
   const to = url.searchParams.get("to");
   const check = validateRange(from, to);
   if (!check.ok) return reply(request, env, { error: check.errors.join("; ") }, 400);
-  const data = await positionsQuelle(env, art, { deviceId: url.searchParams.get("deviceId"), from, to });
+  const quelle = art !== "route" ? art
+    : url.searchParams.get("stand") === "1" ? "route-stand"
+    : url.searchParams.get("compact") === "1" ? "route-compact" : art;
+  const data = await positionsQuelle(env, quelle, { deviceId: url.searchParams.get("deviceId"), from, to });
   return reply(request, env, data);
 }
 
@@ -845,7 +863,8 @@ async function route(request, env) {
           return reply(request, env, drives);
         }
 
-        const data = await positionsQuelle(env, "route", { deviceId, from: von, to: bis });
+        const quelle = url.searchParams.get("compact") === "1" ? "route-compact" : "route";
+        const data = await positionsQuelle(env, quelle, { deviceId, from: von, to: bis });
         return reply(request, env, data);
       }
 
