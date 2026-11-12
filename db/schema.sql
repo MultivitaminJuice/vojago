@@ -1,29 +1,14 @@
--- VOJAĜO — vereinigtes Schema für den selbstgehosteten Zwei-Container-Betrieb
--- (Phase 2). Eine gemeinsame SQLite-Datei (WAL-Modus)
--- für beide Container:
---   app    (Web-App + /api/*, api/router.js über den D1-Shim)
---   ingest (OsmAnd + Teltonika, tracker-backend/src/protocols/*)
+-- VOJAĜO — database schema for the self-hosted two-container setup.
+-- One shared SQLite file (WAL mode) for both containers:
+--   app    (web app + /api/*, api/router.js)
+--   ingest (OsmAnd + Teltonika receivers, tracker-backend/src/protocols/*)
 --
--- Diese Datei fasst zwei bisher getrennte Quellen zusammen — bewusst per
--- Kopie, nicht per Verweis, damit jeder Container beim Start unabhängig und
--- idempotent (CREATE TABLE IF NOT EXISTS) sein eigenes Schema sicherstellen
--- kann, ohne vom Startzeitpunkt des jeweils anderen Containers abzuhängen:
---
---   1. api/schema.sql        — die App-Tabellen (Cloudflare-D1-Original,
---                               bleibt DORT die Quelle der Wahrheit für den
---                               Cloudflare-Betrieb; Änderungen dort müssen
---                               von Hand hierher übertragen werden)
---   2. tracker-backend/schema.sql — raw_packets/positions (bleibt DORT die
---                               Quelle der Wahrheit für den reinen
---                               Schattenbetrieb ohne app-Container)
---
--- Tabellennamen überschneiden sich nicht — reines Zusammenfügen, keine
--- Konflikte.
+-- Every statement is idempotent (CREATE TABLE IF NOT EXISTS), so each
+-- container can ensure the schema on start without depending on the other.
+-- tracker-backend/schema.sql holds a copy of the tables the ingest container
+-- needs on its own; keep both files in step when changing those tables.
 
--- ── aus api/schema.sql ──────────────────────────────────────────────────
--- Speichert alles, was Traccar NICHT kann: Orte, Reisen, Geofences, Alarm-Konfig.
--- (Positions-Historie liegt in dieser Phase-2-Variante nicht mehr in Traccar,
--- sondern unten in raw_packets/positions —.)
+-- ── App tables: places, trips, notes, diary, photos, guard, accounts ─────
 
 CREATE TABLE IF NOT EXISTS trips (
   id          TEXT PRIMARY KEY,

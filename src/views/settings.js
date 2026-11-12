@@ -69,12 +69,12 @@ export function refreshAccountState() {
   applyConfigToForm();
   renderEmailStatus();
   renderSharesList();
-  // Verwaltung (Fahrzeuge, Kategorien, Traccar-Verknüpfung, lokale Daten,
+  // Verwaltung (Fahrzeuge, Kategorien, Verbindungsstatus, lokale Daten,
   // Nutzer) ist bewusst nur für Admins sichtbar — alle Konten sehen zwar
   // dieselben Reisen/Orte, aber nur Admins sollen an der gemeinsamen
   // Konfiguration schrauben können.
   const istAdmin = Boolean(state.account?.isAdmin);
-  for (const id of ["vehicles-group", "categories-group", "traccar-link-group", "ingest-group", "local-data-group", "users-group"]) {
+  for (const id of ["vehicles-group", "categories-group", "connection-group", "ingest-group", "local-data-group", "users-group"]) {
     const gruppe = $(`#${id}`);
     if (gruppe) gruppe.hidden = !istAdmin;
   }
@@ -748,17 +748,10 @@ async function testConnection() {
       return;
     }
     const parts = [];
-    if (result?.positionsQuelle === "lokal") {
-      // Selbst-Hosting: eigene positions-Tabelle
-      // statt Traccar-Proxy — andere Kennzahlen als beim Cloudflare-Betrieb.
-      parts.push(`Eigene Positionsquelle: ${result.geraete ?? 0} Gerät(e), ${result.positionen ?? 0} Positionen`);
-      parts.push(result.letztePosition
-        ? `letzte: ${new Date(result.letztePosition).toLocaleString("de-DE")}`
-        : "noch keine Position empfangen");
-    } else {
-      if (result?.traccar) parts.push(`Traccar: ${result.traccar}`);
-      parts.push(`Access-Dienst-Token: ${result?.traccarAccessAuth ? "gesetzt" : "nicht gesetzt"}`);
-    }
+    parts.push(`Eigene Positionsquelle: ${result?.geraete ?? 0} Gerät(e), ${result?.positionen ?? 0} Positionen`);
+    parts.push(result?.letztePosition
+      ? `letzte: ${new Date(result.letztePosition).toLocaleString("de-DE")}`
+      : "noch keine Position empfangen");
     if (result?.db) parts.push(`Datenbank: ${result.db}`);
     showConnection({ ok: true, message: parts.join(" · ") || "API erreichbar." });
   } catch (err) {

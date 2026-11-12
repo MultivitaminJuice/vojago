@@ -250,14 +250,9 @@ export function validateRange(from, to) {
   return { ok: errors.length === 0, errors };
 }
 
-/* ---------------- Eigene Positionsquelle (Phase 2) ----------------
- * Nur genutzt, wenn env.LOCAL_POSITIONS gesetzt ist (app-backend/src/server.js) —
- * sonst liefert der bisherige Traccar-Proxy in router.js dieselben Routen wie
- * immer, unverändert. Reine Funktionen: nehmen Zeilen aus der eigenen
- * `positions`-Tabelle (tracker-backend/schema.sql) entgegen, geben
- * Traccar-förmige Objekte zurück — dieselbe Form, die das Frontend
- * (src/dataload.js) heute schon von Traccar erwartet, damit dort nichts
- * geändert werden muss. */
+/* ---------------- Positions ----------------
+ * Pure functions: take rows of the `positions` table (db/schema.sql) and
+ * return the objects the frontend (src/dataload.js) works with. */
 
 /** Eine positions-Zeile wie eine Traccar-Position formen (Knoten statt
  * km/h — src/dataload.js multipliziert selbst mit 1.852, wie bei Traccar). */

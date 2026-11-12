@@ -889,19 +889,8 @@ async function apiFormData(env, method, path, { body, cookie, headers = {} } = {
   return { response, status: response.status, data };
 }
 
-/* ---------------- Eigene Positionsquelle (Phase 2, LOCAL_POSITIONS) ---------------- */
-// D1Memory lädt bewusst nur api/schema.sql (das echte Cloudflare-D1-Schema,
-// ohne positions-Tabelle) — genau das bildet ab, dass env.LOCAL_POSITIONS auf
-// Cloudflare nie gesetzt ist. Für diesen Test legen wir die Tabelle hier
-// selbst an, wie es sonst db/schema.sql für den Selbst-Hosting-Betrieb tut.
+/* ---------------- Positions from the local table ---------------- */
 async function seedPositions(env, deviceId, punkte) {
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS positions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, at INTEGER NOT NULL,
-      lat REAL NOT NULL, lon REAL NOT NULL, speed_kmh REAL, course REAL, altitude REAL,
-      sats INTEGER, ignition INTEGER, motion INTEGER, protocol TEXT NOT NULL, created_at INTEGER NOT NULL
-    )`
-  ).run();
   for (const p of punkte) {
     await env.DB.prepare(
       "INSERT INTO positions (device_id, at, lat, lon, speed_kmh, protocol, created_at) VALUES (?,?,?,?,?,?,?)"
@@ -909,8 +898,8 @@ async function seedPositions(env, deviceId, punkte) {
   }
 }
 
-test("LOCAL_POSITIONS: /api/positions, /api/route, /api/drives, /api/stops kommen aus der eigenen Tabelle", async (t) => {
-  const env = makeEnv({ LOCAL_POSITIONS: "1" });
+test("/api/positions, /api/route, /api/drives, /api/stops are served from the local positions table", async (t) => {
+  const env = makeEnv();
   t.after(() => env.DB.close());
   // Eigene IP auch fürs Setup selbst (nicht über setupAndLogin, das läuft
   // ohne IP-Header über den geteilten "unbekannt"-Zähler, der von den vielen
@@ -959,8 +948,8 @@ test("LOCAL_POSITIONS: /api/positions, /api/route, /api/drives, /api/stops komme
   assert.equal(devices.data[0].id, "geraet1");
 });
 
-test("LOCAL_POSITIONS: unbekanntes Gerät liefert leere Listen statt Fehler", async (t) => {
-  const env = makeEnv({ LOCAL_POSITIONS: "1" });
+test("positions: an unknown device yields empty lists, not an error", async (t) => {
+  const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.51" };
   const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
@@ -1024,13 +1013,9 @@ test("Sitzungscookie über HTTPS bleibt unverändert 'Secure' (Cloudflare-Regelf
   assert.ok(setupRes.headers.get("set-cookie").includes("Secure"));
 });
 
-/* ---------------- /api/health mit LOCAL_POSITIONS ---------------- */
-// Live gefunden am 16. August 2026: /api/health prüfte immer Traccar,
-// TRACCAR_URL ist im Selbst-Hosting-Betrieb aber bewusst nicht gesetzt —
-// zeigte fälschlich "Traccar: nicht erreichbar" an, obwohl gar nicht mehr
-// über Traccar gearbeitet wird.
-test("/api/health: mit LOCAL_POSITIONS wird die eigene positions-Tabelle berichtet, nicht Traccar", async (t) => {
-  const env = makeEnv({ LOCAL_POSITIONS: "1" });
+/* ---------------- /api/health ---------------- */
+test("/api/health reports the local positions table", async (t) => {
+  const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.62" };
   const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
@@ -1041,19 +1026,6 @@ test("/api/health: mit LOCAL_POSITIONS wird die eigene positions-Tabelle bericht
   assert.equal(health.data.positionsQuelle, "lokal");
   assert.equal(health.data.geraete, 1);
   assert.equal(health.data.positionen, 1);
-  assert.equal(health.data.traccar, undefined); // kein irreführender Traccar-Status mehr
-});
-
-test("/api/health: ohne LOCAL_POSITIONS bleibt der bisherige Traccar-Status unverändert", async (t) => {
-  const env = makeEnv();
-  t.after(() => env.DB.close());
-  const ip = { "cf-connecting-ip": "203.0.113.63" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
-
-  const health = await api(env, "GET", "/api/health", { cookie: setup.cookie, headers: ip });
-  assert.equal(health.status, 200);
-  assert.equal(health.data.traccar, "nicht erreichbar"); // TRACCAR_URL fehlt in diesem Test bewusst
-  assert.equal(health.data.positionsQuelle, undefined);
 });
 
 test("API-Integration: Push-Benachrichtigung — öffentlicher Schlüssel und Abo-Verwaltung", async (t) => {

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
 -- als reines SQLite) — orte.category_id REFERENCES categories(id) würde
 -- sonst bei jeder Ort-Anlage scheitern, falls ingest vor app startet und
 -- categories noch leer ist (live im Test entdeckt). "WHERE NOT EXISTS"
--- wie in db/schema.sql/api/schema.sql: nur eine WIRKLICH leere Tabelle
+-- wie in db/schema.sql: nur eine WIRKLICH leere Tabelle
 -- bekommt die Vorgaben, eine vom Menschen getroffene Löschung (siehe der
 -- "gelöschte Kategorie kommt zurück"-Bug, 6. September 2026) bleibt
 -- bestehen, ganz gleich welcher der beiden Container zuerst schreibt.
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS categories (
   color   TEXT NOT NULL,
   sort    INTEGER NOT NULL DEFAULT 0
 );
--- Bei Änderung hier auch db/schema.sql UND api/schema.sql nachziehen (drei
+-- Bei Änderung hier auch db/schema.sql nachziehen (zwei
 -- Kopien, wie bei den Tabellen oben) — dieselbe Liste, derselbe Grund.
 INSERT INTO categories (id, name, color, sort)
 SELECT * FROM (VALUES

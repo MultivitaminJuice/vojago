@@ -11,7 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 
-for (const datei of ["../schema.sql", "../../db/schema.sql"]) {
+for (const datei of ["../../db/schema.sql"]) {
   test(`Schema ${datei}: läuft auch auf einer bestehenden Datenbank ohne neuere Spalten`, () => {
     const schema = readFileSync(resolve(hier, datei), "utf8");
     const db = new DatabaseSync(":memory:");

@@ -9,8 +9,7 @@
   },
   "scripts": {
     "build": "node scripts/build-site.mjs",
-    "dev": "wrangler pages dev public",
-    "deploy": "npm run build && wrangler pages deploy public --project-name=vojago --branch=main",
+    "dev": "npm run build && node smoke/static-server.mjs public 4173",
     "test": "node --no-warnings --test api/test/*.test.js src/test/*.test.js",
     "test:smoke": "npm run build && playwright test",
     "setup-local": "node scripts/setup-local.mjs",
@@ -19,8 +18,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "esbuild": "^0.28.2",
-    "wrangler": "^4.123.0"
+    "esbuild": "^0.28.2"
   },
   "dependencies": {
     "maplibre-gl": "^6.14.0"
