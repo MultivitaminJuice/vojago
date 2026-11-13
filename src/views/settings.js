@@ -2,7 +2,7 @@
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { applyTheme, gueltigesTheme } from "../theme.js";
 import { routeInfoRows } from "../route-info.js";
-import { gueltigerKartenstil } from "../map-style.js";
+import { validMapStyle } from "../map-style.js";
 import * as mapview from "../mapview.js";
 import { ICON } from "../icons.js";
 import { state, saveConfig, emit, saveLocalData, forgetLocalData, collectPreferences } from "../state.js";
@@ -382,13 +382,13 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   zeigeTheme();
 
   const zeigeKartenstil = () => {
-    const aktuell = gueltigerKartenstil(state.config.mapStyle);
+    const aktuell = validMapStyle(state.config.mapStyle);
     $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === aktuell)));
   };
   $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.addEventListener("click", () => {
-    state.config.mapStyle = gueltigerKartenstil(b.dataset.kartenstilWahl);
+    state.config.mapStyle = validMapStyle(b.dataset.kartenstilWahl);
     saveConfig();
-    mapview.setKartenstil(state.config.mapStyle);
+    mapview.setMapStyle(state.config.mapStyle);
     zeigeKartenstil();
   }));
   zeigeKartenstil();
@@ -401,7 +401,7 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
       lueckenSwitch.setAttribute("aria-checked", String(an));
       state.config.markGaps = an;
       saveConfig();
-      mapview.setLuecken(an);
+      mapview.setGaps(an);
     });
   }
 

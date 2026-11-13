@@ -1,17 +1,17 @@
-// Fingerabdruck dessen, was die Routen-Ebenen der Karte darstellen. Ändert er
-// sich zwischen zwei Zeichenaufträgen nicht, muss die Linie nicht neu an die
-// Grafik gegeben werden (jedes Neuaufbauen ließ sie kurz flackern).
-export function routenSignatur(reiseId, segmente, metric, ctx = {}) {
+// Fingerprint of what the route layers of the map show. If it does not change
+// between two draw requests, the line need not be handed to the graphics again
+// (every rebuild made it flicker briefly).
+export function routeSignature(tripId, segments, metric, ctx = {}) {
   return JSON.stringify([
-    reiseId,
+    tripId,
     metric,
     [ctx.elevMin, ctx.elevMax, Math.round((ctx.totalKm || 0) * 1000), ctx.days, ctx.hue, ctx.rangeMode, ctx.hasUnassignedTripPoints,
       (ctx.trips || []).map((t) => t.id)],
-    segmente.map((s) => {
-      const erster = s[0];
-      const letzter = s[s.length - 1];
-      const mitte = s[s.length >> 1];
-      return [s.length, erster?.time, letzter?.time, erster?.lon, letzter?.lon, mitte?.lat, Math.round((letzter?.cum || 0) * 1000)];
+    segments.map((s) => {
+      const first = s[0];
+      const last = s[s.length - 1];
+      const middle = s[s.length >> 1];
+      return [s.length, first?.time, last?.time, first?.lon, last?.lon, middle?.lat, Math.round((last?.cum || 0) * 1000)];
     }),
   ]);
 }

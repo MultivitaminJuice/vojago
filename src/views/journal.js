@@ -10,7 +10,7 @@ import { speichereOrt, wetterZeile } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
 import { mapView, tileUrl, routePath } from "../mini-map.js";
-import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
+import { CARTO_KEY, tileUrl as tileTemplate, validMapStyle } from "../map-style.js";
 import { withoutPhoto, coverPhotoId, withUnplacedPhotos } from "../diary.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
@@ -237,7 +237,7 @@ const KARTE_B = 340, KARTE_H = 150;
 function kartenbild(tag) {
   const ansicht = mapView(tag.punkte, KARTE_B, KARTE_H);
   if (!ansicht) return null;
-  const vorlage = kachelUrl(gueltigerKartenstil(state.config.mapStyle), CARTO_KEY);
+  const vorlage = tileTemplate(validMapStyle(state.config.mapStyle), CARTO_KEY);
   const svg = svgEl("svg", { viewBox: `0 0 ${KARTE_B} ${KARTE_H}`, width: KARTE_B, height: KARTE_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
   const d = routePath(tag.punkte, ansicht.project);
   // Dunkler Rand unter der Linie, damit sie auf hellem wie dunklem Grund lesbar bleibt.
@@ -255,7 +255,7 @@ function kartenbild(tag) {
   punkt(letzter.lon, letzter.lat, 5, "var(--accent)");
 
   const buehne = el("div.jt-buehne", { style: { width: `${KARTE_B}px`, height: `${KARTE_H}px` } }, [
-    ...ansicht.tiles.map((k) => el(`img.jt-kachel${gueltigerKartenstil(state.config.mapStyle) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
+    ...ansicht.tiles.map((k) => el(`img.jt-kachel${validMapStyle(state.config.mapStyle) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
       src: tileUrl(vorlage, k), alt: "", loading: "lazy", draggable: "false",
       style: { left: `${k.left.toFixed(1)}px`, top: `${k.top.toFixed(1)}px` },
     })),

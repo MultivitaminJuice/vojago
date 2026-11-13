@@ -1,15 +1,15 @@
-// Echte Karte auf Basis von MapLibre GL mit OSM-Kacheln (CARTO-Rendering).
-// Die Route wird zweilagig gezeichnet: eine stabile einfarbige Linie darunter
-// und der farbige Verlauf darüber. So bleibt die Strecke auch dann sichtbar,
-// wenn MapLibre den Verlauf bei bestimmten Zoomstufen an Tile-Grenzen zerteilt.
-// MapLibre wird als eigenständige Bibliotheksdatei geladen (bringt seinen
-// Web-Worker selbst mit) — deshalb hier bewusst kein Bundle-Import.
+// The map, built on MapLibre GL with OSM tiles (CARTO rendering).
+// The route is drawn in two layers: a stable single-colour line below and the
+// colour gradient on top, so the route stays visible when MapLibre splits the
+// gradient at tile borders at some zoom levels.
+// MapLibre is loaded as a separate library file (it brings its own web worker),
+// so there is deliberately no bundle import here. UI texts stay German.
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
 import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, simplify, routeHits, sameSpot, metersPerPixel } from "./geo.js";
-import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
-import { routenSignatur } from "./map-signature.js";
+import { CARTO_KEY, tilePaint, tileUrl, validMapStyle, hillshadePaint, ELEVATION_TILES, ELEVATION_ATTRIBUTION } from "./map-style.js";
+import { routeSignature } from "./map-signature.js";
 import { findRepeatedStretches, lineWidth } from "./overlap.js";
 import { findGaps, distanceToSegment, durationText } from "./gaps.js";
 import { tipEntries, nearestHit } from "./route-tip.js";
@@ -17,12 +17,10 @@ import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
 import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility.js";
 
-// CARTO verlangt einen (kostenlosen) API-Schlüssel für den Kachel-Dienst —
-// ohne ihn kommen nur "API KEY REQUIRED"-Wasserzeichen statt echter
-// Kartografie (https://carto.com/basemaps/apikey/). Der Schlüssel steht
-// nicht im Repository, sondern wird beim Bauen aus der Umgebungsvariable
-// CARTO_API_KEY eingesetzt (siehe scripts/build-site.mjs und README). Er ist
-// danach in der Kachel-URL der ausgelieferten App sichtbar — dafür ist er gedacht.
+// CARTO needs a (free) API key for its tile service — without it only "API KEY
+// REQUIRED" watermarks appear (https://carto.com/basemaps/apikey/). The key is
+// set at build time from CARTO_API_KEY (see scripts/build-site.mjs and README)
+// and is then visible in the tile URL of the shipped app, as intended.
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
 
 let map = null;
@@ -46,8 +44,8 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
     style: {
       version: 8,
       sources: {
-        "tiles-light": { type: "raster", tiles: [kachelUrl(state.config.mapStyle, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
-        dem: { type: "raster-dem", tiles: [HOEHEN_KACHELN], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: HOEHEN_QUELLE },
+        "tiles-light": { type: "raster", tiles: [tileUrl(state.config.mapStyle, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
+        dem: { type: "raster-dem", tiles: [ELEVATION_TILES], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: ELEVATION_ATTRIBUTION },
         "route-solid": {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
@@ -55,45 +53,39 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
           buffer: 512,
           maxzoom: 24,
         },
-        // Doppelt befahrene Stücke (Hin- und Rückweg): verschachtelt über der Route, siehe overlap.js
-        "route-doppelt": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
-        // Datenlücken (Tracker hat dazwischen nichts geliefert): gestrichelt über der Verbindungslinie, siehe luecken.js
-        "route-luecken": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
+        // Stretches driven more than once (out and back): nested over the route, see overlap.js
+        "route-repeated": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
+        // Recording gaps (the tracker delivered nothing in between): dashed over the joining line, see gaps.js
+        "route-gaps": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
       },
       layers: [
-        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.mapStyle) },
-        // Geländeschummerung: nur sichtbar, wenn im Ebenen-Menü eingeschaltet
-        // (dann erst werden die Höhenkacheln überhaupt geladen).
-        { id: "schummerung", type: "hillshade", source: "dem",
-          layout: { visibility: state.config.terrain ? "visible" : "none" }, paint: schummerungPaint(isDark()) },
+        { id: "tiles-light", type: "raster", source: "tiles-light", paint: tilePaint(isDark(), state.config.mapStyle) },
+        // Terrain shading: only visible when switched on in the layer menu
+        // (only then are the elevation tiles loaded at all).
+        { id: "hillshade", type: "hillshade", source: "dem",
+          layout: { visibility: state.config.terrain ? "visible" : "none" }, paint: hillshadePaint(isDark()) },
         { id: "route-casing", type: "line", source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": isDark() ? "#000" : "#0a1919", "line-opacity": 0.35, "line-width": 9 } },
         { id: "route-backfill", type: "line", source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": "#e8802b", "line-opacity": 0.86, "line-width": 5 } },
-        { id: "route-doppelt", type: "line", source: "route-doppelt",
+        { id: "route-repeated", type: "line", source: "route-repeated",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
-        { id: "route-luecken", type: "line", source: "route-luecken",
+        { id: "route-gaps", type: "line", source: "route-gaps",
           layout: { "line-cap": "butt", "line-join": "round", visibility: state.config.markGaps ? "visible" : "none" },
           paint: { "line-color": "#ffffff", "line-opacity": 0.92, "line-width": 5, "line-dasharray": [1, 1.4] } },
-        // Kein statischer "route"-Verlaufslayer mehr hier — der wird pro
-        // sichtbarem Segment dynamisch angelegt (siehe zeichneVerlaufsSegmente()
-        // weiter unten). Grund: MapLibres line-gradient berechnet
-        // line-progress JE FEATURE (0..1 über die Länge GENAU DIESES
-        // Features), nicht über die ganze FeatureCollection hinweg. Ein
-        // einziger geteilter Verlaufslayer über mehrere Linien-Segmente
-        // (die entstehen, sobald die Route durch einen Filter oder eine
-        // Lücke — z. B. eine Übernachtung — in Stücke zerfällt) griff
-        // deshalb an der falschen Stelle: das lange erste Segment bekam an
-        // seinem eigenen Ende schon die Farbe des ÜBERNÄCHSTEN Tages
-        // aufgedrückt (sein lokales Ende las der Ausdruck als "Ende der
-        // ganzen Reise"), während ein kurzes, spät gelegenes Segment den
-        // kompletten Verlauf über seine viel kürzere eigene Länge gequetscht
-        // bekam. Echter Fund, 1. September 2026 (erste Mehrtages-Reise mit
-        // echter Lücke dazwischen) — Nutzer-Screenshot zeigte den falschen
-        // Streckenabschnitt in "Tag 2"-Farbe.
+        // No static gradient layer here — one is created per visible segment
+        // (see drawGradientSegments() below). Reason: MapLibre's line-gradient
+        // computes line-progress PER FEATURE (0..1 over the length of THAT
+        // feature), not over the whole FeatureCollection. A single shared
+        // gradient layer over several line segments (created as soon as a filter
+        // or a gap — e.g. an overnight stay — splits the route) put colours in
+        // the wrong place: the long first segment got the colour of the day
+        // AFTER next at its own end, while a short late segment got the whole
+        // gradient squeezed into its length (seen 1 September 2026, the first
+        // multi-day trip with a real gap).
       ],
     },
     center: [10.4, 47.5],
@@ -101,16 +93,15 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
     attributionControl: { compact: true },
   });
 
-  // resize() ist bis hierhin ein No-op (ready war noch falsch) — der
-  // Container kann sich in der Zwischenzeit schon anders bemessen haben
-  // (z. B. wenn direkt beim Start zur Karte gesprungen wird, wie in der
-  // Gast-Ansicht). Deshalb hier einmal nachholen, bevor gezeichnet wird —
-  // sonst bleibt die Leinwand auf ihrer ursprünglichen Größe hängen.
+  // resize() has been a no-op until now (ready was still false) — the container
+  // may have changed size meanwhile (e.g. when jumping to the map right at start,
+  // as in the guest view). So do it once before drawing, otherwise the canvas
+  // keeps its original size.
   const markReady = () => { if (ready) return; ready = true; map.resize(); draw({ fit: true }); };
   map.on("load", markReady);
   map.once("idle", markReady);
 
-  // Themenwechsel (System oder Umschalter) auf die Kacheln übertragen
+  // Apply theme changes (system or switch) to the tiles
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
@@ -119,122 +110,122 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
   return map;
 }
 
-/** Kartenstil wechseln (Einstellungen → Darstellung): andere Kacheln, passende Farbwerte. */
-export function setKartenstil(stil) {
+/** Switch the map style (Settings → Appearance): other tiles, matching colour values. */
+export function setMapStyle(style) {
   if (!map || !ready) return;
-  map.getSource("tiles-light").setTiles([kachelUrl(gueltigerKartenstil(stil), CARTO_KEY)]);
+  map.getSource("tiles-light").setTiles([tileUrl(validMapStyle(style), CARTO_KEY)]);
   applyTheme();
 }
 
-/** Datenlücken markieren ein-/ausschalten (Einstellungen → Darstellung); standardmäßig aus. */
-export function setLuecken(on) {
+/** Switch marking of recording gaps on or off (Settings → Appearance); off by default. */
+export function setGaps(on) {
   if (!map) return;
-  if (map.getLayer("route-luecken")) map.setLayoutProperty("route-luecken", "visibility", on ? "visible" : "none");
-  if (!on) schliesseRoutenTipp();
+  if (map.getLayer("route-gaps")) map.setLayoutProperty("route-gaps", "visibility", on ? "visible" : "none");
+  if (!on) closeRouteTip();
 }
 
-/** Geländeschummerung ein-/ausschalten (Ebenen-Menü). */
+/** Switch terrain shading on or off (layer menu). */
 export function setTerrain(on) {
-  if (!map || !map.getLayer("schummerung")) return;
-  map.setLayoutProperty("schummerung", "visibility", on ? "visible" : "none");
+  if (!map || !map.getLayer("hillshade")) return;
+  map.setLayoutProperty("hillshade", "visibility", on ? "visible" : "none");
 }
 
 function applyTheme() {
   if (!ready) return;
   const dark = isDark();
-  for (const [k, v] of Object.entries(kachelPaint(dark, state.config.mapStyle))) map.setPaintProperty("tiles-light", k, v);
-  for (const [k, v] of Object.entries(schummerungPaint(dark))) map.setPaintProperty("schummerung", k, v);
+  for (const [k, v] of Object.entries(tilePaint(dark, state.config.mapStyle))) map.setPaintProperty("tiles-light", k, v);
+  for (const [k, v] of Object.entries(hillshadePaint(dark))) map.setPaintProperty("hillshade", k, v);
   map.setPaintProperty("route-casing", "line-color", dark ? "#000" : "#0a1919");
 }
 
-/* ---------- Tippen auf die Route: Tag, Datum, Uhrzeit, km ---------- */
-let tippPfad = [];     // voller (nicht vereinfachter) sichtbarer Pfad der gezeichneten Reise
-let tippPopup = null;
-let tippPunkt = null;
-const TIPP_TOLERANZ_PX = 22;
-const TIPP_MIN_M = 12;
+/* ---------- Tapping the route: day, date, time, km ---------- */
+let tipPath = [];     // full (not simplified) visible path of the drawn trip
+let tipPopup = null;
+let tipDot = null;
+const TIP_TOLERANCE_PX = 22;
+const TIP_MIN_M = 12;
 
-function schliesseRoutenTipp() {
-  tippPopup?.remove();
-  tippPunkt?.remove();
-  tippPopup = null;
-  tippPunkt = null;
+function closeRouteTip() {
+  tipPopup?.remove();
+  tipDot?.remove();
+  tipPopup = null;
+  tipDot = null;
 }
 
 function onMapClick(e) {
-  schliesseRoutenTipp();
-  if (!tippPfad.length) return;
+  closeRouteTip();
+  if (!tipPath.length) return;
   const { lng, lat } = e.lngLat;
-  const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * metersPerPixel(map.getZoom(), lat));
-  // Wurde dieselbe Strecke mehrfach befahren (Hin- und Rückweg), gibt es mehrere
-  // Durchfahrten an der Stelle — alle werden gezeigt, nicht nur die nächste.
-  // Bei weitem Zoom nur die, die real an derselben Stelle liegen (sonst Treffer aus Kilometern Umkreis).
-  const treffer = sameSpot(routeHits(tippPfad, lng, lat, toleranz));
-  if (!treffer.length) { zeigeLueckenTipp(lng, lat, toleranz); return; }
-  const anker = nearestHit(treffer).point;
-  const { entries: eintraege, more: weitere } = tipEntries(treffer);
-  const inhalt = el("div.rt-liste", {}, [
-    ...eintraege.map((eintrag) => el("div.rt", {}, [
-      ...(eintrag.title ? [el("small", { text: eintrag.title })] : []),
-      el("b", { text: eintrag.heading }),
-      el("div", { text: eintrag.values }),
+  const tolerance = Math.max(TIP_MIN_M, TIP_TOLERANCE_PX * metersPerPixel(map.getZoom(), lat));
+  // When the same road was driven more than once (out and back) there are several
+  // passes at the spot — all are shown, not only the nearest. At a wide zoom only
+  // those that really lie at the same spot (otherwise hits from kilometres around).
+  const hits = sameSpot(routeHits(tipPath, lng, lat, tolerance));
+  if (!hits.length) { showGapTip(lng, lat, tolerance); return; }
+  const anchor = nearestHit(hits).point;
+  const { entries, more } = tipEntries(hits);
+  const content = el("div.rt-liste", {}, [
+    ...entries.map((entry) => el("div.rt", {}, [
+      ...(entry.title ? [el("small", { text: entry.title })] : []),
+      el("b", { text: entry.heading }),
+      el("div", { text: entry.values }),
     ])),
-    ...(weitere ? [el("small.rt-mehr", { text: `+ ${weitere} weitere` })] : []),
+    ...(more ? [el("small.rt-mehr", { text: `+ ${more} weitere` })] : []),
   ]);
-  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([anker.lon, anker.lat]).addTo(map);
-  tippPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
-    .setLngLat([anker.lon, anker.lat])
-    .setDOMContent(inhalt)
+  tipDot = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([anchor.lon, anchor.lat]).addTo(map);
+  tipPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+    .setLngLat([anchor.lon, anchor.lat])
+    .setDOMContent(content)
     .addTo(map);
-  tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
-  debugLog("map.route-tip", { durchfahrten: treffer.length, abstandM: Math.round(nearestHit(treffer).distanceM) });
+  tipPopup.on("close", () => { tipDot?.remove(); tipDot = null; });
+  debugLog("map.route-tip", { passes: hits.length, distanceM: Math.round(nearestHit(hits).distanceM) });
 }
 
-/** Tipp auf eine Datenlücke (die gestrichelte Verbindungslinie): sagt, dass dort nichts gemessen wurde. */
-function zeigeLueckenTipp(lng, lat, toleranz) {
+/** Tap on a recording gap (the dashed joining line): says that nothing was measured there. */
+function showGapTip(lng, lat, tolerance) {
   if (!state.config.markGaps) return;
-  let nah = null;
-  for (const l of tippLuecken) {
-    const d = distanceToSegment(lng, lat, l.from, l.to);
-    if (d <= toleranz && (!nah || d < nah.d)) nah = { d, l };
+  let near = null;
+  for (const g of tipGaps) {
+    const d = distanceToSegment(lng, lat, g.from, g.to);
+    if (d <= tolerance && (!near || d < near.d)) near = { d, g };
   }
-  if (!nah) return;
-  const { l } = nah;
-  const zeit = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  const tag = new Date(l.from.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
-  const mitte = { lon: (l.from.lon + l.to.lon) / 2, lat: (l.from.lat + l.to.lat) / 2 };
-  const inhalt = el("div.rt-liste", {}, [el("div.rt", {}, [
+  if (!near) return;
+  const { g } = near;
+  const clock = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const day = new Date(g.from.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const middle = { lon: (g.from.lon + g.to.lon) / 2, lat: (g.from.lat + g.to.lat) / 2 };
+  const content = el("div.rt-liste", {}, [el("div.rt", {}, [
     el("small", { text: "Datenlücke" }),
-    el("b", { text: `${tag} · ${zeit(l.from.time)}–${zeit(l.to.time)}` }),
-    el("div", { text: `${durationText(l.seconds)} ohne Messung · ${l.meters.toLocaleString("de-DE")} m Luftlinie` }),
+    el("b", { text: `${day} · ${clock(g.from.time)}–${clock(g.to.time)}` }),
+    el("div", { text: `${durationText(g.seconds)} ohne Messung · ${g.meters.toLocaleString("de-DE")} m Luftlinie` }),
     el("small.rt-mehr", { text: "Die Linie verbindet hier nur die Punkte davor und danach." }),
   ])]);
-  tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([mitte.lon, mitte.lat]).addTo(map);
-  tippPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
-    .setLngLat([mitte.lon, mitte.lat])
-    .setDOMContent(inhalt)
+  tipDot = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([middle.lon, middle.lat]).addTo(map);
+  tipPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+    .setLngLat([middle.lon, middle.lat])
+    .setDOMContent(content)
     .addTo(map);
-  tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
+  tipPopup.on("close", () => { tipDot?.remove(); tipDot = null; });
 }
 
 let pendingDraw = false;
 
 function visibleRouteForMap(t) {
-  const realTrip = state.trips.some((reise) => reise.id === t?.id);
-  // Ein aus dem Zwischenspeicher wiederhergestellter, ausgedünnter Pfad ("grob")
-  // passt nicht zu den Zeitspannen der Fahrten (kurze Fahrten hätten gar keine
-  // Punkte mehr) — bis ein echter Abruf gelang, ohne Fahrtenfilter zeigen.
+  const realTrip = state.trips.some((trip) => trip.id === t?.id);
+  // A thinned path restored from the snapshot ("coarse") does not fit the time
+  // spans of the drives (short drives would have no points left) — show it
+  // without the drive filter until a real download succeeded.
   const segments = realTrip && !t.pathCoarse
     ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { openEnd: Boolean(t.live) })
     : visibleRouteSegments(t.path || [], [], t?.id, "alle");
   return { segments, path: segments.flat() };
 }
 
-// Zeichnen mit vereinfachter Linie (see simplify() in geo.js): Zehntausende
-// Punkte je Linie überfordern die Grafik von Handys. Statistik, Marker und
-// Legende rechnen weiter mit dem vollen Pfad (`path`).
-const ZEICHEN_TOLERANZ_M = 3;
-const fursZeichnen = (segments) => segments.map((s) => simplify(s, ZEICHEN_TOLERANZ_M));
+// Draw a simplified line (see simplify() in geo.js): tens of thousands of points
+// per line overwhelm phone graphics. Statistics, markers and legend keep using
+// the full path (`path`).
+const DRAW_TOLERANCE_M = 3;
+const forDrawing = (segments) => segments.map((s) => simplify(s, DRAW_TOLERANCE_M));
 
 function routeDataFromSegments(segments) {
   return {
@@ -250,13 +241,10 @@ function routeDataFromSegments(segments) {
 }
 
 /**
- * Ein eigener MapLibre-Layer (+eigene Quelle) je sichtbarem Segment, JEDER
- * mit seinem eigenen, auf GENAU DIESES Segment bezogenen Verlaufs-Ausdruck
- * (gradientFor() rechnet line-progress lokal, 0..1 über die Länge des
- * jeweiligen Segments — siehe Kommentar bei initMap()). Vorherige Layer
- * werden vor jedem Zeichnen komplett abgebaut: die Anzahl sichtbarer
- * Segmente ändert sich mit Filter/Reise, ein Layer pro alter Segmentzahl
- * stehen zu lassen würde verwaiste Linien hinterlassen.
+ * One MapLibre layer (and source) per visible segment, EACH with its own gradient
+ * expression for exactly THIS segment (gradientFor() computes line-progress
+ * locally, 0..1 over the length of the segment — see the comment in initMap()).
+ * Layers left over from a previous draw with more segments are removed.
  */
 let gradientLayerIds = [];
 function clearGradientLayers() {
@@ -266,19 +254,19 @@ function clearGradientLayers() {
   }
   gradientLayerIds = [];
 }
-// Die farbigen Verlaufsebenen werden vorhandenen Ebenen angepasst statt gelöscht
-// und neu angelegt: dazwischen wäre kurz nur die orange Grundlinie zu sehen
-// (das Flackern über die ganze Strecke beim Öffnen der Karte).
-function zeichneVerlaufsSegmente(segments, metric, ctx) {
-  const linien = segments.filter((segment) => segment.length > 1);
-  linien.forEach((segment, i) => {
+// Existing gradient layers are updated instead of removed and created again:
+// in between only the orange base line would be visible (the flicker across the
+// whole route when opening the map).
+function drawGradientSegments(segments, metric, ctx) {
+  const lines = segments.filter((segment) => segment.length > 1);
+  lines.forEach((segment, i) => {
     const sourceId = `route-grad-${i}`;
     const layerId = `route-grad-layer-${i}`;
     const data = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: segment.map((p) => [p.lon, p.lat]) } };
     const gradient = gradientFor(segment, metric, ctx);
-    const quelle = map.getSource(sourceId);
-    if (quelle && map.getLayer(layerId)) {
-      quelle.setData(data);
+    const source = map.getSource(sourceId);
+    if (source && map.getLayer(layerId)) {
+      source.setData(data);
       map.setPaintProperty(layerId, "line-gradient", gradient);
       return;
     }
@@ -290,67 +278,69 @@ function zeichneVerlaufsSegmente(segments, metric, ctx) {
     });
     gradientLayerIds[i] = { source: sourceId, layer: layerId };
   });
-  // Überzählige Ebenen (weniger Linienstücke als zuvor) entfernen.
-  for (let i = linien.length; i < gradientLayerIds.length; i++) {
+  // Remove surplus layers (fewer line pieces than before).
+  for (let i = lines.length; i < gradientLayerIds.length; i++) {
     const { source, layer } = gradientLayerIds[i];
     if (map.getLayer(layer)) map.removeLayer(layer);
     if (map.getSource(source)) map.removeSource(source);
   }
-  gradientLayerIds.length = linien.length;
+  gradientLayerIds.length = lines.length;
 }
 
 /**
- * Doppelt befahrene Stücke verschachtelt über die Route legen: die früheste Fahrt breit,
- * jede spätere schmaler darauf — so ist an jeder Zoomstufe jede Tagesfarbe zu sehen, statt
- * dass die letzte Fahrt die anderen zudeckt. Nur wo die Farbe die Fahrt kennzeichnet
- * (Reisetag, Reise); bei Tempo/Höhe/Strecke wäre die Verschachtelung nur ein dickerer Strich.
+ * Lay stretches driven more than once nested over the route: the earliest drive
+ * wide, every later one narrower on top — so every day's colour is visible at any
+ * zoom instead of the last drive hiding the others. Only where the colour marks
+ * the drive (trip day, trip); for speed/elevation/distance nesting would only be
+ * a thicker line.
  */
-function zeichneDoppelt(segments, metric, ctx) {
-  const quelle = map.getSource("route-doppelt");
-  if (!quelle) return;
-  const daten = { type: "FeatureCollection", features: [] };
+function drawRepeated(segments, metric, ctx) {
+  const source = map.getSource("route-repeated");
+  if (!source) return;
+  const data = { type: "FeatureCollection", features: [] };
   if (metric === "day" || metric === "trip") {
-    daten.features = findRepeatedStretches(segments).map((lauf) => ({
+    data.features = findRepeatedStretches(segments).map((run) => ({
       type: "Feature",
-      properties: { c: colorFor(lauf.point, metric, ctx), w: lineWidth(lauf.rank, lauf.count) },
-      geometry: { type: "LineString", coordinates: lauf.coords },
+      properties: { c: colorFor(run.point, metric, ctx), w: lineWidth(run.rank, run.count) },
+      geometry: { type: "LineString", coordinates: run.coords },
     }));
   }
-  quelle.setData(daten);
-  // Über den Verlaufsebenen, die bei Bedarf neu angelegt werden.
-  if (map.getLayer("route-doppelt")) map.moveLayer("route-doppelt");
+  source.setData(data);
+  // Above the gradient layers, which may have been created anew.
+  if (map.getLayer("route-repeated")) map.moveLayer("route-repeated");
 }
 
 /**
- * Datenlücken (mehr als 40 s ohne Messung und mehr als 500 m Luftlinie) gestrichelt über die
- * Verbindungslinie legen: dort ist die Strecke nicht gefahren worden, sondern nur geradlinig
- * verbunden. Nutzt die vollen Punkte (nicht die vereinfachte Zeichnung), weil nur sie die Zeiten kennen.
+ * Lay recording gaps (more than 40 s without a point and more than 500 m apart)
+ * dashed over the joining line: that stretch was not driven but only joined in a
+ * straight line. Uses the full points (not the simplified drawing), because only
+ * they know the times.
  */
-let tippLuecken = [];
-function zeichneLuecken(segments) {
-  const quelle = map.getSource("route-luecken");
-  if (!quelle) return;
-  tippLuecken = findGaps(segments);
-  quelle.setData({
+let tipGaps = [];
+function drawGaps(segments) {
+  const source = map.getSource("route-gaps");
+  if (!source) return;
+  tipGaps = findGaps(segments);
+  source.setData({
     type: "FeatureCollection",
-    features: tippLuecken.map((l) => ({
+    features: tipGaps.map((g) => ({
       type: "Feature", properties: {},
-      geometry: { type: "LineString", coordinates: [[l.from.lon, l.from.lat], [l.to.lon, l.to.lat]] },
+      geometry: { type: "LineString", coordinates: [[g.from.lon, g.from.lat], [g.to.lon, g.to.lat]] },
     })),
   });
-  if (map.getLayer("route-luecken")) map.moveLayer("route-luecken");
+  if (map.getLayer("route-gaps")) map.moveLayer("route-gaps");
 }
 
-/* ---------- Wache: überwachter Bereich als Kreis ---------- */
-let guardZone = null; // { lat, lon, radiusM } oder null
+/* ---------- Guard: the watched area as a circle ---------- */
+let guardZone = null; // { lat, lon, radiusM } or null
 const GUARD_SOURCE = "guard-zone";
 
-function kreisPolygon(lat, lon, radiusM, schritte = 64) {
+function circlePolygon(lat, lon, radiusM, steps = 64) {
   const dLat = radiusM / 111320;
   const dLon = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
   const ring = [];
-  for (let i = 0; i <= schritte; i++) {
-    const w = (i / schritte) * 2 * Math.PI;
+  for (let i = 0; i <= steps; i++) {
+    const w = (i / steps) * 2 * Math.PI;
     ring.push([lon + dLon * Math.cos(w), lat + dLat * Math.sin(w)]);
   }
   return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } };
@@ -359,7 +349,7 @@ function kreisPolygon(lat, lon, radiusM, schritte = 64) {
 function applyGuardZone() {
   if (!map || !map.isStyleLoaded()) return;
   const data = guardZone
-    ? kreisPolygon(guardZone.lat, guardZone.lon, guardZone.radiusM)
+    ? circlePolygon(guardZone.lat, guardZone.lon, guardZone.radiusM)
     : { type: "FeatureCollection", features: [] };
   const source = map.getSource(GUARD_SOURCE);
   if (source) { source.setData(data); return; }
@@ -368,60 +358,59 @@ function applyGuardZone() {
   map.addLayer({ id: "guard-zone-line", type: "line", source: GUARD_SOURCE, paint: { "line-color": "#d84a4a", "line-width": 2, "line-dasharray": [2, 2] } });
 }
 
-/** Überwachten Bereich der Wache zeichnen (oder mit null entfernen). Ist die
- * Karte noch nicht bereit, holt draw() es beim nächsten Zeichnen nach. */
+/** Draw the guard's watched area (or remove it with null). If the map is not
+ * ready yet, draw() catches up on the next draw. */
 export function setGuardZone(zone) {
   guardZone = zone;
   applyGuardZone();
 }
 
-// Beim Start treffen Zwischenspeicher, Reise, Fahrten und Route der Reihe nach
-// ein und lösen jeweils ein Zeichnen aus. Aufträge kurz hintereinander werden
-// zu einem zusammengefasst (fit gewinnt, sobald einer es verlangt).
-const ZEICHNEN_ENTPRELLEN_MS = 80;
-let zeichnenTimer = null;
-let zeichnenOptionen = {};
-let letzteSignatur = null;
+// On start, snapshot, trips, drives and route arrive one after the other and each
+// triggers a draw. Requests close together are merged into one (fit wins as soon
+// as one asks for it).
+const DRAW_DEBOUNCE_MS = 80;
+let drawTimer = null;
+let drawOptions = {};
+let lastSignature = null;
 
-/** Zeichnet Route, Marker und Legende der aktuell gewählten Reise. */
+/** Draws route, markers and legend of the currently chosen trip. */
 export function draw(options = {}) {
-  zeichnenOptionen = { ...zeichnenOptionen, ...options, fit: Boolean(zeichnenOptionen.fit || options.fit) };
-  if (zeichnenTimer) return;
-  zeichnenTimer = setTimeout(() => {
-    zeichnenTimer = null;
-    const o = zeichnenOptionen;
-    zeichnenOptionen = {};
-    zeichneJetzt(o);
-  }, ZEICHNEN_ENTPRELLEN_MS);
+  drawOptions = { ...drawOptions, ...options, fit: Boolean(drawOptions.fit || options.fit) };
+  if (drawTimer) return;
+  drawTimer = setTimeout(() => {
+    drawTimer = null;
+    const o = drawOptions;
+    drawOptions = {};
+    drawNow(o);
+  }, DRAW_DEBOUNCE_MS);
 }
 
-function zeichneJetzt(options = {}) {
+function drawNow(options = {}) {
   const { fit = false } = options;
   if (!map) return;
-  // Noch nicht zeichenbereit? Einmalig nachholen, sobald die Karte ruht.
+  // Not ready to draw yet? Catch up once as soon as the map is idle.
   if (!map.isStyleLoaded()) {
     debugLog("map.draw.bail", { reason: "not-style-loaded", pendingDraw });
     if (!pendingDraw) {
       pendingDraw = true;
       map.once("idle", () => { pendingDraw = false; draw(options); });
-      // Sicherheitsnetz: "idle" bleibt in seltenen Fällen aus (z. B. wenn
-      // Kartenkacheln dauerhaft blockiert sind, nie fehlschlagen und nie
-      // ankommen) — dann käme sonst nie wieder ein Zeichenversuch. Nach
-      // wenigen Sekunden notfalls einfach nochmal versuchen.
+      // Safety net: "idle" rarely never comes (e.g. when tiles are blocked for
+      // good, never failing and never arriving) — then there would never be
+      // another attempt. Try again after a few seconds.
       setTimeout(() => { if (pendingDraw) { pendingDraw = false; draw(options); } }, 4000);
     }
     return;
   }
   applyGuardZone();
   const t = mapTrip();
-  // Keine Reise (oder noch keine Route dazu)? Dann zeigt die Karte einfach,
-  // wo das Fahrzeug gerade steht — das ist ohne Reise die nützlichste Ansicht.
+  // No trip (or no route for it yet)? Then the map simply shows where the vehicle
+  // is — the most useful view without a trip.
   if (!t || !t.path?.length) { drawLiveOnly({ fit }); return; }
 
   const { segments, path } = visibleRouteForMap(t);
   if (!path.length) { drawLiveOnly({ fit }); return; }
-  tippPfad = path;
-  if (fit) schliesseRoutenTipp();
+  tipPath = path;
+  if (fit) closeRouteTip();
 
   const { min: elevMin, max: elevMax } = elevationRange(path);
   const totalKm = pathLengthKm(path);
@@ -437,21 +426,21 @@ function zeichneJetzt(options = {}) {
     hasUnassignedTripPoints: isRangeTrip(t) && path.some((p) => !p.tripId),
   };
 
-  const zeichenSegmente = fursZeichnen(segments);
-  const signatur = routenSignatur(t.id, zeichenSegmente, state.metric, ctx);
-  const linienAnzahl = zeichenSegmente.filter((s) => s.length > 1).length;
-  const neuGezeichnet = !(signatur === letzteSignatur && gradientLayerIds.length === linienAnzahl);
-  if (neuGezeichnet) {
-    map.getSource("route-solid").setData(routeDataFromSegments(zeichenSegmente));
-    zeichneVerlaufsSegmente(zeichenSegmente, state.metric, ctx);
-    zeichneDoppelt(zeichenSegmente, state.metric, ctx);
-    zeichneLuecken(segments);
-    letzteSignatur = signatur;
+  const drawSegments = forDrawing(segments);
+  const signature = routeSignature(t.id, drawSegments, state.metric, ctx);
+  const lineCount = drawSegments.filter((s) => s.length > 1).length;
+  const redrawn = !(signature === lastSignature && gradientLayerIds.length === lineCount);
+  if (redrawn) {
+    map.getSource("route-solid").setData(routeDataFromSegments(drawSegments));
+    drawGradientSegments(drawSegments, state.metric, ctx);
+    drawRepeated(drawSegments, state.metric, ctx);
+    drawGaps(segments);
+    lastSignature = signature;
   }
   debugLog("map.draw", {
-    neuGezeichnet,
-    tripId: t.id, pathPoints: path.length, gezeichnetePunkte: zeichenSegmente.reduce((n, s) => n + s.length, 0), hiddenDetours: Math.max(0, t.path.length - path.length),
-    sichtbareSegmente: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
+    redrawn,
+    tripId: t.id, pathPoints: path.length, drawnPoints: drawSegments.reduce((n, s) => n + s.length, 0), hiddenDetours: Math.max(0, t.path.length - path.length),
+    visibleSegments: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
   });
 
   drawMarkers(t, totalKm, path);
@@ -459,17 +448,17 @@ function zeichneJetzt(options = {}) {
   if (fit) fitTrip();
 }
 
-/** Ansicht ohne Reise: nur die aktuelle Fahrzeugposition. */
+/** View without a trip: only the vehicle's current position. */
 let liveCentered = false;
 function drawLiveOnly({ fit = false } = {}) {
-  letzteSignatur = null;
-  tippPfad = [];
-  schliesseRoutenTipp();
+  lastSignature = null;
+  tipPath = [];
+  closeRouteTip();
   clearGradientLayers();
   map.getSource("route-solid").setData({ type: "FeatureCollection", features: [] });
-  map.getSource("route-doppelt")?.setData({ type: "FeatureCollection", features: [] });
-  map.getSource("route-luecken")?.setData({ type: "FeatureCollection", features: [] });
-  tippLuecken = [];
+  map.getSource("route-repeated")?.setData({ type: "FeatureCollection", features: [] });
+  map.getSource("route-gaps")?.setData({ type: "FeatureCollection", features: [] });
+  tipGaps = [];
   markers.forEach((m) => m.remove());
   markers = [];
 
@@ -492,26 +481,24 @@ function drawLiveOnly({ fit = false } = {}) {
     ]));
   }
 
-  // Nur beim ersten Mal (oder auf ausdrücklichen Wunsch) hinbewegen —
-  // sonst würde die Karte bei jeder Aktualisierung wegspringen.
+  // Only move there the first time (or when asked) — otherwise the map would
+  // jump away on every refresh.
   if (!liveCentered || fit) {
-    // Bewusst ohne Animation: das Ziel kann weit entfernt liegen, und ein
-    // Sprung ist verlässlicher als ein Flug quer über die Karte.
+    // Deliberately without animation: the target may be far away, and a jump
+    // is more reliable than a flight across the map.
     map.jumpTo({ center: [pos.lon, pos.lat], zoom: liveCentered ? Math.max(map.getZoom(), 13) : 13 });
     liveCentered = true;
   }
 }
 
 /**
- * `path` ist hier immer schon EIN einzelnes, sichtbares Segment (siehe
- * zeichneVerlaufsSegmente()), nie die ganze Reise. MapLibres line-progress
- * ist je Feature 0..1 über die Länge GENAU DIESES Features — die
- * Fortschritts-Position jedes Farb-Stopps muss deshalb LOKAL auf die
- * Spanne dieses Segments bezogen sein (Start=0, Ende=1), nicht auf die
- * ganze Reise. Die Farbe selbst kommt weiterhin aus colorFor() mit dem
- * GLOBALEN ctx (Tag/Tempo/Höhe/Strecke bleiben über die ganze Reise
- * hinweg korrekt eingeordnet — nur WO auf der Linie dieser Wert sitzt,
- * ist jetzt richtig lokal statt global gerechnet).
+ * `path` is always ONE visible segment here (see drawGradientSegments()), never
+ * the whole trip. MapLibre's line-progress is 0..1 per feature over the length of
+ * THAT feature — so the position of every colour stop must be LOCAL to this
+ * segment (start = 0, end = 1), not to the whole trip. The colour itself still
+ * comes from colorFor() with the GLOBAL ctx (day, speed, elevation, distance stay
+ * placed correctly across the whole trip — only WHERE on the line the value sits
+ * is computed locally).
  */
 function gradientFor(path, metric, ctx) {
   const expr = ["interpolate", ["linear"], ["line-progress"]];
@@ -543,13 +530,13 @@ function marker(node, lon, lat) {
 function drawMarkers(t, totalKm, visiblePath = t.path) {
   markers.forEach((m) => m.remove());
   markers = [];
-  const realTrip = state.trips.some((reise) => reise.id === t?.id);
+  const realTrip = state.trips.some((trip) => trip.id === t?.id);
   const routeFilter = realTrip ? state.routeDriveFilter : "alle";
 
   // Start
   marker(el("div.marker.marker-endpoint", { text: "▲", title: "Start" }), visiblePath[0].lon, visiblePath[0].lat);
 
-  // Orte und Übernachtungen
+  // Places and overnight stays
   for (const p of tripPlaces(t.id).filter((place) => itemMatchesRouteFilter(place, state.drives, t.id, routeFilter))) {
     const isNight = p.catId === "uebernachtung";
     if (isNight && !state.layers.nights) continue;
@@ -567,7 +554,7 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
     marker(node, p.lon, p.lat);
   }
 
-  // Notizen — eigene Ebene, unabhängig von Orten schaltbar
+  // Notes — their own layer, switchable independently of places
   if (state.layers.notes) {
     for (const n of tripNotes(t.id).filter((note) => itemMatchesRouteFilter(note, state.drives, t.id, routeFilter))) {
       const node = el("div.marker.marker-note", { text: "✎", title: (n.title || n.text || "Notiz").slice(0, 60) });
@@ -576,7 +563,7 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
     }
   }
 
-  // Kilometermarken
+  // Kilometre markers
   if (state.layers.km && totalKm > 20) {
     const step = kmMarkerStep(totalKm);
     for (let km = step; km < totalKm; km += step) {
@@ -585,18 +572,14 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
     }
   }
 
-  // Ende: Live-Fahrzeug oder Zielflagge.
-  // Echter Fund (17. August 2026): Bei einer laufenden Reise stand das
-  // 🚐-Symbol bisher am ENDE der (gefilterten!) Route statt an der
-  // tatsächlich aktuellen Position — state.livePosition wird alle 30 Sek.
-  // frisch abgerufen, die Route dagegen nur alle 2 Minuten (siehe
-  // main.js), UND visiblePath ist zusätzlich noch durch den Etappen-/
-  // Abstecher-Filter beschnitten. Fiel der jüngste Streckenabschnitt unter
-  // "Abstecher" (Filter zeigt aber nur "Etappen"), blieb das Fahrzeug auf
-  // der Karte an einer alten Position hängen statt an der echten. Jetzt:
-  // bei einer laufenden Reise wird bevorzugt state.livePosition genommen,
-  // der Routen-Endpunkt bleibt nur der Rückfallwert, solange noch keine
-  // Live-Position bekannt ist.
+  // End: the live vehicle or the finish flag.
+  // Seen 17 August 2026: for a running trip the 🚐 sat at the END of the
+  // (filtered!) route instead of the actual position — state.livePosition is
+  // refreshed every 30 s, the route only every 2 minutes (see main.js), AND
+  // visiblePath is cut by the stage/detour filter. If the latest stretch was a
+  // detour (and the filter showed only stages), the vehicle stuck at an old
+  // position. Now a running trip uses state.livePosition; the route's end is
+  // only the fallback while no live position is known.
   const live = t.live && state.livePosition;
   const last = live ? state.livePosition : visiblePath[visiblePath.length - 1];
   marker(
@@ -610,7 +593,7 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
 function drawLegend(legend) {
   const box = $("#legend");
   if (!box) return;
-  // "none" (einfarbige Route) hat keine Skala zu erklären.
+  // "none" (single-colour route) has no scale to explain.
   if (!legend) { box.style.display = "none"; return; }
   box.style.display = "";
   clear(box);
@@ -628,16 +611,12 @@ export function fitTrip() {
   const t = mapTrip();
   if (!ready) return;
   if (!t || !t.path?.length) { drawLiveOnly({ fit: true }); return; }
-  const realTrip = state.trips.some((reise) => reise.id === t.id);
   const visible = visibleRouteForMap(t).path;
   const b = bounds(visible.length ? visible : t.path);
-  // maxZoom war fest auf 13 — passend für eine mehrtägige Reise, aber für
-  // eine räumlich kleine Reise (kurzer Ausflug, wenige hundert Meter/km)
-  // verhinderte das ein richtiges Heranzoomen: die Reise blieb winzig in
-  // einer sonst leeren Karte statt sie zu füllen. 16 lässt auch kleine
-  // Reisen richtig nah heranzoomen, bleibt aber unterhalb dessen, wo die
-  // Kartenkacheln (OSM/CARTO, kein eigener maxzoom gesetzt) sichtbar
-  // unscharf/leer würden.
+  // maxZoom used to be 13 — fine for a multi-day trip, but a small trip (a short
+  // outing of a few hundred metres or kilometres) stayed tiny in an otherwise
+  // empty map. 16 zooms small trips in properly and stays below the level where
+  // the tiles (OSM/CARTO) get blurry or empty.
   map.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: { top: 120, right: 48, bottom: 64, left: 48 }, duration: 600, maxZoom: 16 });
 }
 
@@ -647,12 +626,11 @@ export const zoomIn = () => ready && map.zoomIn();
 export const zoomOut = () => ready && map.zoomOut();
 export const resize = () => ready && map.resize();
 
-/** Aktuelle Kartenmitte — dient als Bezugspunkt beim manuellen Erfassen. */
+/** Current map centre — the reference point for entering a place by hand. */
 export const center = () => (ready ? map.getCenter() : { lng: 10.4, lat: 47.5 });
 
-/** Auf einen einzelnen Punkt zentrieren, z. B. "Auf Karte zeigen" aus dem
- * Orte-Editor heraus — anders als fitTrip() (ganze Reise/Route) geht es
- * hier um genau eine Stelle, ohne Bounds-Berechnung. */
+/** Centre on a single point, e.g. "Auf Karte zeigen" from the place editor —
+ * unlike fitTrip() (whole trip/route) this is exactly one spot, no bounds. */
 export function focusOn(lat, lon, { zoom } = {}) {
   if (!ready || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
   map.flyTo({ center: [lon, lat], zoom: zoom ?? Math.max(map.getZoom(), 15), duration: 600 });
