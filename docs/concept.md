@@ -104,6 +104,33 @@ off by default) such a line gets dashed stripes, and tapping it shows the time,
 duration and straight-line distance of the gap. Statistics and kilometres are
 unchanged.
 
+## Route data on the wire
+
+The tracker records about one point per second. The route sent to the app is
+thinned on the server (`thinPositions` in `api/lib.js`): a point is left out
+only if, without it, the line stays within 2 m and speed and elevation within
+2 km/h and 3 m. Both ends of every pause of 20 s or more, and at least one point
+every 30 s, are always kept, so recording gaps stay exactly where they are. The
+route is sent as compact arrays. For a four-day trip this is about 19,000
+instead of 83,000 points and 0.8 instead of 16 MB; the kilometres differ by
+well under 0.1 %. The stored positions are never changed.
+
+The app keeps each loaded route on the device (IndexedDB). A finished trip is
+not downloaded again: the app asks only for the number of recorded points and
+the newest one, and loads the route again when either changed (for example
+when the router delivered points late).
+
+## Schema and migrations
+
+`db/schema.sql` creates every table in its current shape and is run by both
+containers on start; a fresh database is complete after it. An existing
+database keeps its tables; numbered migrations in `db/migrate.js` bring it up
+to date. `PRAGMA user_version` records how far a database is. Each migration
+runs in its own write transaction together with the new version number, so a
+failed migration leaves the database unchanged; when both containers start at
+once, the second one finds the work done. A shipped migration is never edited;
+changes are new migrations.
+
 ## Guard
 
 Anti-theft, implemented in `tracker-backend/src/alarms.js`:

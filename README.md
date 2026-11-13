@@ -34,7 +34,10 @@ subscription SIM, no third-party tracking service.
   alarm and a web push notification when it leaves the monitored radius.
 - **Sharing**: read-only link without login, scope selectable (map, or map plus
   logbook), one trip or all, with expiry and revocation.
-- **Installable PWA**, works offline, demo mode without an account.
+- **Backup** as one download (database and photos) for admins, kept wherever
+  you like.
+- **Installable PWA**, works offline, demo mode without an account. Routes are
+  kept on the device, so map and statistics appear right at start.
 
 ## Screenshots
 
@@ -70,7 +73,7 @@ routes follow real roads; the route geometry is © OpenStreetMap contributors
 
 Details are in [`docs/concept.md`](docs/concept.md). UX and working
 guidelines for future changes are in
-[`docs/arbeitsgrundlage.md`](docs/arbeitsgrundlage.md).
+[`docs/working-principles.md`](docs/working-principles.md).
 
 ## Guard
 
@@ -95,7 +98,7 @@ RUTX50 (GPS)  ──5027──▶  ingest container (tracker-backend/)
                    shared Docker volume
                    SQLite (WAL) — raw_packets, positions, …
                               ▲
-                              │  reads/writes via D1/R2 shims
+                              │  reads/writes
                               │
                     app container (app-backend/)
                     web app + /api/* (api/router.js)
@@ -113,12 +116,14 @@ RUTX50 (GPS)  ──5027──▶  ingest container (tracker-backend/)
   ESP32 logger), stores them permanently, evaluates the guard on every new
   position and detects stops and overnight stays (event-driven, plus timers
   for stands that are still running).
-- **`app`** ([`app-backend/`](app-backend/)) is the web app plus its own API.
-  It runs the same `api/router.js` / `api/lib.js` as the earlier Cloudflare
-  deployment, through thin shims (`d1-shim.js` on `better-sqlite3`,
-  `r2-shim.js` on the file system) instead of D1/R2.
+- **`app`** ([`app-backend/`](app-backend/)) is the web app plus its own API
+  (`api/router.js` / `api/lib.js`, plain Fetch-API code without a framework).
+  The route is sent thinned to what the map and charts need (no point that
+  changes the line by more than 2 m, or speed and elevation noticeably, is
+  dropped; the stored positions stay complete).
 - **One shared Docker volume** with a single SQLite file connects both
-  containers — no internal RPC/HTTP between them. Two processes on purpose:
+  containers. Both use the same schema (`db/schema.sql`) and bring an existing
+  database up to date with numbered migrations (`db/migrate.js`) on start — no internal RPC/HTTP between them. Two processes on purpose:
   separate blast radius, separate deploys, and the unauthenticated network
   inputs (Teltonika/OsmAnd) stay apart from sessions and photos.
 - **Cloudflare Tunnel** only terminates TLS for the public domain (optional; any reverse proxy works). The
@@ -131,9 +136,9 @@ Deployment is `docker compose up -d --build` with
 [`docker-compose.yml`](docker-compose.yml) at the repository root (e.g. via
 Portainer on the target server). Details in
 [`app-backend/README.md`](app-backend/README.md) and
-[`tracker-backend/README.md`](tracker-backend/README.md). Some directories from
-earlier iterations (Cloudflare Pages/Workers, VPN setup) remain in the
-repository for reference and are inactive.
+[`tracker-backend/README.md`](tracker-backend/README.md).
+[`cloudflared/`](cloudflared/) holds an optional Cloudflare Tunnel setup for
+reaching the app from outside without opening a port.
 
 ## Status
 
@@ -151,15 +156,16 @@ repository for reference and are inactive.
 - [x] Two-container stack in production with real trips on a real vehicle
 - [x] CI: tests, build, production audit and full toolchain audit on GitHub
   Actions
-- [x] API/D1 integration tests for auth, trips, places, notes, settings,
-  categories and vehicles
+- [x] API integration tests for auth, trips, places, notes, settings,
+  categories, vehicles, routes and backup
+- [x] Backup download (database and photos) with a restore drill in CI
+- [x] One schema for both containers, numbered migrations
 - [ ] Further guard alarms (vibration, voltage, power loss) — need additional
   hardware or data
 
 ## Development
 
-Requirement: **Node 22** (the project ships an `.nvmrc`). The current Wrangler
-version no longer starts with Node 18.
+Requirement: **Node 22** (the project ships an `.nvmrc`).
 
 ```bash
 npm ci
@@ -168,9 +174,10 @@ npm run build
 npm run test:smoke
 ```
 
-`npm test` covers pure logic tests and API/D1 integration tests. The local D1
-test adapter loads `db/schema.sql` into an in-memory SQLite database and
-calls the real API router.
+`npm test` covers pure logic tests and API integration tests. The test
+database adapter loads `db/schema.sql` and the migrations into an in-memory
+SQLite database and calls the real API router. The two containers have their
+own tests (`npm --prefix app-backend test`, `npm --prefix tracker-backend test`).
 
 `npm run test:smoke` builds the app and opens it in a browser with Playwright.
 It clicks through the main areas (map, trips, logbook, more) and fails on
@@ -234,6 +241,12 @@ The CI workflow runs on pushes to `main` and on pull requests:
 - `npm audit --audit-level=high`
 
 This checks both the shipped dependencies and the dev/deploy toolchain.
+
+## Backup
+
+Admins can download a full backup under *More → Status → Backup*: one
+`.tar.gz` with a consistent copy of the database and all photos. How to
+restore it is described in [`docs/backup-restore.md`](docs/backup-restore.md).
 
 ## License
 
