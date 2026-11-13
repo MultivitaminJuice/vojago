@@ -21,7 +21,7 @@ import {
   pushPublicKey, subscribePush, unsubscribePush, geocode,
 } from "../api.js";
 import { distanceKm } from "../geo.js";
-import { liveAlterText } from "../live-alter.js";
+import { liveAgeText } from "../live-age.js";
 
 // Fester Datensatz-Kennung des Wache-Ankers (api/router.js, WACHE_ZONE_ID) —
 // in der Tabelle liegen aus der früheren Zonen-Verwaltung noch ältere
@@ -230,7 +230,7 @@ export function renderGuardInfo() {
       el("div.sub", { text: state.guardArmed
         ? "Kein Ankerpunkt bekannt."
         : "Die Wache ist aus. Beim Scharfschalten wird die letzte gemeldete Position des Fahrzeugs zum Mittelpunkt des überwachten Bereichs." }),
-      pos ? el("div.sub", { text: `Letzte GPS-Meldung: ${liveAlterText(pos.at)}` }) : null,
+      pos ? el("div.sub", { text: `Letzte GPS-Meldung: ${liveAgeText(pos.at)}` }) : null,
     ]);
     if (kartenKnopf) kartenKnopf.style.display = "none";
     return;
@@ -246,14 +246,14 @@ export function renderGuardInfo() {
   if (abstandM == null) { statusText = "Keine Position bekannt"; statusFarbe = "var(--warn)"; }
   else if (draussen) { statusText = `Außerhalb — ${meterText(abstandM)} vom Mittelpunkt`; statusFarbe = "var(--bad, #d84a4a)"; }
   else { statusText = `Innerhalb — ${meterText(abstandM)} vom Mittelpunkt`; statusFarbe = "var(--good)"; }
-  if (veraltet && pos) statusText += ` (Stand ${liveAlterText(pos.at)})`;
+  if (veraltet && pos) statusText += ` (Stand ${liveAgeText(pos.at)})`;
 
   render(body, [
     infoZeile("Status", statusText, statusFarbe),
     infoZeile("Mittelpunkt", state.guardAnchorName || `${anker.lat.toFixed(5)}, ${anker.lon.toFixed(5)}`),
     infoZeile("Radius", radius != null ? `${radius} m` : "unbekannt"),
     infoZeile("Scharf seit", state.guardSince ? anzeigeZeit(state.guardSince) : "unbekannt (vor Einführung des Protokolls)"),
-    infoZeile("Letzte GPS-Meldung", pos ? liveAlterText(pos.at) : "keine",
+    infoZeile("Letzte GPS-Meldung", pos ? liveAgeText(pos.at) : "keine",
       veraltet ? "var(--warn)" : undefined),
   ]);
   if (kartenKnopf) kartenKnopf.style.display = "";
@@ -350,7 +350,7 @@ export function initGuard({ onShowOnMap } = {}) {
     if (armed) {
       const alterMs = Date.now() - Date.parse(state.livePosition.at || "");
       if (!(alterMs <= MAX_POSITIONSALTER_SCHARF_MS)
-        && !window.confirm(`Die letzte GPS-Meldung ist ${liveAlterText(state.livePosition.at)}. Die Wache würde auf DIESER Position scharf geschaltet, nicht unbedingt dort, wo das Fahrzeug jetzt steht.\n\nTrotzdem scharf schalten?`)) {
+        && !window.confirm(`Die letzte GPS-Meldung ist ${liveAgeText(state.livePosition.at)}. Die Wache würde auf DIESER Position scharf geschaltet, nicht unbedingt dort, wo das Fahrzeug jetzt steht.\n\nTrotzdem scharf schalten?`)) {
         return;
       }
     }

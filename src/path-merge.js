@@ -1,20 +1,20 @@
 import { distanceKm } from "./geo.js";
 
 /**
- * Hängt neu eingetroffene Routenpunkte an einen vorhandenen Pfad an, statt
- * die ganze Route (bei einer 6-Tage-Reise 13,7 MB) erneut zu laden. `neu` ist
- * ein frisch aus Positionen gebauter Pfad (cum/day ab 0 bzw. 1) — hier wird
- * nur übernommen, was zeitlich NACH dem letzten bekannten Punkt liegt, und
- * der Kilometerstand fortgeführt (inklusive Weg vom letzten alten zum ersten
- * neuen Punkt). Gibt den unveränderten `alt`-Pfad zurück, wenn nichts Neues dabei ist.
+ * Appends newly arrived route points to an existing path instead of loading
+ * the whole route again. `fresh` is a path just built from positions (cum and
+ * day starting at 0 and 1): only what lies AFTER the last known point is
+ * taken, and the distance is carried on (including the way from the last old
+ * to the first new point). Returns the unchanged `existing` path when nothing
+ * new arrived.
  */
-export function haengeNeuePunkteAn(alt, neu) {
-  if (!Array.isArray(alt) || !alt.length) return Array.isArray(neu) ? neu : [];
-  const letzterMs = Date.parse(alt[alt.length - 1].time || "");
-  const frisch = (neu || []).filter((p) => Date.parse(p.time || "") > letzterMs);
-  if (!frisch.length) return alt;
-  const letzter = alt[alt.length - 1];
-  const start = frisch[0];
-  const versatz = (letzter.cum || 0) + distanceKm(letzter.lon, letzter.lat, start.lon, start.lat) - (start.cum || 0);
-  return alt.concat(frisch.map((p) => ({ ...p, cum: (p.cum || 0) + versatz })));
+export function appendNewPoints(existing, fresh) {
+  if (!Array.isArray(existing) || !existing.length) return Array.isArray(fresh) ? fresh : [];
+  const lastMs = Date.parse(existing[existing.length - 1].time || "");
+  const newer = (fresh || []).filter((p) => Date.parse(p.time || "") > lastMs);
+  if (!newer.length) return existing;
+  const last = existing[existing.length - 1];
+  const first = newer[0];
+  const offset = (last.cum || 0) + distanceKm(last.lon, last.lat, first.lon, first.lat) - (first.cum || 0);
+  return existing.concat(newer.map((p) => ({ ...p, cum: (p.cum || 0) + offset })));
 }

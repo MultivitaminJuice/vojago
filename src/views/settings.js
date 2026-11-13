@@ -1,7 +1,7 @@
 // Ansicht „Einstellungen": Fahrzeuge, Kategorien, Backend-Verbindung.
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { applyTheme, gueltigesTheme } from "../theme.js";
-import { routenInfoZeilen } from "../route-info.js";
+import { routeInfoRows } from "../route-info.js";
 import { gueltigerKartenstil } from "../map-style.js";
 import * as mapview from "../mapview.js";
 import { ICON } from "../icons.js";
@@ -507,7 +507,7 @@ async function emailSpeichern() {
 export function renderRouteInfo() {
   const box = $("#route-info");
   if (!box) return;
-  render(box, routenInfoZeilen(routenAbruf).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
+  render(box, routeInfoRows(routenAbruf).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
 }
 
 function renderDebugControls() {

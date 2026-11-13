@@ -1,17 +1,17 @@
-// Vorheriger / nächster Tag bzw. Fahrt innerhalb einer Reise (Reisen und Karte).
+// Previous / next day or drive within a trip (Trips view and map).
 
-/** Nachbareintrag in der Liste der Zusammenfassungen (Tage oder Fahrten); richtung -1 = vorher, +1 = nächster. */
-export function tagNachbar(summaries, aktuelleId, richtung) {
+/** Neighbouring entry in a list of summaries (days or drives); direction -1 = previous, +1 = next. */
+export function neighbour(summaries, currentId, direction) {
   if (!Array.isArray(summaries)) return null;
-  const i = summaries.findIndex((s) => s.id === aktuelleId);
+  const i = summaries.findIndex((s) => s.id === currentId);
   if (i < 0) return null;
-  return summaries[i + richtung] || null;
+  return summaries[i + direction] || null;
 }
 
-/** Was die Navigation anzeigen soll: ob es einen Vorgänger/Nachfolger gibt. */
-export function tagNavigation(summaries, aktuelleId) {
+/** What the navigation shows: whether there is a previous/next entry. */
+export function dayNavigation(summaries, currentId) {
   if (!Array.isArray(summaries) || summaries.length < 2) return null;
-  const i = summaries.findIndex((s) => s.id === aktuelleId);
+  const i = summaries.findIndex((s) => s.id === currentId);
   if (i < 0) return null;
-  return { hatVorher: i > 0, hatNaechster: i < summaries.length - 1, position: i + 1, anzahl: summaries.length };
+  return { hasPrevious: i > 0, hasNext: i < summaries.length - 1, position: i + 1, count: summaries.length };
 }

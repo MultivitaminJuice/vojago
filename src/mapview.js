@@ -10,8 +10,8 @@ import { colorFor, legendFor } from "./colors.js";
 import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, gleicheStelle, meterProPixel } from "./geo.js";
 import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
-import { doppeltBefahren, linienBreite } from "./overlap.js";
-import { findeLuecken, abstandZurStrecke, dauerText } from "./luecken.js";
+import { findRepeatedStretches, lineWidth } from "./overlap.js";
+import { findGaps, distanceToSegment, durationText } from "./gaps.js";
 import { tippEintraege, naechsterTreffer } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
@@ -195,18 +195,18 @@ function zeigeLueckenTipp(lng, lat, toleranz) {
   if (!state.config.lueckenMarkieren) return;
   let nah = null;
   for (const l of tippLuecken) {
-    const d = abstandZurStrecke(lng, lat, l.von, l.nach);
+    const d = distanceToSegment(lng, lat, l.from, l.to);
     if (d <= toleranz && (!nah || d < nah.d)) nah = { d, l };
   }
   if (!nah) return;
   const { l } = nah;
   const zeit = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  const tag = new Date(l.von.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
-  const mitte = { lon: (l.von.lon + l.nach.lon) / 2, lat: (l.von.lat + l.nach.lat) / 2 };
+  const tag = new Date(l.from.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const mitte = { lon: (l.from.lon + l.to.lon) / 2, lat: (l.from.lat + l.to.lat) / 2 };
   const inhalt = el("div.rt-liste", {}, [el("div.rt", {}, [
     el("small", { text: "Datenlücke" }),
-    el("b", { text: `${tag} · ${zeit(l.von.time)}–${zeit(l.nach.time)}` }),
-    el("div", { text: `${dauerText(l.sekunden)} ohne Messung · ${l.meter.toLocaleString("de-DE")} m Luftlinie` }),
+    el("b", { text: `${tag} · ${zeit(l.from.time)}–${zeit(l.to.time)}` }),
+    el("div", { text: `${durationText(l.seconds)} ohne Messung · ${l.meters.toLocaleString("de-DE")} m Luftlinie` }),
     el("small.rt-mehr", { text: "Die Linie verbindet hier nur die Punkte davor und danach." }),
   ])]);
   tippPunkt = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([mitte.lon, mitte.lat]).addTo(map);
@@ -310,9 +310,9 @@ function zeichneDoppelt(segments, metric, ctx) {
   if (!quelle) return;
   const daten = { type: "FeatureCollection", features: [] };
   if (metric === "day" || metric === "trip") {
-    daten.features = doppeltBefahren(segments).map((lauf) => ({
+    daten.features = findRepeatedStretches(segments).map((lauf) => ({
       type: "Feature",
-      properties: { c: colorFor(lauf.punkt, metric, ctx), w: linienBreite(lauf.rang, lauf.anzahl) },
+      properties: { c: colorFor(lauf.point, metric, ctx), w: lineWidth(lauf.rank, lauf.count) },
       geometry: { type: "LineString", coordinates: lauf.coords },
     }));
   }
@@ -330,12 +330,12 @@ let tippLuecken = [];
 function zeichneLuecken(segments) {
   const quelle = map.getSource("route-luecken");
   if (!quelle) return;
-  tippLuecken = findeLuecken(segments);
+  tippLuecken = findGaps(segments);
   quelle.setData({
     type: "FeatureCollection",
     features: tippLuecken.map((l) => ({
       type: "Feature", properties: {},
-      geometry: { type: "LineString", coordinates: [[l.von.lon, l.von.lat], [l.nach.lon, l.nach.lat]] },
+      geometry: { type: "LineString", coordinates: [[l.from.lon, l.from.lat], [l.to.lon, l.to.lat]] },
     })),
   });
   if (map.getLayer("route-luecken")) map.moveLayer("route-luecken");
