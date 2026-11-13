@@ -2,8 +2,8 @@
 import { el, render, icon, toast, $ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, category, placeCounts, newId, trip } from "../state.js";
-import { wetterZeile } from "../store.js";
-import { teileOrt } from "../ui/share.js";
+import { weatherLine } from "../store.js";
+import { sharePlace } from "../ui/share.js";
 import { distanceKm } from "../geo.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
@@ -148,7 +148,7 @@ export function renderPlaces() {
         el("div.meta2", {}, [
           el("span.mbadge", { text: SOURCE_LABEL[p.source] || SOURCE_LABEL.camper }),
           el("span.mbadge", { text: tripName }),
-          p.weather ? el("span.mbadge", { text: wetterZeile(p.weather) }) : null,
+          p.weather ? el("span.mbadge", { text: weatherLine(p.weather) }) : null,
           dist != null ? el("span.mbadge.dist", { text: `${dist < 10 ? dist.toFixed(1) : Math.round(dist)} km` }) : null,
         ]),
         el("p", { text: p.note }),
@@ -157,7 +157,7 @@ export function renderPlaces() {
           el("span.coords", { text: p.date || "" }),
           el("span.mini-acts", {}, [
             el("button", { title: "Bearbeiten", on: { click: () => openEditor(p) } }, icon(ICON.edit, 14)),
-            el("button", { title: "Teilen", on: { click: () => teileOrt(p) } }, icon(ICON.share, 14)),
+            el("button", { title: "Teilen", on: { click: () => sharePlace(p) } }, icon(ICON.share, 14)),
           ]),
         ]),
       ]),

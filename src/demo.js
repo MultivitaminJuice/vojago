@@ -1,5 +1,5 @@
-// Beispieldaten mit echten Koordinaten. Sie füllen dieselben Strukturen,
-// die später aus der eigenen API kommen.
+// Demo data with real coordinates. It fills the same structures the app's own
+// API fills. Names and texts are UI content and stay German.
 import { state } from "./state.js";
 import { buildPath, pathLengthKm, elevationRange } from "./geo.js";
 import { DEMO_ROADS } from "./demo-roads.js";
@@ -16,10 +16,10 @@ const CATEGORIES = {
   einkauf: { name: "Einkauf", color: "#1f9e8f" },
 };
 
-// Stützpunkte: lon, lat, Höhe (m), Tempo (km/h); `night` beendet einen Reisetag.
+// Waypoints: lon, lat, elevation (m), speed (km/h); `night` ends a trip day.
 export const ROUTES = {
   alpen: [
-    { lon: 10.317, lat: 47.727, elev: 674, spd: 0 },   // Kempten – Start
+    { lon: 10.317, lat: 47.727, elev: 674, spd: 0 },   // Kempten – start
     { lon: 10.556, lat: 47.648, elev: 780, spd: 62 },
     { lon: 10.700, lat: 47.571, elev: 808, spd: 44, night: true }, // Forggensee
     { lon: 10.717, lat: 47.489, elev: 854, spd: 58 },  // Reutte
@@ -28,7 +28,7 @@ export const ROUTES = {
     { lon: 10.740, lat: 47.239, elev: 828, spd: 64 },  // Imst
     { lon: 10.567, lat: 47.139, elev: 816, spd: 70, night: true }, // Landeck
     { lon: 10.213, lat: 47.129, elev: 1304, spd: 48 }, // Arlberg
-    { lon: 9.748, lat: 47.503, elev: 400, spd: 52 },   // Bodensee – aktuell
+    { lon: 9.748, lat: 47.503, elev: 400, spd: 52 },   // Lake Constance – current
   ],
   nordkap: [
     { lon: 23.271, lat: 69.968, elev: 20, spd: 0 },    // Alta
@@ -39,7 +39,7 @@ export const ROUTES = {
     { lon: 25.784, lat: 71.170, elev: 307, spd: 44 },  // Nordkapp
   ],
   toskana: [
-    { lon: 11.255, lat: 43.770, elev: 50, spd: 0 },    // Florenz
+    { lon: 11.255, lat: 43.770, elev: 50, spd: 0 },    // Florence
     { lon: 11.330, lat: 43.480, elev: 320, spd: 64 },
     { lon: 11.331, lat: 43.318, elev: 322, spd: 58, night: true }, // Siena
     { lon: 11.620, lat: 43.060, elev: 400, spd: 52 },  // Val d'Orcia
@@ -66,7 +66,7 @@ const TRIP_META = {
              bars: [270, 120, 150], barLabels: ["Fr","Sa","So"] },
 };
 
-// tripId, Kategorie, Titel, Notiz, Sterne, Datum, lon, lat, Quelle, Farbton, Nachtnummer, ISO-Zeitpunkt
+// tripId, category, title, note, stars, date, lon, lat, source, hue, night number, ISO time
 const PLACES = [
   ["alpen", "uebernachtung", "Forggensee", "Ruhige Nacht direkt am Wasser, morgens Nebel überm See.", 5, "12.–13. Jul", 10.700, 47.571, "camper", 200, 1, "2026-07-12T18:40:00"],
   ["alpen", "uebernachtung", "Ötztal-Eingang", "Höchster Punkt der Tour. Kühl, klarer Sternenhimmel.", 4, "13.–14. Jul", 10.905, 47.230, "camper", 220, 2, "2026-07-13T19:10:00"],
@@ -87,7 +87,7 @@ const PLACES = [
   ["ostsee", "restaurant", "Hafenkneipe Störtebeker", "Zu Fuß vom Hafenplatz, deftig und gut.", 4, "8. Mär", 13.6155, 54.4025, "handy", 20, null, "2026-03-08T19:15:00"],
 ];
 
-// tripId, Text, ISO-Zeitpunkt, lon, lat, optional zugeordneter Ort
+// tripId, text, ISO time, lon, lat, optionally the linked place
 const NOTES = [
   ["alpen", "Losgefahren bei Nieselregen. Der Motor läuft rund, Kühlschrank auf Gas umgestellt.", "2026-07-12T09:15:00", 10.317, 47.727, null],
   ["alpen", "Erste Pause am See. Wasser eiskalt, trotzdem reingesprungen.", "2026-07-12T15:30:00", 10.700, 47.571, "place_0"],
@@ -101,10 +101,10 @@ export function loadDemoData() {
   state.categories = { ...CATEGORIES };
 
   state.trips = Object.keys(ROUTES).map((id) => {
-    // Mit echtem Straßenverlauf (src/demo-roads.js), sonst weiche Kurve durch die Stützpunkte.
-    const strasse = DEMO_ROADS[id];
-    const path = strasse
-      ? buildPath(strasse.map(([lon, lat, elev, spd, night]) => ({ lon, lat, elev, spd, night: night === 1 })), 1)
+    // Along real roads (src/demo-roads.js), otherwise a smooth curve through the waypoints.
+    const road = DEMO_ROADS[id];
+    const path = road
+      ? buildPath(road.map(([lon, lat, elev, spd, night]) => ({ lon, lat, elev, spd, night: night === 1 })), 1)
       : buildPath(ROUTES[id]);
     const meta = TRIP_META[id];
     return {
@@ -151,7 +151,7 @@ export function loadDemoData() {
   ];
 }
 
-/** Startroute für eine frisch begonnene Reise (kurzes Stück ab Kempten). */
+/** Starting route for a freshly started trip (a short piece from Kempten). */
 export const starterPath = () =>
   buildPath([
     { lon: 10.317, lat: 47.727, elev: 674, spd: 0 },

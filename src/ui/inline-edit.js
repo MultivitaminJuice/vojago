@@ -1,21 +1,17 @@
-// Inline-Umbenennen mit ausdrücklichem Speichern (Enter oder ✓). Escape
-// verwirft ausdrücklich. Automatisches Speichern beim bloßen Verlassen des
-// Feldes wurde ausprobiert und wieder verworfen (fühlte sich nach "spiechert
-// einfach, ohne gefragt zu haben" an) — stattdessen warnt dirty-guard.js vor
-// einem Ansichtswechsel, solange hier etwas offen/ungespeichert ist.
+// Inline renaming with explicit saving (Enter or ✓). Escape explicitly
+// discards. Saving automatically when leaving the field was tried and dropped
+// (it felt like "it just saves without asking") — instead dirty-guard.js warns
+// before a view change while something here is unsaved.
 import { toast } from "../dom.js";
 import { trackDirty } from "./dirty-guard.js";
 
 export function wireInlineEdit(input, saveButton, getCurrent, apply) {
-  // Echter Fund (17. August 2026): Ein komplett geleertes Feld zählte hier
-  // bisher NIE als "geändert" (`v !== ""` schloss es aus) — gedacht als
-  // Schutz gegen versehentliches Leer-Speichern, aber mit der Nebenwirkung,
-  // dass weder der Speichern-Haken erschien noch dirty-guard.js (nutzt
-  // dieselbe dirty()-Prüfung) beim Verlassen der Seite warnte. Wer die
-  // Geräte-ID/den Kategorie-Namen löschte und wegnavigierte, bekam also gar
-  // keine Rückmeldung, dass die Löschung verworfen wird. Jetzt: Leeren zählt
-  // als geändert (Warnung erscheint korrekt), commit() weist den Versuch,
-  // leer zu speichern, stattdessen mit einer klaren Meldung zurück.
+  // Seen 17 August 2026: a completely emptied field never counted as "changed"
+  // (meant as protection against saving it empty), so neither the save tick nor
+  // the dirty-guard warning appeared — deleting a device id or category name and
+  // navigating away gave no feedback that the deletion was discarded. Now an
+  // emptied field counts as changed, and commit() rejects saving it empty with
+  // a clear message.
   const dirty = () => input.value.trim() !== getCurrent();
   const refresh = () => saveButton.classList.toggle("show", dirty());
   const commit = () => {

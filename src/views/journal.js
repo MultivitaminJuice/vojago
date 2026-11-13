@@ -6,14 +6,14 @@ import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip, diaryPhotos } from "../state.js";
 import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js";
-import { speichereOrt, wetterZeile } from "../store.js";
+import { storePlace, weatherLine } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
 import { mapView, tileUrl, routePath } from "../mini-map.js";
 import { CARTO_KEY, tileUrl as tileTemplate, validMapStyle } from "../map-style.js";
 import { withoutPhoto, coverPhotoId, withUnplacedPhotos } from "../diary.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
-import { zeigeFoto } from "../ui/photo-lightbox.js";
+import { showPhotos } from "../ui/photo-lightbox.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
 
@@ -46,7 +46,7 @@ const noteCaption = (note) => {
     note.text ? el("p", { text: note.text }) : null,
     el("div.j-foot", {}, [
       dateTimeLabel(note.at) ? el("span.mbadge", { text: dateTimeLabel(note.at) }) : null,
-      wetterZeile(note.weather) ? el("span.mbadge", { text: wetterZeile(note.weather) }) : null,
+      weatherLine(note.weather) ? el("span.mbadge", { text: weatherLine(note.weather) }) : null,
       ort ? el("span.mbadge", { text: `bei: ${ort.title}` }) : null,
     ]),
   ]);
@@ -65,7 +65,7 @@ const placeCaption = (place) => {
     el("div.j-foot", {}, [
       dateTimeLabel(place.at) ? el("span.mbadge", { text: dateTimeLabel(place.at) }) : null,
       sterne ? el("span.mbadge", { text: sterne, style: { color: "var(--accent)" } }) : null,
-      wetterZeile(place.weather) ? el("span.mbadge", { text: wetterZeile(place.weather) }) : null,
+      weatherLine(place.weather) ? el("span.mbadge", { text: weatherLine(place.weather) }) : null,
       SOURCE_LABEL[place.source] ? el("span.mbadge", { text: SOURCE_LABEL[place.source] }) : null,
     ]),
   ]);
@@ -77,7 +77,7 @@ const placeCaption = (place) => {
 function kartenKlick(oeffneEditor, fotos) {
   if (!state.guest) return oeffneEditor;
   if (!fotos.length) return () => {};
-  return () => zeigeFoto(tripSlides, photoSlideIndex.get(fotos[0].id) ?? 0);
+  return () => showPhotos(tripSlides, photoSlideIndex.get(fotos[0].id) ?? 0);
 }
 
 function fotoStreifen(fotos) {
@@ -86,7 +86,7 @@ function fotoStreifen(fotos) {
     src: bildUrl(f.id), loading: "lazy", alt: "",
     // Nicht auch noch den Ort/die Notiz öffnen — das Bild antippen soll nur
     // groß zeigen, nichts zum Bearbeiten aufmachen.
-    on: { click: (e) => { e.stopPropagation(); zeigeFoto(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
+    on: { click: (e) => { e.stopPropagation(); showPhotos(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
   })));
 }
 
@@ -222,7 +222,7 @@ function fotoCollage(fotos, info) {
   const zeigen = fotos.slice(0, 3);
   const bild = (f) => el("img", {
     src: bildUrl(f.id), loading: "lazy", alt: "",
-    on: { click: (e) => { e.stopPropagation(); zeigeFoto(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
+    on: { click: (e) => { e.stopPropagation(); showPhotos(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
   });
   const mehr = fotos.length - zeigen.length;
   return el(`div.jt-fotos.jt-fotos-${zeigen.length}`, {}, [
@@ -346,7 +346,7 @@ function anmerkung(place) {
     const speichern = async (e) => {
       const knopf = e.currentTarget;
       knopf.disabled = true;
-      const ok = await speichereOrt({ ...place, note: feld.value.trim() });
+      const ok = await storePlace({ ...place, note: feld.value.trim() });
       if (ok) toast("Anmerkung gespeichert"); else knopf.disabled = false;
     };
     render(wrap, [feld, el("div.jt-anm-knoepfe", {}, [
@@ -364,7 +364,7 @@ function detailsBlock(place) {
   return el("details.jt-details", {}, [
     el("summary", { text: "Details" }),
     kv("Ankunft", timeLabel(place.at)),
-    kv("Wetter", wetterZeile(place.weather)),
+    kv("Wetter", weatherLine(place.weather)),
     kv("Bewertung", stars(place.stars)),
     kv("Kategorie", category(place.catId)?.name),
     kv("Erfasst", place.stopKey ? "automatisch erkannt" : QUELLE[place.source]),
@@ -468,7 +468,7 @@ function titelbild(foto, info) {
   tripSlides.push({ url: bildUrl(foto.id), info });
   return el("figure.jt-titel", {}, [el("img", {
     src: bildUrl(foto.id), alt: "", loading: "lazy",
-    on: { click: () => zeigeFoto(tripSlides, photoSlideIndex.get(foto.id) ?? 0) },
+    on: { click: () => showPhotos(tripSlides, photoSlideIndex.get(foto.id) ?? 0) },
   })]);
 }
 

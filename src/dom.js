@@ -1,15 +1,14 @@
-// DOM-Helfer. Grundsatz: Nutzertexte werden NIE per innerHTML eingesetzt,
-// sondern immer als Textknoten — damit sind Titel, Notizen und Namen
-// unabhängig vom Inhalt ungefährlich.
+// DOM helpers. Principle: user texts are NEVER inserted with innerHTML but
+// always as text nodes — so titles, notes and names are harmless whatever they contain.
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 /**
- * Element bauen.
- * @param {string} tag  z. B. "div.card.wide" oder "button#save"
- * @param {object} [attrs] Attribute; `text` setzt textContent, `style` nimmt ein Objekt,
- *                         `on` nimmt { click: fn }, `dataset` nimmt ein Objekt.
+ * Build an element.
+ * @param {string} tag  e.g. "div.card.wide" or "button#save"
+ * @param {object} [attrs] attributes; `text` sets textContent, `style` takes an object,
+ *                         `on` takes { click: fn }, `dataset` takes an object.
  * @param {Array|Node|string} [children]
  */
 export function el(tag, attrs = {}, children = []) {
@@ -22,7 +21,7 @@ export function el(tag, attrs = {}, children = []) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
     if (k === "text") node.textContent = String(v);
-    else if (k === "html") node.innerHTML = v; // nur für eigene, konstante Markup-Schnipsel
+    else if (k === "html") node.innerHTML = v; // only for our own, constant markup snippets
     else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
     else if (k === "dataset") Object.assign(node.dataset, v);
     else if (k === "on") for (const [ev, fn] of Object.entries(v)) node.addEventListener(ev, fn);
@@ -47,12 +46,12 @@ export function clear(node) {
   return node;
 }
 
-/** Ersetzt den Inhalt eines Containers durch neue Kinder. */
+/** Replaces the content of a container with new children. */
 export function render(node, children) {
   return append(clear(node), children);
 }
 
-/** Inline-SVG aus konstantem Pfad-Markup (nie mit Nutzerdaten aufgerufen). */
+/** Inline SVG from constant path markup (never called with user data). */
 export function icon(paths, size = 16) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -63,7 +62,7 @@ export function icon(paths, size = 16) {
   svg.setAttribute("stroke-linejoin", "round");
   svg.style.width = size + "px";
   svg.style.height = size + "px";
-  svg.innerHTML = paths; // konstante Icon-Pfade aus icons.js
+  svg.innerHTML = paths; // constant icon paths from icons.js
   return svg;
 }
 

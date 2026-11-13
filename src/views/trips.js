@@ -9,7 +9,7 @@ import {
 import { starterPath } from "../demo.js";
 import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.js";
 import { isConfigured, createTrip, updateTrip, deleteTrip as apiDeleteTrip, assignDrive, updateDriveKind } from "../api.js";
-import { wetterZeile } from "../store.js";
+import { weatherLine } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
 import { dateField } from "../ui/calendar.js";
@@ -71,7 +71,7 @@ const drivePreviewPaths = new Map();
 const drivePreviewLoads = new Set();
 
 /** Im verbundenen Betrieb gehören Reisen in die Datenbank, nicht in den Speicher. */
-const zentral = () => !state.config.demo && isConfigured();
+const isCentral = () => !state.config.demo && isConfigured();
 
 export function initTrips({ onOpenDetail, onShowMap }) {
   openDetail = onOpenDetail;
@@ -306,7 +306,7 @@ async function mitKnopf(knopf, arbeit) {
 /* ---------- Reisen anlegen, beenden, fortsetzen, löschen ---------- */
 
 async function neueReise(knopf) {
-  if (!zentral()) {
+  if (!isCentral()) {
     startTrip(starterPath());
     renderTrips(); goMap();
     toast("Neue Reise gestartet – gute Fahrt!");
@@ -322,7 +322,7 @@ async function neueReise(knopf) {
 }
 
 async function reiseBeenden(knopf, danach) {
-  if (!zentral()) {
+  if (!isCentral()) {
     endTrip(); renderTrips(); danach?.();
     toast("Reise beendet und gespeichert");
     return;
@@ -338,7 +338,7 @@ async function reiseBeenden(knopf, danach) {
 }
 
 async function reiseFortsetzen(knopf, id, danach) {
-  if (!zentral()) {
+  if (!isCentral()) {
     resumeTrip(id); renderTrips(); danach?.();
     return;
   }
@@ -350,7 +350,7 @@ async function reiseFortsetzen(knopf, id, danach) {
 }
 
 async function reiseLoeschen(knopf, id, danach) {
-  if (!zentral()) {
+  if (!isCentral()) {
     deleteTrip(id); renderTrips(); danach?.();
     toast("Reise gelöscht");
     return;
@@ -595,7 +595,7 @@ async function entferneFahrtAusReise() {
   const drive = routeFocus?.drives?.[0];
   if (!drive?.key) return;
   closeDriveKindPicker();
-  if (!zentral()) { toast("Nur mit verbundenem Konto möglich"); return; }
+  if (!isCentral()) { toast("Nur mit verbundenem Konto möglich"); return; }
   try {
     await assignDrive(drive.key, null);
     await loadDrives();
@@ -1098,7 +1098,7 @@ const kurzeAdresse = (text) => (text || "").split(",").slice(0, 2).join(",").tri
 
 /**
  * Auswahl, zu welcher Reise eine Fahrt gehört. Ohne Auswahl entscheidet der
- * Zeitraum; eine Auswahl bleibt zentral gespeichert und sticht die Automatik.
+ * Zeitraum; eine Auswahl bleibt isCentral gespeichert und sticht die Automatik.
  */
 /**
  * Ordnet man eine Fahrt von Hand einer Reise zu, kann sie außerhalb des
@@ -1115,7 +1115,7 @@ const kurzeAdresse = (text) => (text || "").split(",").slice(0, 2).join(",").tri
  * (laufende Reise) deckt "in die Zukunft" ohnehin schon ab.
  */
 async function erweitereReiseFallsNoetig(zielTrip, drive) {
-  if (!zielTrip || !zentral()) return;
+  if (!zielTrip || !isCentral()) return;
   const patch = {};
   const startNeu = Date.parse(drive.from);
   const startAlt = Date.parse(zielTrip.start || zielTrip.range?.from || "");
@@ -1221,7 +1221,7 @@ function driveRow(drive) {
       el("div", { text: strecke || "Fahrt" }),
     ]),
     el("span.dkm", { text: `${drive.km.toFixed(1)} km` }),
-    drive.weather ? el("span.dweather", { text: wetterZeile(drive.weather) }) : null,
+    drive.weather ? el("span.dweather", { text: weatherLine(drive.weather) }) : null,
     // Eigene Bedienelemente dürfen den Zeilen-Klick nicht auslösen.
     el("div.dacts", { on: {
       click: (e) => e.stopPropagation(),
@@ -1277,7 +1277,7 @@ export function renderTripDetail(id, handlers) {
         el("label", { text: "Reisename" }),
         el("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, [nameInput, nameSave]),
       ]),
-      ...(zentral() ? [el("div.field", { style: { marginBottom: "12px" } }, [
+      ...(isCentral() ? [el("div.field", { style: { marginBottom: "12px" } }, [
         el("label", { text: "Zeitraum" }),
         el("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, [
           startInput, el("span", { text: "–", style: { color: "var(--ink-faint)" } }), endInput, rangeSave,
@@ -1303,7 +1303,7 @@ export function renderTripDetail(id, handlers) {
     $("#sheet-title").textContent = value;
     renderTrips();
     emit("trips");
-    if (!zentral()) return;
+    if (!isCentral()) return;
     try {
       await updateTrip(id, { name: value });
     } catch (err) {
@@ -1314,7 +1314,7 @@ export function renderTripDetail(id, handlers) {
     }
   });
 
-  const zeitraumEdit = zentral() ? wireZeitraumEdit({ t, id, handlers, startInput, endInput, rangeSave }) : null;
+  const zeitraumEdit = isCentral() ? wireZeitraumEdit({ t, id, handlers, startInput, endInput, rangeSave }) : null;
 
   // Beide Felder zusammen — die Sheet-Leiste kennt nur ein Edit-Objekt.
   const edit = {

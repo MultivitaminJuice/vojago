@@ -3,7 +3,7 @@
 // einem Ort kann jederzeit nachgeholt werden.
 import { el, render, toast, $ } from "../dom.js";
 import { state, newId, tripPlaces, notePhotos } from "../state.js";
-import { speichereNotiz, loescheNotiz, wetterZeile } from "../store.js";
+import { storeNote, dropNote, weatherLine } from "../store.js";
 import { wirePhotoGallery } from "../ui/photo-gallery.js";
 import { isConfigured } from "../api.js";
 
@@ -35,12 +35,12 @@ export function initNoteEditor({ onChange, onUndoOffer, onOpen }) {
     const removed = { ...current };
     const wasNew = removed.isNew;
     current = null;
-    if (!wasNew) await loescheNotiz(removed.id);
+    if (!wasNew) await dropNote(removed.id);
     afterChange();
     if (wasNew) return;
     if (offerUndo) {
       offerUndo("Notiz gelöscht", async () => {
-        await speichereNotiz(removed, { neu: true });
+        await storeNote(removed, { isNew: true });
         afterChange();
       });
     } else toast("Notiz gelöscht");
@@ -90,7 +90,7 @@ export function openNoteEditor(note) {
       text: `${Number(note.lat).toFixed(4)}, ${Number(note.lon).toFixed(4)}`,
       style: { marginLeft: "auto", color: "var(--ink-faint)", fontFamily: "var(--font-mono)", fontSize: "11px" },
     }),
-    note.weather ? el("span", { text: wetterZeile(note.weather), style: { flexBasis: "100%", color: "var(--ink-soft)" } }) : null,
+    note.weather ? el("span", { text: weatherLine(note.weather), style: { flexBasis: "100%", color: "var(--ink-soft)" } }) : null,
   ]);
 
   const select = $("#note-place");
@@ -124,7 +124,7 @@ export function save() {
   if (!note.text) { toast("Notiz ist leer – nicht gespeichert"); current = null; afterChange(); return; }
   // Erst sichern, dann schließen (siehe place-editor.js).
   // Das Wetter zum Zeitpunkt wird danach nachgetragen (siehe store.js).
-  const gesichert = speichereNotiz(note, { neu });
+  const gesichert = storeNote(note, { isNew: neu });
   current = null;
   afterChange();
   gesichert.then((ok) => {

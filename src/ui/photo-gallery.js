@@ -1,22 +1,19 @@
-// Gemeinsame Foto-Galerie für Notiz- und Ort-Editor: Miniaturen zeigen,
-// hinzufügen (clientseitig verkleinert, siehe photo.js), löschen. Beide
-// Editoren unterscheiden sich nur in der Bezugs-ID (noteId vs. besuchId —
-// ein "Ort" in der Oberfläche ist technisch ein Besuch, siehe dataload.js).
+// Shared photo gallery for the note and place editors: show thumbnails, add
+// (scaled down on the client, see photo.js), delete. The editors differ only in
+// the reference id (noteId vs. besuchId — a "place" in the UI is a visit, see
+// dataload.js).
 //
-// Fotos lassen sich auch bei einer NEUEN, noch ungespeicherten Notiz/einem
-// neuen Ort schon auswählen — POST /api/photos verlangt aber zwingend eine
-// bereits existierende note_id/besuch_id (api/router.js), ein Hochladen vor
-// dem ersten Speichern ist also serverseitig gar nicht möglich. Statt den
-// "Hinzufügen"-Knopf deshalb zu sperren (frühere Fassung — wirkte für
-// Nutzer wie ein Bug), werden neu ausgewählte Fotos
-// bis zum Speichern nur lokal vorgehalten ("pending", mit Objekt-URL für
-// die Vorschau) und erst danach über commitPending() tatsächlich
-// hochgeladen — ein Arbeitsschritt für den Nutzer statt zwei.
+// Photos can be chosen for a NEW, unsaved note or place too — but POST
+// /api/photos needs an existing note_id/besuch_id (api/router.js), so uploading
+// before the first save is impossible. Instead of disabling the add button (an
+// earlier version, which looked like a bug), newly chosen photos are kept
+// locally until saving ("pending", with an object URL for the preview) and
+// uploaded afterwards through commitPending() — one step for the user, not two.
 import { el, render, toast, $ } from "../dom.js";
 import { photoUrl, uploadPhoto, deletePhoto } from "../api.js";
 import { upsertPhoto, removePhoto } from "../state.js";
-import { komprimiereFoto } from "./photo.js";
-import { zeigeFoto } from "./photo-lightbox.js";
+import { compressPhoto } from "./photo.js";
+import { showPhotos } from "./photo-lightbox.js";
 
 /**
  * @param {{galleryId: string, inputId: string, addBtnId: string}} cfg
@@ -26,36 +23,36 @@ import { zeigeFoto } from "./photo-lightbox.js";
 export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
   const input = $("#" + inputId);
   const addBtn = $("#" + addBtnId);
-  let ref = null; // { noteId } | { besuchId } | null solange nicht gespeichert
+  let ref = null; // { noteId } | { besuchId } | null while not saved
   let photos = [];
-  let pending = []; // { localId, blob, url, width, height } — lokal ausgewählt, noch nicht hochgeladen
+  let pending = []; // { localId, blob, url, width, height } — chosen locally, not uploaded yet
 
-  function freigebenPending() {
+  function releasePending() {
     for (const p of pending) URL.revokeObjectURL(p.url);
     pending = [];
   }
 
-  function zeichne() {
+  function draw() {
     const box = $("#" + galleryId);
     if (!box) return;
-    const echteSlides = photos.map((p) => ({ url: photoUrl(p.id) }));
+    const slides = photos.map((p) => ({ url: photoUrl(p.id) }));
     render(box, [
       ...photos.map((p, i) => el("div.photo-thumb", {}, [
-        el("img", { src: echteSlides[i].url, loading: "lazy", alt: "", on: { click: () => zeigeFoto(echteSlides, i) } }),
+        el("img", { src: slides[i].url, loading: "lazy", alt: "", on: { click: () => showPhotos(slides, i) } }),
         el("button", {
           type: "button", "aria-label": "Foto löschen", text: "✕",
           on: { click: async () => {
-            const vorher = photos.slice();
+            const before = photos.slice();
             photos = photos.filter((x) => x.id !== p.id);
             removePhoto(p.id);
-            zeichne();
+            draw();
             try {
               await deletePhoto(p.id);
               toast("Foto gelöscht");
             } catch (err) {
-              photos = vorher;
+              photos = before;
               upsertPhoto(p);
-              zeichne();
+              draw();
               toast(err.message || "Foto konnte nicht gelöscht werden");
             }
           } },
@@ -68,7 +65,7 @@ export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
           on: { click: () => {
             URL.revokeObjectURL(p.url);
             pending = pending.filter((x) => x.localId !== p.localId);
-            zeichne();
+            draw();
           } },
         }),
       ])),
@@ -81,52 +78,52 @@ export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
     const file = input.files?.[0];
     input.value = "";
     if (!file) return;
-    const { blob, width, height } = await komprimiereFoto(file);
+    const { blob, width, height } = await compressPhoto(file);
 
     if (!ref) {
-      // Noch nicht gespeichert — nur lokal vormerken, siehe Kopfkommentar.
+      // Not saved yet — only keep it locally, see the comment at the top.
       pending.push({ localId: crypto.randomUUID(), blob, url: URL.createObjectURL(blob), width, height });
-      zeichne();
+      draw();
       return;
     }
 
     const box = $("#" + galleryId);
-    const platzhalter = el("div.photo-thumb.uploading");
-    box?.appendChild(platzhalter);
+    const placeholder = el("div.photo-thumb.uploading");
+    box?.appendChild(placeholder);
     try {
       const takenAt = new Date().toISOString();
       const { id } = await uploadPhoto(blob, { ...ref, takenAt, width, height });
       const photo = { id, besuchId: ref.besuchId || null, noteId: ref.noteId || null, takenAt, width, height, lat: null, lon: null };
       photos.push(photo);
       upsertPhoto(photo);
-      zeichne();
+      draw();
       toast("Foto hinzugefügt");
     } catch (err) {
-      platzhalter.remove();
+      placeholder.remove();
       toast(err.message || "Foto konnte nicht hochgeladen werden");
     }
   });
 
   return {
-    update(neueRef, neuePhotos) {
-      freigebenPending(); // Objekt-URLs eines vorher offenen, verworfenen Entwurfs nicht mitschleppen
-      ref = neueRef;
-      photos = (neuePhotos || []).slice();
+    update(nextRef, nextPhotos) {
+      releasePending(); // do not carry the object URLs of a discarded draft along
+      ref = nextRef;
+      photos = (nextPhotos || []).slice();
       if (addBtn) addBtn.hidden = false;
-      zeichne();
+      draw();
     },
-    /** Nach erfolgreichem Erst-Speichern einer neuen Notiz/eines neuen Ortes
-     * aufgerufen: lädt alle vorgemerkten Fotos jetzt tatsächlich hoch. */
-    async commitPending(neuerRef) {
+    /** Called after the first successful save of a new note or place: uploads
+     * all photos kept so far. */
+    async commitPending(savedRef) {
       if (!pending.length) return;
-      ref = neuerRef;
-      const zuLaden = pending;
+      ref = savedRef;
+      const toUpload = pending;
       pending = [];
-      for (const p of zuLaden) {
+      for (const p of toUpload) {
         try {
           const takenAt = new Date().toISOString();
-          const { id } = await uploadPhoto(p.blob, { ...neuerRef, takenAt, width: p.width, height: p.height });
-          const photo = { id, besuchId: neuerRef.besuchId || null, noteId: neuerRef.noteId || null, takenAt, width: p.width, height: p.height, lat: null, lon: null };
+          const { id } = await uploadPhoto(p.blob, { ...savedRef, takenAt, width: p.width, height: p.height });
+          const photo = { id, besuchId: savedRef.besuchId || null, noteId: savedRef.noteId || null, takenAt, width: p.width, height: p.height, lat: null, lon: null };
           photos.push(photo);
           upsertPhoto(photo);
         } catch (err) {
@@ -135,7 +132,7 @@ export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
           URL.revokeObjectURL(p.url);
         }
       }
-      zeichne();
+      draw();
     },
   };
 }

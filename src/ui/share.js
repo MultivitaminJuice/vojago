@@ -1,51 +1,49 @@
-// Teilen — echt statt behauptet.
-//
-// Bisher meldeten die Teilen-Knöpfe „Link kopiert", ohne etwas zu tun. Eine
-// öffentlich lesbare Ansicht der eigenen Reisen gibt es (noch) nicht, deshalb
-// wird geteilt, was ohne Server trägt: bei Orten ein Kartenlink auf die
-// Koordinaten, bei Reisen eine kurze Zusammenfassung als Text.
+// Sharing a place or a trip through the device's share menu (or the clipboard):
+// a place as a map link to its coordinates, a trip as a short text summary.
+// Read-only links to trips are created elsewhere (Settings → Reisen teilen).
+// The texts are UI and stay German.
 import { toast } from "../dom.js";
 
-const kartenLink = (lat, lon) =>
+const mapLink = (lat, lon) =>
   `https://www.openstreetmap.org/?mlat=${lat.toFixed(5)}&mlon=${lon.toFixed(5)}#map=15/${lat.toFixed(5)}/${lon.toFixed(5)}`;
 
-/** Gibt den Inhalt an das Teilen-Menü des Geräts oder in die Zwischenablage. */
-async function teile({ title, text, url }) {
+/** Hands the content to the device's share menu or to the clipboard. */
+async function share({ title, text, url }) {
   if (navigator.share) {
     try {
       await navigator.share(url ? { title, text, url } : { title, text });
       return;
     } catch (err) {
-      // Abbruch durch den Nutzer ist kein Fehler — dann still zurück.
+      // Cancelled by the user is not an error — then return quietly.
       if (err?.name === "AbortError") return;
     }
   }
-  const inhalt = [text, url].filter(Boolean).join("\n");
+  const content = [text, url].filter(Boolean).join("\n");
   try {
-    await navigator.clipboard.writeText(inhalt);
+    await navigator.clipboard.writeText(content);
     toast("In die Zwischenablage kopiert");
   } catch {
     toast("Teilen wird von diesem Browser nicht unterstützt");
   }
 }
 
-export function teileOrt(place) {
+export function sharePlace(place) {
   const lat = Number(place.lat);
   const lon = Number(place.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     toast("Für diesen Ort fehlen die Koordinaten");
     return;
   }
-  const url = kartenLink(lat, lon);
-  return teile({ title: place.title || "Ort", text: place.title || "Ort", url });
+  const url = mapLink(lat, lon);
+  return share({ title: place.title || "Ort", text: place.title || "Ort", url });
 }
 
-export function teileReise(trip, { naechte = 0, orte = 0 } = {}) {
-  const zeilen = [
+export function shareTrip(trip, { nights = 0, places = 0 } = {}) {
+  const lines = [
     trip.name,
     trip.dates,
-    `${trip.km.toLocaleString("de-DE")} km · ${naechte} Nächte · ${orte} Orte`,
+    `${trip.km.toLocaleString("de-DE")} km · ${nights} Nächte · ${places} Orte`,
     "— unterwegs mit VOJAĜO",
   ].filter(Boolean);
-  return teile({ title: trip.name, text: zeilen.join("\n") });
+  return share({ title: trip.name, text: lines.join("\n") });
 }

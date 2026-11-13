@@ -4,7 +4,7 @@ import { el, render, icon, toast, $ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, trip, placePhotos } from "../state.js";
 import { placesWithVisitCount } from "../dataload.js";
-import { speichereOrt, loescheOrt, wetterZeile } from "../store.js";
+import { storePlace, dropPlace, weatherLine } from "../store.js";
 import { wirePhotoGallery } from "../ui/photo-gallery.js";
 import { isConfigured } from "../api.js";
 
@@ -68,12 +68,12 @@ export function initPlaceEditor({ onChange, onUndoOffer, onShowOnMap: showOnMap 
     if (!current) return;
     const removed = { ...current };
     current = null;
-    if (!removed.isNew) await loescheOrt(removed.id);
+    if (!removed.isNew) await dropPlace(removed.id);
     afterChange({ closed: true });
     if (removed.isNew) return; // nie gespeichert — nichts zum Zurückholen
     if (offerUndo) {
       offerUndo(`„${removed.title || "Ort"}" gelöscht`, async () => {
-        await speichereOrt(removed, { neu: true });
+        await storePlace(removed, { isNew: true });
         afterChange({ closed: true });
       });
     } else toast("Ort gelöscht");
@@ -132,7 +132,7 @@ export function openPlaceEditor(place) {
   // zweites Mal. Die Zeile umbricht (flex-wrap, siehe .ef-src in
   // styles.css), bleibt also auch mit langer Adresse lesbar, und ist
   // immer sichtbar (nicht nur bei vorhandenem Wetter).
-  const wetter = wetterZeile(place.weather);
+  const wetter = weatherLine(place.weather);
   render($("#ef-weather"), [
     place.at ? el("span", { text: `📅 ${datumUhrzeit(place.at)}` }) : null,
     // Die rohen Koordinaten stehen nicht mehr offen da — antippen kopiert
@@ -208,9 +208,9 @@ export function save() {
     at: current.at || new Date().toISOString(),
   };
   delete place.isNew;
-  // Erst sichern, dann schließen: Der lokale Teil von speichereOrt läuft
+  // Erst sichern, dann schließen: Der lokale Teil von storePlace läuft
   // sofort, sonst zeichnete die Liste noch den alten Stand.
-  const gesichert = speichereOrt(place, { neu });
+  const gesichert = storePlace(place, { isNew: neu });
   current = null;
   afterChange({ closed: true });
   gesichert.then((ok) => {
