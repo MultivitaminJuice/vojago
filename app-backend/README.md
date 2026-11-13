@@ -1,53 +1,37 @@
 # VOJAĜO app-backend
 
-Zweiter Container des Stacks — Web-App + `/api/*` selbstgehostet auf Node, als Ergänzung zum
-`ingest`-Container ([`tracker-backend/`](../tracker-backend)). Beide
-zusammen bilden den Zwei-Container-Stack, der `docker-compose.yml` am
-Repo-Root definiert.
+The `app` container of the stack: the web app plus `/api/*`, self-hosted on
+Node. Together with the `ingest` container ([`tracker-backend/`](../tracker-backend))
+it forms the two-container stack defined by `docker-compose.yml` at the
+repository root.
 
-Das ist der Betriebsweg; der frühere Cloudflare-Betrieb (Pages/D1/R2) wird
-nicht mehr gebraucht.
+## How it fits together
 
-## Warum das funktioniert, ohne `api/router.js` anzufassen
+`api/router.js` and `api/lib.js` are written in plain Fetch-API style: no
+framework, `handle(request, env) → Response`. This container imports `handle`
+from [`../api/router.js`](../api/router.js) and hands it an `env` with:
 
-`api/router.js`/`api/lib.js` sind bereits im selben Fetch-API-Stil
-geschrieben wie der Rest dieses Projekts: kein Framework, `handle(request,
-env) → Response`. Die einzigen wirklich Cloudflare-spezifischen Bindings
-sind `env.DB` (D1) und `env.PHOTOS` (R2) — beide werden nur über eine kleine,
-klar umrissene Methodenmenge angesprochen (`.prepare().bind().all()/.run()`
-bzw. `.get()/.put()/.delete()`). Diese Datei importiert `handle` direkt aus
-[`../api/router.js`](../api/router.js) — **dieselbe Quelle**, die auch
-`functions/api/[[path]].js` für den Cloudflare-Betrieb verwendet — und
-reicht ihr `env.DB`/`env.PHOTOS` als Shims durch:
+- `DB` — [`src/d1-shim.js`](src/d1-shim.js): `better-sqlite3` on the shared
+  SQLite file, exposing the small `prepare().bind().all()/.run()` interface the
+  router uses. On open it runs `db/schema.sql` and the migrations in
+  `db/migrate.js`. The in-memory twin for tests is
+  [`api/test/helpers/d1-memory.js`](../api/test/helpers/d1-memory.js).
+- `PHOTOS` — [`src/r2-shim.js`](src/r2-shim.js): `.get()/.put()/.delete()` on
+  the local file system. The content type comes from the file extension.
+- `BACKUP` — [`src/backup.js`](src/backup.js): builds the backup download
+  (database copy, photos, manifest as `.tar.gz`, see
+  [`docs/backup-restore.md`](../docs/backup-restore.md)).
 
-- [`src/d1-shim.js`](src/d1-shim.js) — persistente Variante von
-  [`api/test/helpers/d1-memory.js`](../api/test/helpers/d1-memory.js) (dort:
-  `node:sqlite` + `:memory:`, nur für Tests). Dieselbe Fassade, hier
-  `better-sqlite3` auf einer echten Datei.
-- [`src/r2-shim.js`](src/r2-shim.js) — `.get()/.put()/.delete()` auf dem
-  lokalen Dateisystem. Content-Type wird aus der Dateiendung im Schlüssel
-  abgeleitet (kein separates Metadatenformat nötig).
-- [`src/static.js`](src/static.js) — liefert [`public/`](../public) (die
-  gebaute PWA) aus, mit SPA-Fallback auf `index.html` für Client-Routen ohne
-  Dateiendung (z. B. `/share/:token`, siehe `src/main.js`).
-- [`src/server.js`](src/server.js) — Node↔Fetch-Adapter (gleiches Muster wie
-  `tracker-backend/src/server.js`), routet `/api/*` an `router.js`, alles
-  andere an die statische Auslieferung.
+[`src/static.js`](src/static.js) serves [`public/`](../public) (the built PWA)
+with an `index.html` fallback for client routes without a file extension
+(e.g. `/share/:token`). [`src/server.js`](src/server.js) adapts Node's HTTP
+server to the Fetch API and routes `/api/*` to the router, everything else to
+the static files.
 
-## Stand der Dinge
+## Run locally
 
-Alles fertig und real geprüft: Auth, Reisen, Orte, Notizen, Fotos,
-Kategorien, Fahrzeuge (inkl. geräteübergreifender Synchronisierung),
-Benutzerverwaltung — und die Positions-/Fahrten-/Stopp-Routen
-(`/api/positions`, `/api/route`, `/api/stops`, `/api/drives`,
-`/api/devices`) laufen komplett lokal über `positionsQuelle()` in
-`api/router.js` (kein externer Positionsdienst beteiligt).
-`LOCAL_POSITIONS=1` in `src/server.js` schaltet das um.
-
-## Lokal starten
-
-Voraussetzung: Node 22+, `npm install` in `app-backend/` UND einmal `npm run
-build` im Repo-Root (baut `public/`).
+Requires Node 22+ and a built front end (`npm run build` at the repository
+root, which creates `public/`).
 
 ```bash
 cd app-backend
@@ -55,25 +39,27 @@ npm install
 npm run dev
 ```
 
-Health-Check: `curl http://localhost:8080/api/auth/me`
+Health check: `curl http://localhost:8080/api/auth/me`
 
-## Umgebungsvariablen
+## Environment variables
 
-| Variable | Bedeutung | Vorgabe |
+| Variable | Meaning | Default |
 |---|---|---|
-| `APP_HTTP_PORT` | Port für Web-App + API | `8080` |
-| `APP_DB_PATH` | Pfad zur (mit `ingest` geteilten) SQLite-Datei | `data/vojago.db` |
-| `APP_PHOTOS_PATH` | Basisverzeichnis für Fotos (R2-Shim) | `data/fotos` |
-| `APP_PUBLIC_PATH` | Verzeichnis der gebauten PWA | `../public` |
-| `APP_SCHEMA_PATH` | Pfad zu `db/schema.sql` (Override für abweichende Verzeichnistiefen) | `../../db/schema.sql` relativ zu `src/` |
-| `APP_URL` | Öffentliche Basisadresse für Passwort-Reset-/E-Mail-Bestätigungslinks. Im Docker-Stack auf `https://vojago.example.com` vorbelegt, lokal sonst Anfrage-Ursprung. | — |
-| `ALLOWED_ORIGINS`, `RESEND_API_KEY`, `MAIL_FROM` | wie beim Cloudflare-Betrieb, siehe Kopfkommentar in `api/router.js` | — |
+| `APP_HTTP_PORT` | port for web app and API | `8080` |
+| `APP_DB_PATH` | the SQLite file shared with `ingest` | `data/vojago.db` |
+| `APP_PHOTOS_PATH` | directory for photo files | `data/fotos` |
+| `APP_PUBLIC_PATH` | directory of the built PWA | `../public` |
+| `APP_SCHEMA_PATH` | path to `db/schema.sql`, for other directory layouts | `../../db/schema.sql` relative to `src/` |
+| `APP_URL` | public base address for password-reset and e-mail-verification links; without it the request origin is used | — |
+| `ALLOWED_ORIGINS` | only if the API is called from another origin | — |
+| `RESEND_API_KEY`, `MAIL_FROM` | sending mail through Resend; without a key no mail is sent | — |
+| `VAPID_PUBLIC_KEY` | public Web Push key handed to the browser | — |
 
 ## Docker
 
-Siehe [`docker-compose.yml`](../docker-compose.yml) am Repo-Root — dieser
-Container wird nicht allein gebaut/gestartet, sondern zusammen mit `ingest`
-im selben Stack (gemeinsames Volume für die SQLite-Datei).
+This container is built and started together with `ingest`, sharing one volume
+for the SQLite file and the photos. See
+[`docker-compose.yml`](../docker-compose.yml):
 
 ```bash
 docker compose up -d --build

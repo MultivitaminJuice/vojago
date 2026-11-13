@@ -83,52 +83,10 @@ const reply = (request, env, data, status = 200) =>
     headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders(request, env) },
   });
 
-/** Bestehende Datenbanken bekommen Spalte/Tabelle bei Bedarf selbst — wie bei
- * ensureDriveAssignmentMode, damit eine vergessene Migration nicht die ganze
- * Anmeldung lahmlegt. */
-async function ensureEmailReset(env) {
-  const { results } = await env.DB.prepare("PRAGMA table_info(users)").all();
-  const spalten = new Set((results || []).map((row) => row.name));
-  if (!spalten.has("email")) {
-    try {
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN email TEXT").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
-  if (!spalten.has("email_verified_at")) {
-    try {
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN email_verified_at INTEGER").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS password_resets (" +
-    "token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, " +
-    "expires_at INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS email_verifications (" +
-    "token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, " +
-    "email TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-}
-
-/** Benutzerverwaltung: Spalte selbstheilend ergänzen, und — falls es noch
- * keinen Admin gibt (frische Migration) — automatisch das älteste Konto
- * dazu machen. Das war vor dieser Funktion ohnehin das einzige Konto, sonst
- * könnte niemand mehr Konten verwalten. */
+/** Someone must be admin: if nobody is (fresh setup, or the first account was
+ * created before user management existed), the oldest account becomes admin.
+ * The is_admin column itself comes from the migrations (db/migrate.js). */
 async function ensureUserAdmin(env) {
-  const { results } = await env.DB.prepare("PRAGMA table_info(users)").all();
-  const spalten = new Set((results || []).map((row) => row.name));
-  if (!spalten.has("is_admin")) {
-    try {
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
   const { results: admins } = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE is_admin = 1").all();
   if (!admins?.[0]?.n) {
     await env.DB.prepare("UPDATE users SET is_admin = 1 WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)").run();
@@ -189,147 +147,7 @@ async function bestaetigeOderSendeMail(request, env, { userId, email }) {
   return false;
 }
 
-async function ensureShares(env) {
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS trip_shares (" +
-    "id TEXT PRIMARY KEY, token TEXT, token_hash TEXT NOT NULL UNIQUE, " +
-    "trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE, scope TEXT NOT NULL DEFAULT 'karte', " +
-    "label TEXT, expires_at INTEGER, revoked_at INTEGER, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')), last_used_at INTEGER, view_count INTEGER NOT NULL DEFAULT 0)"
-  ).run();
-  const { results } = await env.DB.prepare("PRAGMA table_info(trip_shares)").all();
-  if (!(results || []).some((row) => row.name === "token")) {
-    try {
-      await env.DB.prepare("ALTER TABLE trip_shares ADD COLUMN token TEXT").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
-}
-
-/**
- * Tagebuch (Logbuch-Umbau, Oktober 2026): ein Eintrag je Reise und Kalendertag
- * plus Fotos, die direkt am Eintrag hängen. Lazy und idempotent wie die anderen
- * ensure*-Funktionen — auf einer bestehenden Installation fehlt die Spalte
- * photos.tagebuch_id noch und wird einmalig nachgetragen.
- */
-async function ensureTagebuch(env) {
-  await ensureOrteBesuche(env); // legt photos an, falls noch nicht vorhanden
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS tagebuch (" +
-    "id TEXT PRIMARY KEY, trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE, " +
-    "day_key TEXT NOT NULL, blocks TEXT NOT NULL DEFAULT '[]', author TEXT, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), " +
-    "UNIQUE (trip_id, day_key))"
-  ).run();
-  const { results } = await env.DB.prepare("PRAGMA table_info(photos)").all();
-  if (!(results || []).some((row) => row.name === "tagebuch_id")) {
-    try {
-      await env.DB.prepare("ALTER TABLE photos ADD COLUMN tagebuch_id TEXT REFERENCES tagebuch(id) ON DELETE CASCADE").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id)").run();
-}
-
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
-
-/**
- * Orte/Besuche (18. August 2026, Umbau) — baut orte/besuche/notes/photos
- * idempotent auf UND löst dabei einmalig die alte, verschmolzene Form ab:
- * "places" (Ort+Besuch in einer Zeile) wird vollständig durch orte+besuche
- * ersetzt; notes/photos behalten ihren Namen, verlieren aber trip_id
- * (Reise wird wie bei Fahrten live aus occurred_at berechnet) und bekommen
- * besuch_id statt place_id. Reines `CREATE TABLE IF NOT EXISTS` würde eine
- * bestehende, alt geformte Tabelle unverändert lassen — deshalb hier
- * zusätzlich ein einmaliger, an der jeweils alten Spalte/Tabelle erkannter
- * Neuaufbau (Datenverlust dabei ist hier bewusst in Kauf genommen: der
- * Umbau kam vor genug echten Reisen, um das zu rechtfertigen).
- * Nach der Umstellung greift die Erkennung nie wieder (die alte Spalte/
- * Tabelle existiert dann nicht mehr) — sicher, für jeden Request erneut
- * aufzurufen, wie ensurePhotos() es vorher war.
- */
-async function ensureOrteBesuche(env) {
-  // Reihenfolge wichtig: photos referenziert notes UND places, notes
-  // referenziert places — SQLite lehnt "DROP TABLE notes" ab, solange eine
-  // ANDERE Tabelle (hier photos) noch eine (und sei es bereits verwaiste)
-  // FOREIGN KEY-Deklaration auf eine schon gelöschte Tabelle trägt ("no
-  // such table: main.places"). Deshalb erst photos droppen, dann notes,
-  // dann places — nie umgekehrt (echter Fund beim ersten Deploy-Versuch,
-  // 18. August 2026: Server crashte nicht mehr an dieser Stelle, aber die
-  // Migration selbst brach mittendrin ab).
-  const { results: photosSpalten } = await env.DB.prepare("PRAGMA table_info(photos)").all();
-  if ((photosSpalten || []).some((s) => s.name === "place_id")) {
-    await env.DB.prepare("DROP TABLE photos").run();
-  }
-  const { results: notesSpalten } = await env.DB.prepare("PRAGMA table_info(notes)").all();
-  if ((notesSpalten || []).some((s) => s.name === "place_id")) {
-    await env.DB.prepare("DROP TABLE notes").run();
-  }
-  // "places" wird nie wieder verwendet — einmaliger Neuaufbau als orte+besuche
-  // passiert client-/serverseitig ohnehin (alte Daten hier bewusst nicht
-  // übernommen, siehe Kommentar oben), also reicht ein einfaches Löschen.
-  const { results: placesVorhanden } = await env.DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='places'"
-  ).all();
-  if (placesVorhanden?.length) {
-    await env.DB.prepare("DROP TABLE places").run();
-  }
-
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS orte (" +
-    "id TEXT PRIMARY KEY, title TEXT NOT NULL, note TEXT, category_id TEXT REFERENCES categories(id), " +
-    "rating INTEGER CHECK (rating BETWEEN 0 AND 5), lat REAL NOT NULL, lon REAL NOT NULL, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS orte_cat ON orte (category_id)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS orte_geo ON orte (lat, lon)").run();
-
-  // Nachträglich ergänzt (6. September 2026): die per Reverse-Geocoding
-  // ermittelte Adresse getrennt vom (überschreibbaren) Titel festhalten —
-  // Nutzerwunsch, damit ein umbenannter Ort seine ursprüngliche Adresse
-  // nicht verliert. Lazy-Migration wie ensureEmailReset() oben.
-  const { results: orteSpalten } = await env.DB.prepare("PRAGMA table_info(orte)").all();
-  if (!(orteSpalten || []).some((s) => s.name === "address")) {
-    try {
-      await env.DB.prepare("ALTER TABLE orte ADD COLUMN address TEXT").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
-
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS besuche (" +
-    "id TEXT PRIMARY KEY, ort_id TEXT NOT NULL REFERENCES orte(id) ON DELETE CASCADE, " +
-    "source TEXT NOT NULL DEFAULT 'manuell', kind TEXT NOT NULL DEFAULT 'manual', " +
-    "occurred_at TEXT, nights INTEGER NOT NULL DEFAULT 1, weather TEXT, stop_key TEXT, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS besuche_ort ON besuche (ort_id)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS besuche_time ON besuche (occurred_at)").run();
-  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS besuche_stop_key ON besuche (stop_key) WHERE stop_key IS NOT NULL").run();
-
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS notes (" +
-    "id TEXT PRIMARY KEY, besuch_id TEXT REFERENCES besuche(id) ON DELETE SET NULL, " +
-    "title TEXT NOT NULL DEFAULT '', text TEXT NOT NULL, occurred_at TEXT, lat REAL, lon REAL, " +
-    "source TEXT NOT NULL DEFAULT 'handy', weather TEXT, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS notes_besuch ON notes (besuch_id)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS notes_time ON notes (occurred_at)").run();
-
-  await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS photos (" +
-    "id TEXT PRIMARY KEY, besuch_id TEXT REFERENCES besuche(id) ON DELETE CASCADE, " +
-    "note_id TEXT REFERENCES notes(id) ON DELETE CASCADE, " +
-    "r2_key TEXT NOT NULL, taken_at TEXT, lat REAL, lon REAL, width INTEGER, height INTEGER, " +
-    "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
-  ).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS photos_besuch ON photos (besuch_id)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS photos_note ON photos (note_id)").run();
-}
 
 /** Streamt ein Foto aus R2 — gemeinsam genutzt vom angemeldeten und vom
  * öffentlichen Freigabe-Endpunkt. `r2Key` kommt in beiden Fällen erst nach
@@ -396,26 +214,6 @@ function faelltInReisezeitraum(occurredAt, reisen) {
     const bis = reise.end_at ? Date.parse(reise.end_at) : Date.now();
     return Number.isFinite(von) && t >= von && t <= bis;
   });
-}
-
-async function ensureDriveAssignmentMode(env) {
-  const { results } = await env.DB.prepare("PRAGMA table_info(drive_assignments)").all();
-  const spalten = new Set((results || []).map((row) => row.name));
-  if (!spalten.has("assignment")) {
-    try {
-      await env.DB.prepare("ALTER TABLE drive_assignments ADD COLUMN assignment TEXT NOT NULL DEFAULT 'auto'").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-    await env.DB.prepare("UPDATE drive_assignments SET assignment = CASE WHEN trip_id IS NULL THEN 'auto' ELSE 'manual' END").run();
-  }
-  if (!spalten.has("kind")) {
-    try {
-      await env.DB.prepare("ALTER TABLE drive_assignments ADD COLUMN kind TEXT NOT NULL DEFAULT 'etappe'").run();
-    } catch (e) {
-      if (!/duplicate column name/i.test(String(e))) throw e;
-    }
-  }
 }
 
 /* ---------------- Positions (local table) ---------------- */
@@ -594,7 +392,6 @@ async function route(request, env) {
       // bestätigte E-Mail zählt später für "Passwort vergessen".
       if (schritt === "setup" && request.method === "POST") {
         if (await kontoVorhanden(env)) return reply(request, env, { error: "Es gibt bereits ein Konto" }, 409);
-        await ensureEmailReset(env);
         const b = await request.json().catch(() => ({}));
         const pruefung = validateCredentials(b, { neu: true });
         if (!pruefung.ok) return reply(request, env, { error: pruefung.errors.join("; ") }, 400);
@@ -636,7 +433,6 @@ async function route(request, env) {
       // da. Antwortet absichtlich immer gleich (kein Verrat, ob der
       // Benutzername existiert oder eine Mail hinterlegt ist).
       if (schritt === "forgot" && request.method === "POST") {
-        await ensureEmailReset(env);
         const kennung = request.headers.get("cf-connecting-ip") || "unbekannt";
         if (!takeLogin(kennung).ok) {
           return reply(request, env, { error: "Zu viele Versuche. Bitte später erneut." }, 429);
@@ -679,7 +475,6 @@ async function route(request, env) {
       // Neues Passwort per Reset-Link setzen — beendet alle Sitzungen und
       // meldet sofort mit dem neuen Passwort an.
       if (schritt === "reset" && request.method === "POST") {
-        await ensureEmailReset(env);
         const b = await request.json().catch(() => ({}));
         if (typeof b.token !== "string" || !b.token.trim()) {
           return reply(request, env, { error: "Reset-Link fehlt oder ist ungültig" }, 400);
@@ -709,7 +504,6 @@ async function route(request, env) {
       // Das aktuelle Passwort ist der Nachweis, wie bei der Passwortänderung.
       // Jede neue Adresse gilt erst nach Bestätigung — der Link geht sofort raus.
       if (schritt === "email" && request.method === "POST") {
-        await ensureEmailReset(env);
         const sitzung = await aktuelleSitzung(request, env);
         if (!sitzung) return reply(request, env, { error: "nicht angemeldet" }, 401);
         const b = await request.json().catch(() => ({}));
@@ -727,7 +521,6 @@ async function route(request, env) {
       // E-Mail über den Link aus der Bestätigungsmail bestätigen — braucht
       // keine Sitzung, der Besitz des Links reicht (wie beim Reset-Link).
       if (schritt === "verify-email" && request.method === "POST") {
-        await ensureEmailReset(env);
         const b = await request.json().catch(() => ({}));
         if (typeof b.token !== "string" || !b.token.trim()) {
           return reply(request, env, { error: "Bestätigungslink fehlt oder ist ungültig" }, 400);
@@ -807,7 +600,6 @@ async function route(request, env) {
       if (!takeShare(kennung).ok) {
         return reply(request, env, { error: "Zu viele Anfragen. Bitte später erneut." }, 429);
       }
-      await ensureShares(env);
       const token = seg[2];
       const teilaspekt = seg[3]; // undefined | "route" | "positions" | "drives" | "photos"
 
@@ -875,7 +667,6 @@ async function route(request, env) {
       // Besuch/die Notiz nachsehen, wann das Foto tatsächlich entstand.
       if (teilaspekt === "photos" && seg[4]) {
         if (freigabe.scope !== "karte_logbuch") return reply(request, env, { error: "Über diesen Link nicht freigegeben" }, 403);
-        await ensureTagebuch(env);
         const { results } = await env.DB.prepare(
           `SELECT p.r2_key, COALESCE(p.taken_at, b.occurred_at, n.occurred_at) AS wann, tb.trip_id AS tagebuch_reise
            FROM photos p
@@ -908,7 +699,6 @@ async function route(request, env) {
       let fotos = [];
       let tagebuch = [];
       if (freigabe.scope === "karte_logbuch" && reisen.length) {
-        await ensureTagebuch(env);
         const alleBesuche = (await env.DB.prepare(
           `SELECT b.id, b.ort_id, o.title, o.address, o.note, o.category_id, o.rating, o.lat, o.lon,
                   b.source, b.kind, b.occurred_at, b.nights, b.weather, b.stop_key
@@ -1026,7 +816,6 @@ async function route(request, env) {
          Die eigentliche Auslieferung an Gäste läuft öffentlich über
          /api/share/:token weiter oben, vor dem Anmelde-Gate. */
       if (seg[1] === "shares") {
-        await ensureShares(env);
         const id = seg[2];
         if (request.method === "GET" && !id) {
           const { results } = await env.DB.prepare(
@@ -1076,12 +865,10 @@ async function route(request, env) {
          - weather: Wetter am Startpunkt, einmal geholt und hier zwischengespeichert. */
       if (seg[1] === "drive-assignments") {
         if (request.method === "GET") {
-          await ensureDriveAssignmentMode(env);
           const { results } = await env.DB.prepare("SELECT drive_key, trip_id, weather, assignment, kind FROM drive_assignments").all();
           return reply(request, env, results);
         }
         if (request.method === "PUT" || request.method === "PATCH") {
-          await ensureDriveAssignmentMode(env);
           const b = await request.json().catch(() => ({}));
           const key = typeof b?.drive_key === "string" ? b.drive_key.trim() : "";
           if (!key || key.length > 200) return reply(request, env, { error: "drive_key fehlt oder ist zu lang" }, 400);
@@ -1145,7 +932,7 @@ async function route(request, env) {
 
       /* ---- D1: Orte ---- */
       /* ---- D1: Besuche (Aufenthalte an einem Ort — Orte selbst sind der
-       * Katalog dahinter, siehe ensureOrteBesuche/orte). Der Endpunkt
+       * Katalog dahinter, siehe db/schema.sql: orte). Der Endpunkt
        * bleibt bewusst EIN Aufruf für die Ansicht (Ort+Besuch geflacht wie
        * früher bei "places") — title/note/category_id/rating/lat/lon
        * gehören zum Ort (gemeinsam für alle Besuche dort), alles andere
@@ -1153,7 +940,6 @@ async function route(request, env) {
        * angelegt (Normalfall); mit ort_id wird ein bestehender wieder-
        * verwendet (z. B. wenn die Nähe-Erkennung schon einen fand). */
       if (seg[1] === "besuche") {
-        await ensureOrteBesuche(env);
         const id = seg[2];
         if (request.method === "GET" && !id) {
           const { results } = await env.DB.prepare(
@@ -1286,7 +1072,6 @@ async function route(request, env) {
 
       /* ---- D1: Notizen ---- */
       if (seg[1] === "notes") {
-        await ensureOrteBesuche(env);
         const id = seg[2];
         if (request.method === "GET" && !id) {
           const { results } = await env.DB.prepare("SELECT * FROM notes ORDER BY occurred_at").all();
@@ -1327,7 +1112,6 @@ async function route(request, env) {
 
       /* ---- D1: Tagebuch — ein Eintrag je Reise und Kalendertag ---- */
       if (seg[1] === "tagebuch") {
-        await ensureTagebuch(env);
         const id = seg[2];
         if (request.method === "GET" && !id) {
           const { results } = await env.DB.prepare(
@@ -1369,7 +1153,6 @@ async function route(request, env) {
 
       /* ---- D1 + R2: Fotos zu Besuchen, Notizen und Tagebuch ---- */
       if (seg[1] === "photos") {
-        await ensureTagebuch(env);
         const id = seg[2];
 
         if (request.method === "GET" && !id) {
@@ -1504,7 +1287,6 @@ async function route(request, env) {
           return reply(request, env, { ok: true });
         }
         if (request.method === "DELETE" && id) {
-          await ensureOrteBesuche(env);
           const { results } = await env.DB.prepare("SELECT COUNT(*) AS n FROM orte WHERE category_id = ?").bind(id).all();
           if (results?.[0]?.n > 0) {
             return reply(request, env, { error: `Wird von ${results[0].n} Ort(en) genutzt` }, 409);
@@ -1595,6 +1377,23 @@ async function route(request, env) {
 
       /* ---- Benutzerverwaltung ---- alle Konten sehen dieselben Daten
        * (keine Trennung je Nutzer), nur Admins dürfen hier etwas ändern. */
+      // Full backup (database + photos) as one download — admins only.
+      if (seg[1] === "backup" && request.method === "GET") {
+        await ensureUserAdmin(env);
+        if (!(await istAdmin(env, sitzung.userId))) {
+          return reply(request, env, { error: "nur für Admins" }, 403);
+        }
+        if (typeof env.BACKUP !== "function") return reply(request, env, { error: "Backup ist hier nicht eingerichtet" }, 501);
+        const { data, filename } = await env.BACKUP();
+        return new Response(data, {
+          headers: {
+            "content-type": "application/gzip",
+            "content-disposition": `attachment; filename="${filename}"`,
+            "cache-control": "no-store",
+          },
+        });
+      }
+
       if (seg[1] === "users") {
         await ensureUserAdmin(env);
         if (!(await istAdmin(env, sitzung.userId))) {

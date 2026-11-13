@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handle } from "../router.js";
 import { D1Memory } from "./helpers/d1-memory.js";
+import { readFileSync } from "node:fs";
+import { migrate } from "../../db/migrate.js";
 
 function makeEnv(extra = {}) {
   return { DB: new D1Memory(), ...extra };
@@ -1191,7 +1193,7 @@ test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur
   assert.equal(nurKarteFoto.status, 403);
 });
 
-test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id wird einmalig nachgerüstet", async (t) => {
+test("API-Integration: Tagebuch — an existing database without photos.tagebuch_id is upgraded on start", async (t) => {
   const env = makeEnv({ PHOTOS: fotoSpeicher() });
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.43" };
@@ -1210,7 +1212,12 @@ test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id
   env.DB.db.exec("INSERT INTO photos (id, besuch_id, r2_key) VALUES ('altes-foto', 'besuch-alt', 'fotos/altes-foto.jpg')");
   env.DB.db.exec("PRAGMA foreign_keys = ON");
 
-  // Der erste Zugriff auf das Tagebuch rüstet nach — das alte Foto bleibt erhalten.
+  // Container restart on the old database: schema, then migrations. The old photo stays.
+  env.DB.db.exec("PRAGMA user_version = 0");
+  const schemaSql = readFileSync(new URL("../../db/schema.sql", import.meta.url), "utf8");
+  env.DB.db.exec(schemaSql);
+  assert.deepEqual(migrate(env.DB.db, { schemaSql }), [1]);
+  assert.deepEqual(migrate(env.DB.db, { schemaSql }), []); // a second start changes nothing
   const liste = await a("GET", "/api/tagebuch", { cookie });
   assert.equal(liste.status, 200);
   assert.deepEqual(liste.data, []);
@@ -1221,7 +1228,6 @@ test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id
 
   const eintrag = await a("PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-alt", day_key: "2026-07-13", blocks: [] } });
   assert.equal(eintrag.status, 201);
-  // Zweiter Aufruf der Nachrüstung ist harmlos (idempotent).
   assert.equal((await a("GET", "/api/tagebuch", { cookie })).data.length, 1);
 });
 
@@ -1257,4 +1263,27 @@ test("/api/route?stand=1 returns only the count and the newest point of the rang
   const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, { cookie: setup.cookie, headers: ip });
   assert.equal(kompakt.data.total, 12);
   assert.equal(kompakt.data.lastAt, start + 11_000);
+});
+
+test("/api/backup: admins get the archive, others 403, without a backup function 501", async (t) => {
+  const env = makeEnv({ BACKUP: async () => ({ data: Buffer.from("gz"), filename: "vojago-backup-2026-11-13.tar.gz" }) });
+  t.after(() => env.DB.close());
+  const ip = { "cf-connecting-ip": "203.0.113.73" };
+  const admin = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const ok = await api(env, "GET", "/api/backup", { cookie: admin.cookie, headers: ip });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.response.headers.get("content-type"), "application/gzip");
+  assert.match(ok.response.headers.get("content-disposition"), /vojago-backup-2026-11-13\.tar\.gz/);
+
+  await api(env, "POST", "/api/users", { cookie: admin.cookie, headers: ip, body: { username: "gast", password: "langgenug2", isAdmin: false } });
+  const gast = await api(env, "POST", "/api/auth/login", { headers: ip, body: { username: "gast", password: "langgenug2" } });
+  assert.equal((await api(env, "GET", "/api/backup", { cookie: gast.cookie, headers: ip })).status, 403);
+
+  const ohne = makeEnv();
+  t.after(() => ohne.DB.close());
+  const a2 = await api(ohne, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  assert.equal((await api(ohne, "GET", "/api/backup", { cookie: a2.cookie, headers: ip })).status, 501);
+
+  const anonym = await api(env, "GET", "/api/backup", { headers: ip });
+  assert.equal(anonym.status, 401);
 });

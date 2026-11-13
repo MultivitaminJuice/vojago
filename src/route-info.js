@@ -8,7 +8,9 @@ export function routenInfoZeilen({ erfolg, fehler, zwischenspeicher } = {}, uhr 
     zeilen.push(["Zuletzt aktualisiert", uhr(erfolg.zeit)]);
     zeilen.push(["Art", erfolg.art === "nur Neues"
       ? `nur Neues (+${erfolg.neuePunkte} Punkte)`
-      : `komplett (${erfolg.empfangen} Punkte)`]);
+      : erfolg.art === "unverändert"
+        ? "geprüft, unverändert"
+        : `komplett (${erfolg.empfangen} Punkte)`]);
     zeilen.push(["Punkte insgesamt", String(erfolg.gesamt)]);
     zeilen.push(["Dauer", `${(erfolg.dauerMs / 1000).toFixed(1)} s${erfolg.hintergrund ? " (im Hintergrund)" : ""}`]);
   } else {

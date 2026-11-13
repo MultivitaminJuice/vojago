@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { migrate } from "../../../db/migrate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const schema = readFileSync(resolve(__dirname, "../../../db/schema.sql"), "utf8");
@@ -11,6 +12,7 @@ export class D1Memory {
     this.db = new DatabaseSync(":memory:");
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(schema);
+    migrate(this.db, { schemaSql: schema });
   }
 
   prepare(sql) {

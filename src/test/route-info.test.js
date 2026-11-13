@@ -34,3 +34,8 @@ test("routenInfoZeilen: ein Fehlversuch nach dem letzten Erfolg wird gezeigt, ei
   const nurFehler = routenInfoZeilen({ fehler: { zeit: 1, fehler: "x", inFolge: 1 } }, uhr);
   assert.equal(nurFehler.at(-1)[1], "t1 — x");
 });
+
+test("routenInfoZeilen: a finished trip that was only checked", () => {
+  const zeilen = routenInfoZeilen({ erfolg: { zeit: 0, art: "unverändert", empfangen: 0, neuePunkte: 0, gesamt: 18979, dauerMs: 11 } }, () => "10:00:00");
+  assert.deepEqual(zeilen[1], ["Art", "geprüft, unverändert"]);
+});

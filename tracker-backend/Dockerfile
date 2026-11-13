@@ -33,7 +33,7 @@ WORKDIR /app
 COPY tracker-backend/package.json ./tracker-backend/package.json
 RUN cd tracker-backend && npm install --omit=dev
 
-COPY tracker-backend/schema.sql ./tracker-backend/schema.sql
+COPY db ./db
 COPY tracker-backend/src ./tracker-backend/src
 COPY api/lib.js ./api/lib.js
 COPY src/overnight-rules.js ./src/overnight-rules.js

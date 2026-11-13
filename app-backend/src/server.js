@@ -13,6 +13,7 @@ import { handle } from "../../api/router.js";
 import { D1Shim } from "./d1-shim.js";
 import { R2Shim } from "./r2-shim.js";
 import { createStaticHandler } from "./static.js";
+import { createBackup } from "./backup.js";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.APP_HTTP_PORT || 8080);
@@ -35,6 +36,7 @@ function buildEnv() {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     MAIL_FROM: process.env.MAIL_FROM,
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+    BACKUP: () => createBackup({ db: db.db, photosDir: FOTOS_PFAD }),
   };
 }
 

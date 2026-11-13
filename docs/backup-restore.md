@@ -1,76 +1,87 @@
-# Backup & Restore
+# Backup and restore
 
-Ein tatsächlich einmal
-durchgespielter Weg zurück, nicht nur eine theoretische Datenbankstruktur.
+Everything VOJAĜO knows lives in one Docker volume (`vojago-data`):
 
-## D1 (Reisen, Orte, Notizen, Fotos-Metadaten, Konten, …) — getestet ✅
+- `vojago.db` — the SQLite database shared by both containers: trips, places,
+  visits, notes, the diary, accounts and sessions, guard settings, and every
+  recorded position.
+- `fotos/` — the photo files. The database only holds their metadata.
 
-**16. August 2026 einmal real durchgeführt:** Export der Produktivdatenbank,
-Import in eine frische Test-Datenbank, alle 17 Tabellen per Zeilenzahl
-verglichen (Treffer) und eine Reise (`trips`) inhaltlich Feld für Feld
-verglichen (Treffer). Test-Datenbank und lokale Exportdatei danach wieder
-gelöscht — dieses Dokument ist der bleibende Nachweis, keine Kopie der Daten.
+A backup needs both, taken at the same moment.
 
-### Backup erstellen
+## Download a backup from the app
 
-```bash
-npx wrangler d1 export vojago --remote --output=vojago-backup.sql
-```
+Admins find **Backup → Backup herunterladen** under *More → Status*. It
+downloads one file, `vojago-backup-YYYY-MM-DD.tar.gz`, with:
 
-**Achtung:** Wrangler weist selbst darauf hin, dass die Datenbank während des
-Exports kurz keine Anfragen bedienen kann — am besten zu einer Zeit
-durchführen, in der gerade niemand unterwegs ist bzw. die App aktiv nutzt.
-Bei der aktuellen Datenmenge (~15 KB Exportgröße, Stand 16. August 2026) war
-das im Test in Sekunden durch.
+| File | Content |
+|---|---|
+| `manifest.json` | format version, time of the backup, row counts of the main tables, number of photos |
+| `vojago.db` | a consistent copy of the database (SQLite online backup, safe while the ingest keeps writing) |
+| `fotos/…` | all photo files |
 
-Die erzeugte `.sql`-Datei enthält **alle** Klartextinhalte inklusive
-Passwort-Hashes und Sitzungs-Hashes (nicht die Klartext-Passwörter selbst,
-aber trotzdem sensibel) — nicht unverschlüsselt liegen lassen oder ins Repo
-committen. Nach jedem Test/Restore wieder löschen, ein „echtes" Backup gehört
-an einen selbst gewählten, sicheren Ort außerhalb dieses Rechners.
+You decide where to keep it (another disk, a NAS, a cloud drive). The file is
+sensitive: it holds every position, the diary, e-mail addresses, password
+hashes and session hashes. Store it where only you can read it.
 
-### Restore prüfen (in eine Wegwerf-Datenbank, nicht in die echte!)
+The download is built in memory on the server; with a few hundred thousand
+positions it is around 10 MB and takes about a second.
 
-```bash
-npx wrangler d1 create vojago-restore-test
-npx wrangler d1 execute vojago-restore-test --remote --file=vojago-backup.sql
+## Restore
 
-# Stichprobe je Tabelle, z. B.:
-npx wrangler d1 execute vojago-restore-test --remote \
-  --command "SELECT COUNT(*) FROM trips"
+1. Unpack the archive somewhere on the server:
 
-# Aufräumen:
-npx wrangler d1 delete vojago-restore-test
-rm vojago-backup.sql
-```
+   ```bash
+   mkdir restore && tar -xzf vojago-backup-YYYY-MM-DD.tar.gz -C restore
+   cat restore/manifest.json
+   ```
 
-**In eine echte Wiederherstellung** (Produktivdatenbank tatsächlich
-überschreiben) würde man `vojago-backup.sql` stattdessen gegen die echte
-`vojago`-Datenbank ausführen — das war hier bewusst **nicht** Teil des Tests,
-das bleibt ein Schritt mit echtem Risiko, kein Automatismus.
+2. Stop both containers, so nothing writes to the database:
 
-## R2 (Foto-Dateien) — **noch nicht abgedeckt** ⚠️
+   ```bash
+   docker compose stop app ingest
+   ```
 
-Der D1-Export sichert nur die **Metadaten** eines Fotos (`photos`-Tabelle:
-wer, wann, wo, `r2_key`) — nicht die eigentliche Bilddatei im Bucket
-`vojago-fotos`. Ein D1-Restore ohne begleitendes R2-Backup hätte
-„Foto-Datensätze, die auf nichts mehr zeigen" zur Folge.
+3. Put the database and photos into the volume. This replaces the current
+   data; take a backup of the current state first if it might still be needed.
 
-**Noch offen:** R2 hat kein eingebautes Snapshot/Restore wie D1. Optionen für
-später: `rclone` gegen den S3-kompatiblen R2-Endpunkt spiegeln, oder R2
-Object Lifecycle/Versionierung aktivieren. Bisher nur eine Handvoll Fotos im
-Bestand (Stand 16. August 2026) — Dringlichkeit steigt mit der Foto-Menge.
+   ```bash
+   docker run --rm -v vojago-data:/data -v "$PWD/restore":/restore alpine sh -c \
+     'rm -f /data/vojago.db /data/vojago.db-wal /data/vojago.db-shm \
+      && cp /restore/vojago.db /data/vojago.db \
+      && rm -rf /data/fotos && cp -r /restore/fotos /data/fotos'
+   ```
 
-## Self-hosted stack (SQLite volume)
+   Remove the `-wal` and `-shm` files together with the old database: they
+   belong to it and must not be applied to the restored one.
 
-Both containers share one SQLite file (WAL mode) in the Docker volume
-`vojago-data` (`/data/vojago.db`), photos live next to it. Back up with a
-consistent snapshot rather than copying the live file:
+4. Start the containers again:
+
+   ```bash
+   docker compose start ingest app
+   ```
+
+   On start, both containers bring the restored database up to the current
+   schema version (see [Schema and migrations](concept.md#schema-and-migrations)),
+   so a backup from an older release can be restored into a newer one.
+
+## Restore drill
+
+`app-backend/src/backup.test.js` runs a restore drill on every CI run: it
+creates a database with a trip, a position and a photo, builds the backup,
+unpacks it with the standard `tar` tool and checks rows and photo bytes. A
+manual drill against real data (all 24 tables with identical row counts,
+`PRAGMA integrity_check` ok) was done before the feature was released.
+
+## Backup without the app
+
+On the server, a consistent copy can also be taken directly:
 
 ```bash
 docker exec vojago-ingest node -e "import('/app/tracker-backend/src/store.js').then(async ({db}) => { await db.backup('/data/vojago.db.bak-' + Date.now()); process.exit(0); })"
 ```
 
-and copy the volume (database snapshot plus `fotos/`) to another machine, e.g.
+That copy stays in the same volume, so it protects against mistakes but not
+against losing the disk. Copy it off the server, together with `fotos/`, for
+example with
 `docker run --rm -v vojago-data:/data -v $PWD:/backup alpine tar czf /backup/vojago-data.tar.gz /data`.
-Restore by extracting into an empty volume and starting the stack.

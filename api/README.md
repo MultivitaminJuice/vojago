@@ -3,9 +3,8 @@
 `router.js` is a Fetch-API router (no web framework) that implements the REST
 API under `/api/*`; `lib.js` holds the testable building blocks (validation,
 auth helpers, drive/stop segmentation, geocoding/weather helpers). The same
-code runs in the self-hosted `app` container (`app-backend/`, through thin
-D1/R2 shims on SQLite and the file system) and, historically, as a Cloudflare
-Pages Function.
+code runs in the self-hosted `app` container (`app-backend/`), which hands it
+the SQLite database, the photo directory and the backup function.
 
 Authentication is the app's own: password hashing, `HttpOnly`+`Secure`+
 `SameSite` session cookie, login rate limiting. All private routes expect a
@@ -17,13 +16,14 @@ logged in.
 | Area | Routes |
 |---|---|
 | Auth | `/api/auth/*` — session state, first-account setup, login, logout, password, e-mail verification and reset |
-| Positions | `/api/positions`, `/api/route`, `/api/stops`, `/api/drives`, `/api/devices` — read from the own `positions` table, drives/stops segmented on the server |
+| Positions | `/api/positions`, `/api/route`, `/api/stops`, `/api/drives`, `/api/devices` — read from the own `positions` table, drives/stops segmented on the server. `/api/route?compact=1` returns the route thinned and as arrays, `/api/route?stand=1` only the point count and the newest point |
 | Trips | `/api/trips`, `/api/drive-assignments`, `/api/shares` (read-only sharing links) |
 | Places | `/api/orte`, `/api/besuche`, `/api/categories`, `/api/ignored-stops`, `/api/notes`, `/api/photos` |
 | Vehicles & settings | `/api/vehicles`, `/api/settings`, `/api/ingest/*` (learning mode, known devices) |
 | Guard | `/api/geofences`, `/api/alarms`, `/api/alarms/log`, `/api/push-*` |
 | Helpers | `/api/geocode` (place names), `/api/weather` |
 | Users | `/api/users` — admin only |
+| Backup | `/api/backup` — admin only, downloads database and photos as `.tar.gz` |
 
 See `router.js` for the exact routes, parameters and validation.
 
@@ -38,7 +38,9 @@ See `router.js` for the exact routes, parameters and validation.
 
 ## Database
 
-The full schema is `db/schema.sql` (used by both containers and by the tests).
+The full schema is `db/schema.sql`, used by both containers and by the tests.
+Changes to existing databases are numbered migrations in `db/migrate.js`; they
+run when a container starts. The router itself never alters tables.
 
 ## Run the checks
 
