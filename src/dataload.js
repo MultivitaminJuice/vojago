@@ -7,7 +7,7 @@ import {
   positions as fetchPositions, drives as fetchDrives, loadSettings, listDriveAssignments,
   cacheDriveWeather, weather as fetchWeather,
 } from "./api.js";
-import { pathLengthKm, elevationRange, glaetteStandRauschen } from "./geo.js";
+import { pathLengthKm, elevationRange, smoothStandingNoise } from "./geo.js";
 import { debugLog } from "./debug.js";
 import { parseBlocks } from "./diary.js";
 import { renumberPathByTripStart } from "./day-utils.js";
@@ -292,7 +292,7 @@ function parseWeather(roh) {
 
 /** Positionen des Servers in Routenpunkte übersetzen (Knoten → km/h). */
 export function positionsToPath(positions) {
-  const waypoints = glaetteStandRauschen(positions
+  const waypoints = smoothStandingNoise(positions
     .filter((p) => Number.isFinite(p.longitude) && Number.isFinite(p.latitude))
     .map((p) => ({
       lon: p.longitude,
@@ -304,7 +304,7 @@ export function positionsToPath(positions) {
   if (waypoints.length < 2) return [];
 
   // Reihenfolge/Anzahl der Punkte bleibt unangetastet — nur GPS-Rauschen im
-  // Stand wird auf einen Anker gezogen (glaetteStandRauschen, src/geo.js),
+  // Stand wird auf einen Anker gezogen (smoothStandingNoise, src/geo.js),
   // echte Bewegung bleibt die echte Spur wie eh und je. Die gespeicherten
   // Rohdaten in der Datenbank sind davon ohnehin nicht betroffen.
   let day = 1;

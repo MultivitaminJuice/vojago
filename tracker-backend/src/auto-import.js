@@ -29,7 +29,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./store.js";
 import { segmentStops, holeOrtsname, holeWetter } from "../../api/lib.js";
-import { entscheideStandKategorie } from "../../src/overnight-rules.js";
+import { classifyStand } from "../../src/overnight-rules.js";
 
 const TAGE_RUECKBLICK = 30;
 // Dieselben Schwellen wie im Frontend (src/dataload.js) — bewusst nicht
@@ -100,7 +100,7 @@ function bewerteStopp(stopp) {
     const reiseEnde = Date.parse(reise.end_at);
     if (Number.isFinite(reiseEnde) && Date.parse(endeIso) > reiseEnde) endeIso = new Date(reiseEnde).toISOString();
   }
-  const entscheidung = entscheideStandKategorie(stopp.startTime, endeIso);
+  const entscheidung = classifyStand(stopp.startTime, endeIso);
   const kategorie = entscheidung && !(!reise && entscheidung.catId === "uebernachtung") ? entscheidung.catId : null;
   return { reise, endeIso, kategorie };
 }
@@ -185,13 +185,13 @@ const MAX_OFFENER_STAND_TAGE = 7;
 /** Wann ändert sich die Einstufung eines noch laufenden Stands das nächste
  * Mal (nichts → Stopp → Übernachtung, danach: die nächste Mitternacht, weil
  * dann die Nächte-Zahl steigt)? Sucht das anhand derselben Regeln wie die
- * Entscheidung selbst (entscheideStandKategorie), statt deren Schwellen hier
+ * Entscheidung selbst (classifyStand), statt deren Schwellen hier
  * ein zweites Mal nachzubauen. null = ändert sich in den nächsten 48 Stunden
  * nicht mehr. */
 export function naechsterSchwellenzeitpunkt(startIso, jetztMs) {
   const start = Date.parse(startIso);
   if (!Number.isFinite(start)) return null;
-  const kategorie = (ms) => entscheideStandKategorie(startIso, new Date(ms).toISOString())?.catId ?? null;
+  const kategorie = (ms) => classifyStand(startIso, new Date(ms).toISOString())?.catId ?? null;
   const aktuell = kategorie(jetztMs);
   if (aktuell === "uebernachtung") {
     const mitternacht = new Date(jetztMs);

@@ -7,12 +7,12 @@
 const gl = () => window.maplibregl;
 import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, vereinfache, routenTreffer, gleicheStelle, meterProPixel } from "./geo.js";
+import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, simplify, routeHits, sameSpot, metersPerPixel } from "./geo.js";
 import { CARTO_KEY, kachelPaint, kachelUrl, gueltigerKartenstil, schummerungPaint, HOEHEN_KACHELN, HOEHEN_QUELLE } from "./map-style.js";
 import { routenSignatur } from "./map-signature.js";
 import { findRepeatedStretches, lineWidth } from "./overlap.js";
 import { findGaps, distanceToSegment, durationText } from "./gaps.js";
-import { tippEintraege, naechsterTreffer } from "./route-tip.js";
+import { tipEntries, nearestHit } from "./route-tip.js";
 import { el, clear, $ } from "./dom.js";
 import { debugLog } from "./debug.js";
 import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility.js";
@@ -165,19 +165,19 @@ function onMapClick(e) {
   schliesseRoutenTipp();
   if (!tippPfad.length) return;
   const { lng, lat } = e.lngLat;
-  const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * meterProPixel(map.getZoom(), lat));
+  const toleranz = Math.max(TIPP_MIN_M, TIPP_TOLERANZ_PX * metersPerPixel(map.getZoom(), lat));
   // Wurde dieselbe Strecke mehrfach befahren (Hin- und Rückweg), gibt es mehrere
   // Durchfahrten an der Stelle — alle werden gezeigt, nicht nur die nächste.
   // Bei weitem Zoom nur die, die real an derselben Stelle liegen (sonst Treffer aus Kilometern Umkreis).
-  const treffer = gleicheStelle(routenTreffer(tippPfad, lng, lat, toleranz));
+  const treffer = sameSpot(routeHits(tippPfad, lng, lat, toleranz));
   if (!treffer.length) { zeigeLueckenTipp(lng, lat, toleranz); return; }
-  const anker = naechsterTreffer(treffer).punkt;
-  const { eintraege, weitere } = tippEintraege(treffer);
+  const anker = nearestHit(treffer).point;
+  const { entries: eintraege, more: weitere } = tipEntries(treffer);
   const inhalt = el("div.rt-liste", {}, [
     ...eintraege.map((eintrag) => el("div.rt", {}, [
-      ...(eintrag.titel ? [el("small", { text: eintrag.titel })] : []),
-      el("b", { text: eintrag.kopf }),
-      el("div", { text: eintrag.werte }),
+      ...(eintrag.title ? [el("small", { text: eintrag.title })] : []),
+      el("b", { text: eintrag.heading }),
+      el("div", { text: eintrag.values }),
     ])),
     ...(weitere ? [el("small.rt-mehr", { text: `+ ${weitere} weitere` })] : []),
   ]);
@@ -187,7 +187,7 @@ function onMapClick(e) {
     .setDOMContent(inhalt)
     .addTo(map);
   tippPopup.on("close", () => { tippPunkt?.remove(); tippPunkt = null; });
-  debugLog("map.route-tip", { durchfahrten: treffer.length, abstandM: Math.round(naechsterTreffer(treffer).abstandM) });
+  debugLog("map.route-tip", { durchfahrten: treffer.length, abstandM: Math.round(nearestHit(treffer).distanceM) });
 }
 
 /** Tipp auf eine Datenlücke (die gestrichelte Verbindungslinie): sagt, dass dort nichts gemessen wurde. */
@@ -225,16 +225,16 @@ function visibleRouteForMap(t) {
   // passt nicht zu den Zeitspannen der Fahrten (kurze Fahrten hätten gar keine
   // Punkte mehr) — bis ein echter Abruf gelang, ohne Fahrtenfilter zeigen.
   const segments = realTrip && !t.pathGrob
-    ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { offenesEnde: Boolean(t.live) })
+    ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { openEnd: Boolean(t.live) })
     : visibleRouteSegments(t.path || [], [], t?.id, "alle");
   return { segments, path: segments.flat() };
 }
 
-// Zeichnen mit vereinfachter Linie (siehe vereinfache() in geo.js): Zehntausende
+// Zeichnen mit vereinfachter Linie (see simplify() in geo.js): Zehntausende
 // Punkte je Linie überfordern die Grafik von Handys. Statistik, Marker und
 // Legende rechnen weiter mit dem vollen Pfad (`path`).
 const ZEICHEN_TOLERANZ_M = 3;
-const fursZeichnen = (segments) => segments.map((s) => vereinfache(s, ZEICHEN_TOLERANZ_M));
+const fursZeichnen = (segments) => segments.map((s) => simplify(s, ZEICHEN_TOLERANZ_M));
 
 function routeDataFromSegments(segments) {
   return {

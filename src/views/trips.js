@@ -395,7 +395,7 @@ function tripForRouteFilter(t) {
   // Wie die Karte: bei laufender Reise bleibt das Ende nach der letzten bekannten Fahrt sichtbar,
   // ein grober Zwischenspeicher-Pfad wird nicht nach Fahrten gefiltert.
   if (t.pathGrob) return t;
-  return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), { offenesEnde: Boolean(t.live) }) };
+  return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), { openEnd: Boolean(t.live) }) };
 }
 
 function routeDrives(t) {
