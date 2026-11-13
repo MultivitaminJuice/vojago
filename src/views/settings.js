@@ -1,4 +1,5 @@
-// Ansicht „Einstellungen": Fahrzeuge, Kategorien, Backend-Verbindung.
+// The "Einstellungen" (settings) view: vehicles, categories, connection, accounts,
+// sharing links. UI texts stay German.
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { applyTheme, validTheme } from "../theme.js";
 import { routeInfoRows } from "../route-info.js";
@@ -22,36 +23,35 @@ let newCatColor = CAT_COLORS[0];
 let onCategoriesChanged = () => {};
 let onSourceChanged = () => {};
 
-// N10: bekannte Geräte fürs Zuordnen zu einem Fahrzeug — bei Traccar dessen
-// Geräteliste, im Selbst-Hosting-Betrieb die Geräte, die schon einmal an
-// die eigene positions-Tabelle gesendet haben.
-// Einmal pro Aufruf der Fahrzeuge-Ansicht geladen, nicht bei jedem Tastendruck.
-let bekannteGeraete = [];
+// Known devices for assigning one to a vehicle: the devices that have sent to
+// the positions table at least once. Loaded once per opening of the vehicles
+// view, not on every key press.
+let knownDevices = [];
 let ingestInfo = null;
-async function ladeBekannteGeraete() {
-  if (!isCentral()) { bekannteGeraete = []; return; }
-  try { bekannteGeraete = (await fetchDevices()) || []; }
-  catch { bekannteGeraete = []; } // z. B. noch kein Gerät je gesehen — kein Fehler wert
+async function loadKnownDevices() {
+  if (!isCentral()) { knownDevices = []; return; }
+  try { knownDevices = (await fetchDevices()) || []; }
+  catch { knownDevices = []; } // e.g. no device seen yet — not worth an error
 }
 
-async function ladeIngestInfo() {
+async function loadIngestInfo() {
   if (!isCentral() || !state.account?.isAdmin) { ingestInfo = null; return; }
   try { ingestInfo = await ingestStatus(); }
   catch { ingestInfo = null; }
 }
 
 /**
- * Im verbundenen Betrieb gehören Kategorien und Fahrzeuge in die Datenbank —
- * sonst sähe jedes Gerät etwas anderes. Nur mit Beispieldaten (oder wenn die
- * API gerade nicht erreichbar ist) wird lokal gesichert.
+ * When connected, categories and vehicles belong in the database — otherwise
+ * every device would see something else. Only with demo data (or while the API
+ * is unreachable) are they kept locally.
  */
 const isCentral = () => !state.config.demo && isConfigured();
 
-async function sichern(aufgabe) {
-  saveLocalData(); // immer auch lokal, damit offline nichts verloren geht
+async function persist(task) {
+  saveLocalData(); // always locally too, so nothing is lost offline
   if (!isCentral()) return true;
   try {
-    await aufgabe();
+    await task();
     await storeSettings(collectPreferences()).catch(() => {});
     return true;
   } catch (err) {
@@ -61,35 +61,34 @@ async function sichern(aufgabe) {
 }
 
 /**
- * Den Konto-Bereich neu zeichnen. Nötig, weil die Einstellungen beim Start
- * aufgebaut werden, die Anmeldeprüfung aber erst danach antwortet — sonst
- * stünde dort dauerhaft "Nicht angemeldet".
+ * Redraw the account area. Needed because the settings are built on start but
+ * the sign-in check answers only afterwards — otherwise it would show "Nicht
+ * angemeldet" for good.
  */
 export function refreshAccountState() {
   showConnection(null);
   applyConfigToForm();
   renderEmailStatus();
   renderSharesList();
-  // Verwaltung (Fahrzeuge, Kategorien, Verbindungsstatus, lokale Daten,
-  // Nutzer) ist bewusst nur für Admins sichtbar — alle Konten sehen zwar
-  // dieselben Reisen/Orte, aber nur Admins sollen an der gemeinsamen
-  // Konfiguration schrauben können.
-  const istAdmin = Boolean(state.account?.isAdmin);
+  // Management (vehicles, categories, connection, local data, users) is only
+  // visible to admins on purpose — all accounts see the same trips and places,
+  // but only admins should change the shared configuration.
+  const isAdmin = Boolean(state.account?.isAdmin);
   for (const id of ["vehicles-group", "categories-group", "connection-group", "ingest-group", "backup-group", "local-data-group", "users-group"]) {
-    const gruppe = $(`#${id}`);
-    if (gruppe) gruppe.hidden = !istAdmin;
+    const group = $(`#${id}`);
+    if (group) group.hidden = !isAdmin;
   }
-  if (istAdmin) {
+  if (isAdmin) {
     renderUsersList();
-    // Nicht blockierend — die Zeile zeigt sich schon, bekannte Geräte
-    // tröpfeln als Vorschlagsliste nach, sobald sie da sind.
-    ladeBekannteGeraete().then(renderVehicles);
-    ladeIngestInfo().then(renderIngestControls);
+    // Not blocking — the row is already shown, known devices trickle in as
+    // suggestions once they arrive.
+    loadKnownDevices().then(renderVehicles);
+    loadIngestInfo().then(renderIngestControls);
   }
 }
 
-/** Zeigt, ob eine E-Mail hinterlegt und bestätigt ist — beides zusammen ist
- * Voraussetzung für "Passwort vergessen". */
+/** Shows whether an e-mail address is stored and confirmed — both are needed
+ * for "Passwort vergessen". */
 function renderEmailStatus() {
   const status = $("#cfg-email-status");
   const btn = $("#cfg-email-btn");
@@ -105,27 +104,26 @@ function renderEmailStatus() {
   btn.textContent = email ? "Ändern" : "Hinterlegen";
 }
 
-/** Liste bestehender Freigabe-Links — Name der Reise (oder "Alle Reisen"),
- * Umfang, Ablauf, letzter Zugriff, Widerrufen-Knopf. Nur sinnvoll im
- * verbundenen Betrieb (ohne echte Reisen gibt es nichts zu teilen). */
+/** List of existing sharing links — trip name (or "Alle Reisen"), scope, expiry,
+ * last access, revoke button. Only useful when connected. */
 async function renderSharesList() {
   const box = $("#shares-list");
   if (!box) return;
   if (!isCentral()) { render(box, [el("p.sub", { text: "Anmelden, um Reisen zu teilen." })]); return; }
   let shares = [];
   try { shares = await listShares(); } catch { render(box, [el("p.sub", { text: "Freigaben konnten nicht geladen werden." })]); return; }
-  // Widerrufene Links bleiben in der Datenbank (Nachvollziehbarkeit), aber
-  // nicht in dieser Liste — dort wären sie nur totes Gewicht.
+  // Revoked links stay in the database (traceability) but not in this list —
+  // there they would only be dead weight.
   shares = shares.filter((s) => !s.revoked_at);
   if (!shares.length) { render(box, [el("p.sub", { text: "Noch keine Freigabe erstellt." })]); return; }
   render(box, shares.map((s) => {
-    const ziel = s.trip_id ? (s.trip_name || "gelöschte Reise") : "Alle Reisen";
-    const ablauf = s.expires_at ? `bis ${new Date(s.expires_at).toLocaleDateString("de-DE")}` : "kein Ablauf";
-    const umfang = s.scope === "karte_logbuch" ? "Karte + Logbuch" : "Nur Karte";
+    const target = s.trip_id ? (s.trip_name || "gelöschte Reise") : "Alle Reisen";
+    const expiry = s.expires_at ? `bis ${new Date(s.expires_at).toLocaleDateString("de-DE")}` : "kein Ablauf";
+    const scopeLabel = s.scope === "karte_logbuch" ? "Karte + Logbuch" : "Nur Karte";
     return el("div.set-row", {}, [
       el("div.si", {}, [
-        el("b", { text: s.label ? `${s.label} · ${ziel}` : ziel }),
-        el("div", { text: `${umfang} · ${ablauf} · ${s.view_count || 0}× geöffnet` }),
+        el("b", { text: s.label ? `${s.label} · ${target}` : target }),
+        el("div", { text: `${scopeLabel} · ${expiry} · ${s.view_count || 0}× geöffnet` }),
       ]),
       !s.token ? null : el("button.btn", {
         text: "Kopieren",
@@ -148,33 +146,33 @@ async function renderSharesList() {
   }));
 }
 
-function zeigeShareFormular(sichtbar) {
+function showShareForm(visible) {
   const panel = $("#share-panel");
   if (!panel) return;
-  panel.hidden = !sichtbar;
-  if (!sichtbar) return;
-  const auswahl = $("#share-trip");
-  auswahl.innerHTML = '<option value="">Alle Reisen</option>';
+  panel.hidden = !visible;
+  if (!visible) return;
+  const select = $("#share-trip");
+  select.innerHTML = '<option value="">Alle Reisen</option>';
   for (const t of state.trips) {
-    auswahl.appendChild(el("option", { value: t.id, text: t.name }));
+    select.appendChild(el("option", { value: t.id, text: t.name }));
   }
   $("#share-label").value = "";
 }
 
-async function shareErstellen() {
+async function createShareLink() {
   const btn = $("#share-create");
   btn.disabled = true;
   try {
     const tripId = $("#share-trip").value || undefined;
     const scope = $("#share-scope").value;
     const label = $("#share-label").value.trim() || undefined;
-    const tageRoh = $("#share-expiry").value;
-    const expiresInDays = tageRoh ? Number(tageRoh) : undefined;
+    const daysRaw = $("#share-expiry").value;
+    const expiresInDays = daysRaw ? Number(daysRaw) : undefined;
     const { token } = await createShare({ tripId, scope, label, expiresInDays });
     const link = `${location.origin}/share/${token}`;
     try { await navigator.clipboard.writeText(link); toast("Link erstellt und kopiert"); }
     catch { toast(`Link erstellt: ${link}`); }
-    zeigeShareFormular(false);
+    showShareForm(false);
     renderSharesList();
   } catch (err) {
     toast(err.message || "Link konnte nicht erstellt werden");
@@ -183,9 +181,9 @@ async function shareErstellen() {
   }
 }
 
-// Welche Zeile gerade ihr Passwort-Feld offen hat — höchstens eine
-// gleichzeitig, wie bei den anderen Formularen in dieser Ansicht.
-let offenePasswortZeile = null;
+// Which row has its password field open — at most one at a time, like the other
+// forms in this view.
+let openPasswordRow = null;
 
 async function renderUsersList() {
   const box = $("#users-list");
@@ -193,13 +191,13 @@ async function renderUsersList() {
   let users = [];
   try { users = await listUsers(); }
   catch { render(box, [el("p.sub", { text: "Nutzer konnten nicht geladen werden." })]); return; }
-  const eigeneId = users.find((u) => u.username === state.account?.username)?.id;
+  const ownId = users.find((u) => u.username === state.account?.username)?.id;
 
   render(box, users.map((u) => {
     const input = el("input.inline-name", { value: u.username });
     const save = el("button.name-save", { text: "✓" });
-    const pwOffen = offenePasswortZeile === u.id;
-    const zeile = el("div.set-row", {}, [
+    const passwordOpen = openPasswordRow === u.id;
+    const userRow = el("div.set-row", {}, [
       el("div.si", {}, [input, el("div", { text: u.isAdmin ? "Admin" : "Nutzer" })]),
       save,
       el("button.switch.sm", {
@@ -211,9 +209,9 @@ async function renderUsersList() {
       }),
       el("button.iconbtn", {
         title: "Passwort setzen",
-        on: { click: () => { offenePasswortZeile = pwOffen ? null : u.id; renderUsersList(); } },
+        on: { click: () => { openPasswordRow = passwordOpen ? null : u.id; renderUsersList(); } },
       }, icon(ICON.edit, 15)),
-      u.id === eigeneId ? null : el("button.iconbtn", {
+      u.id === ownId ? null : el("button.iconbtn", {
         title: "Löschen",
         on: { click: async () => {
           try { await deleteUser(u.id); toast("Nutzer gelöscht"); renderUsersList(); }
@@ -225,34 +223,34 @@ async function renderUsersList() {
       try { await updateUser(u.id, { username: value }); renderUsersList(); }
       catch (err) { toast(err.message || "Konnte nicht umbenannt werden"); renderUsersList(); }
     });
-    if (!pwOffen) return zeile;
+    if (!passwordOpen) return userRow;
     const pwInput = el("input", { type: "password", placeholder: "Neues Passwort (mind. 10 Zeichen)", autocomplete: "new-password" });
-    const pwSetzen = el("button.btn.primary", {
+    const setPassword = el("button.btn.primary", {
       text: "Setzen",
       on: { click: async () => {
         try {
           await updateUser(u.id, { password: pwInput.value });
-          offenePasswortZeile = null;
+          openPasswordRow = null;
           toast("Passwort gesetzt — die Sitzungen dieses Kontos wurden beendet");
           renderUsersList();
         } catch (err) { toast(err.message || "Passwort konnte nicht gesetzt werden"); }
       } },
     });
-    return el("div", {}, [zeile, el("div.set-row", {}, [el("div.si", {}, pwInput), pwSetzen])]);
+    return el("div", {}, [userRow, el("div.set-row", {}, [el("div.si", {}, pwInput), setPassword])]);
   }));
 }
 
-function zeigeUserFormular(sichtbar) {
+function showUserForm(visible) {
   const panel = $("#user-panel");
   if (!panel) return;
-  panel.hidden = !sichtbar;
-  if (!sichtbar) return;
+  panel.hidden = !visible;
+  if (!visible) return;
   $("#user-new-name").value = "";
   $("#user-new-pw").value = "";
   $("#user-new-admin").setAttribute("aria-checked", "false");
 }
 
-async function userErstellen() {
+async function createUserAccount() {
   const btn = $("#user-create");
   btn.disabled = true;
   try {
@@ -261,7 +259,7 @@ async function userErstellen() {
     const isAdmin = $("#user-new-admin").getAttribute("aria-checked") === "true";
     await createUser({ username, password, isAdmin });
     toast("Nutzer angelegt");
-    zeigeUserFormular(false);
+    showUserForm(false);
     renderUsersList();
   } catch (err) {
     toast(err.message || "Nutzer konnte nicht angelegt werden");
@@ -270,7 +268,7 @@ async function userErstellen() {
   }
 }
 
-/** Vorlieben ohne eigenen Datensatz (Anzeige, Ebenen) isCentral ablegen. */
+/** Store the preferences without their own record (display, layers) centrally. */
 export function syncPreferences() {
   saveLocalData();
   if (isCentral()) storeSettings(collectPreferences()).catch(() => {});
@@ -284,7 +282,7 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
     const id = `veh_${Date.now().toString(36)}`;
     state.vehicles.push({ id, name: "Neues Fahrzeug", device: "neu" });
     renderVehicles();
-    sichern(() => createVehicle({ id, name: "Neues Fahrzeug" }))
+    persist(() => createVehicle({ id, name: "Neues Fahrzeug" }))
       .then((ok) => ok && toast("Fahrzeug hinzugefügt – Name direkt antippen"));
   });
 
@@ -305,7 +303,7 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
     input.value = "";
     renderCategories();
     onCategoriesChanged();
-    sichern(() => createCategory({ id, name, color: newCatColor }))
+    persist(() => createCategory({ id, name, color: newCatColor }))
       .then((ok) => ok && toast("Kategorie hinzugefügt"));
   });
 
@@ -315,21 +313,21 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
     location.reload();
   });
 
-  $("#cfg-password").addEventListener("click", () => zeigePasswortFormular(true));
-  $("#pw-cancel").addEventListener("click", () => zeigePasswortFormular(false));
-  $("#pw-save").addEventListener("click", passwortSpeichern);
+  $("#cfg-password").addEventListener("click", () => showPasswordForm(true));
+  $("#pw-cancel").addEventListener("click", () => showPasswordForm(false));
+  $("#pw-save").addEventListener("click", savePassword);
 
-  $("#cfg-email-btn").addEventListener("click", () => zeigeEmailFormular(true));
-  $("#email-cancel").addEventListener("click", () => zeigeEmailFormular(false));
-  $("#email-save").addEventListener("click", emailSpeichern);
+  $("#cfg-email-btn").addEventListener("click", () => showEmailForm(true));
+  $("#email-cancel").addEventListener("click", () => showEmailForm(false));
+  $("#email-save").addEventListener("click", saveEmail);
 
-  $("#share-add").addEventListener("click", () => zeigeShareFormular(true));
-  $("#share-cancel").addEventListener("click", () => zeigeShareFormular(false));
-  $("#share-create").addEventListener("click", shareErstellen);
+  $("#share-add").addEventListener("click", () => showShareForm(true));
+  $("#share-cancel").addEventListener("click", () => showShareForm(false));
+  $("#share-create").addEventListener("click", createShareLink);
 
-  $("#user-add")?.addEventListener("click", () => zeigeUserFormular(true));
-  $("#user-cancel")?.addEventListener("click", () => zeigeUserFormular(false));
-  $("#user-create")?.addEventListener("click", userErstellen);
+  $("#user-add")?.addEventListener("click", () => showUserForm(true));
+  $("#user-cancel")?.addEventListener("click", () => showUserForm(false));
+  $("#user-create")?.addEventListener("click", createUserAccount);
   $("#user-new-admin")?.addEventListener("click", () => {
     const btn = $("#user-new-admin");
     btn.setAttribute("aria-checked", String(btn.getAttribute("aria-checked") !== "true"));
@@ -337,14 +335,14 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
 
   $("#cfg-test").addEventListener("click", testConnection);
   $("#ingest-learn")?.addEventListener("click", async () => {
-    const aktiv = Boolean(ingestInfo?.learningActive);
+    const learningActive = Boolean(ingestInfo?.learningActive);
     try {
-      ingestInfo = await setIngestLearning({ enabled: !aktiv, minutes: 10 });
-      await ladeBekannteGeraete();
-      await ladeIngestInfo();
+      ingestInfo = await setIngestLearning({ enabled: !learningActive, minutes: 10 });
+      await loadKnownDevices();
+      await loadIngestInfo();
       renderVehicles();
       renderIngestControls();
-      toast(aktiv ? "Lernmodus beendet" : "Lernmodus für 10 Minuten aktiv");
+      toast(learningActive ? "Lernmodus beendet" : "Lernmodus für 10 Minuten aktiv");
     } catch (err) {
       toast(err.message || "Lernmodus konnte nicht geändert werden");
     }
@@ -369,39 +367,39 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
     toast("Debug-Log geleert");
   });
 
-  const zeigeTheme = () => {
-    const aktuell = validTheme(state.config.theme);
-    $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeWahl === aktuell)));
+  const showTheme = () => {
+    const current = validTheme(state.config.theme);
+    $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeWahl === current)));
   };
   $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.addEventListener("click", () => {
     state.config.theme = validTheme(b.dataset.themeWahl);
     applyTheme(state.config.theme);
     saveConfig();
-    zeigeTheme();
+    showTheme();
   }));
-  zeigeTheme();
+  showTheme();
 
-  const zeigeKartenstil = () => {
-    const aktuell = validMapStyle(state.config.mapStyle);
-    $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === aktuell)));
+  const showMapStyle = () => {
+    const current = validMapStyle(state.config.mapStyle);
+    $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === current)));
   };
   $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.addEventListener("click", () => {
     state.config.mapStyle = validMapStyle(b.dataset.kartenstilWahl);
     saveConfig();
     mapview.setMapStyle(state.config.mapStyle);
-    zeigeKartenstil();
+    showMapStyle();
   }));
-  zeigeKartenstil();
+  showMapStyle();
 
-  const lueckenSwitch = $("#cfg-luecken");
-  if (lueckenSwitch) {
-    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.markGaps)));
-    lueckenSwitch.addEventListener("click", () => {
-      const an = lueckenSwitch.getAttribute("aria-checked") !== "true";
-      lueckenSwitch.setAttribute("aria-checked", String(an));
-      state.config.markGaps = an;
+  const gapsSwitch = $("#cfg-luecken");
+  if (gapsSwitch) {
+    gapsSwitch.setAttribute("aria-checked", String(Boolean(state.config.markGaps)));
+    gapsSwitch.addEventListener("click", () => {
+      const enabled = gapsSwitch.getAttribute("aria-checked") !== "true";
+      gapsSwitch.setAttribute("aria-checked", String(enabled));
+      state.config.markGaps = enabled;
       saveConfig();
-      mapview.setGaps(an);
+      mapview.setGaps(enabled);
     });
   }
 
@@ -437,10 +435,10 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   applyConfigToForm();
 }
 
-function zeigePasswortFormular(sichtbar) {
+function showPasswordForm(visible) {
   const panel = $("#password-panel");
-  panel.hidden = !sichtbar;
-  if (!sichtbar) {
+  panel.hidden = !visible;
+  if (!visible) {
     $("#pw-old").value = "";
     $("#pw-new").value = "";
     $("#pw-repeat").value = "";
@@ -449,20 +447,20 @@ function zeigePasswortFormular(sichtbar) {
   $("#pw-old").focus();
 }
 
-async function passwortSpeichern() {
-  const alt = $("#pw-old").value;
-  const neu = $("#pw-new").value;
+async function savePassword() {
+  const oldPassword = $("#pw-old").value;
+  const newPassword = $("#pw-new").value;
   const repeat = $("#pw-repeat").value;
-  if (!alt) { toast("Bitte bisheriges Passwort eingeben"); return; }
-  if (neu.length < 10) { toast("Neues Passwort braucht mindestens 10 Zeichen"); return; }
-  if (neu !== repeat) { toast("Die neuen Passwörter stimmen nicht überein"); return; }
+  if (!oldPassword) { toast("Bitte bisheriges Passwort eingeben"); return; }
+  if (newPassword.length < 10) { toast("Neues Passwort braucht mindestens 10 Zeichen"); return; }
+  if (newPassword !== repeat) { toast("Die neuen Passwörter stimmen nicht überein"); return; }
 
   const btn = $("#pw-save");
   btn.disabled = true;
   btn.textContent = "Speichert …";
   try {
-    await changePassword(alt, neu);
-    zeigePasswortFormular(false);
+    await changePassword(oldPassword, newPassword);
+    showPasswordForm(false);
     toast("Passwort geändert — andere Geräte wurden abgemeldet");
   } catch (err) {
     toast(err.message || "Passwort konnte nicht geändert werden");
@@ -472,28 +470,28 @@ async function passwortSpeichern() {
   }
 }
 
-function zeigeEmailFormular(sichtbar) {
+function showEmailForm(visible) {
   const panel = $("#email-panel");
-  panel.hidden = !sichtbar;
-  if (!sichtbar) { $("#email-new").value = ""; $("#email-pw-confirm").value = ""; return; }
+  panel.hidden = !visible;
+  if (!visible) { $("#email-new").value = ""; $("#email-pw-confirm").value = ""; return; }
   $("#email-new").value = state.account?.email || "";
   $("#email-new").focus();
 }
 
-async function emailSpeichern() {
+async function saveEmail() {
   const email = $("#email-new").value.trim();
-  const passwort = $("#email-pw-confirm").value;
+  const confirmPassword = $("#email-pw-confirm").value;
   if (!email.includes("@")) { toast("Das sieht nicht nach einer E-Mail-Adresse aus"); return; }
-  if (!passwort) { toast("Bitte Passwort eingeben"); return; }
+  if (!confirmPassword) { toast("Bitte Passwort eingeben"); return; }
 
   const btn = $("#email-save");
   btn.disabled = true;
   try {
-    await setEmail(passwort, email);
-    // Jede neu gespeicherte Adresse gilt erst nach Bestätigung — der Link
-    // ist unterwegs.
+    await setEmail(confirmPassword, email);
+    // Every newly saved address counts only after confirmation — the link is
+    // on its way.
     state.account = { ...state.account, email, emailVerified: false };
-    zeigeEmailFormular(false);
+    showEmailForm(false);
     renderEmailStatus();
     toast("E-Mail gespeichert — Bestätigungslink verschickt");
   } catch (err) {
@@ -503,7 +501,7 @@ async function emailSpeichern() {
   }
 }
 
-/** Mehr → Status → Route: wann und wie die Route zuletzt aktualisiert wurde. */
+/** More → Status → Route: when and how the route was last updated. */
 export function renderRouteInfo() {
   const box = $("#route-info");
   if (!box) return;
@@ -521,33 +519,32 @@ function renderDebugControls() {
     : "Standardmäßig entfernt der Export GPS-Pfade, Koordinaten, Ortsnamen, Notizen und Adressen.";
 }
 
-/** Speichert eine Fahrzeug-Änderung — legt das Fahrzeug bei Bedarf
- * serverseitig erst an. Das anfängliche Standardfahrzeug (siehe state.js)
- * hat noch keine `id` — ohne diese Weiche würde seine erste Änderung (z. B.
- * eine Geräte-ID eintragen) nur lokal landen und nie serverseitig sichtbar
- * werden, selbst im verbundenen Betrieb.
- * @param {object} lokal Feldnamen wie im Client-Zustand (name, device, active)
+/** Saves a vehicle change — creating the vehicle on the server first if needed.
+ * The initial default vehicle (see state.js) has no `id` yet — without this
+ * branch its first change (e.g. entering a device id) would only land locally
+ * and never show up on the server, even when connected.
+ * @param {object} local field names as in the client state (name, device, active)
  */
-function sicherFahrzeug(vehicle, lokal) {
-  Object.assign(vehicle, lokal);
-  // Serverseitig heißt das Feld traccar_device_id, lokal nur device — hier
-  // an der einen Stelle übersetzt, statt an jeder Aufrufstelle einzeln.
+function saveVehicle(vehicle, local) {
+  Object.assign(vehicle, local);
+  // On the server the field is called traccar_device_id, locally just device —
+  // translated here in one place instead of at every call site.
   const serverPatch = {};
-  if ("name" in lokal) serverPatch.name = lokal.name;
-  if ("device" in lokal) serverPatch.traccar_device_id = lokal.device || null;
-  if ("active" in lokal) serverPatch.active = lokal.active;
+  if ("name" in local) serverPatch.name = local.name;
+  if ("device" in local) serverPatch.traccar_device_id = local.device || null;
+  if ("active" in local) serverPatch.active = local.active;
 
   if (vehicle.id) {
-    sichern(() => updateVehicle(vehicle.id, serverPatch));
+    persist(() => updateVehicle(vehicle.id, serverPatch));
     return;
   }
   if (!isCentral()) { saveLocalData(); return; }
   vehicle.id = `veh_${Date.now().toString(36)}`;
-  // vehicle.active gibt es im Client-Zustand sonst nicht (aktiv ist immer
-  // state.activeVehicle als Index) — hier fürs Anlegen aus dem Index ableiten,
-  // damit ein bereits aktives Standardfahrzeug nicht als inaktiv gilt.
-  const istAktiv = "active" in lokal ? lokal.active : state.vehicles.indexOf(vehicle) === state.activeVehicle;
-  sichern(() => createVehicle({ id: vehicle.id, name: vehicle.name, traccar_device_id: vehicle.device || null, active: istAktiv }));
+  // vehicle.active does not exist in the client state otherwise (active is always
+  // state.activeVehicle as an index) — derived from the index when creating, so
+  // an already active default vehicle does not count as inactive.
+  const isActive = "active" in local ? local.active : state.vehicles.indexOf(vehicle) === state.activeVehicle;
+  persist(() => createVehicle({ id: vehicle.id, name: vehicle.name, traccar_device_id: vehicle.device || null, active: isActive }));
 }
 
 function renderIngestControls() {
@@ -579,11 +576,10 @@ function renderIngestControls() {
 }
 
 export function renderVehicles() {
-  // Eine gemeinsame Vorschlagsliste für alle Fahrzeuge — welche Geräte-IDs
-  // tatsächlich schon einmal gesendet haben (N10).
-  // Ersetzt Tippen nach Gefühl durch Auswahl aus echten Daten, erlaubt aber
-  // weiterhin freie Eingabe (z. B. ein Gerät, das noch nie gesendet hat).
-  const datalist = el("datalist#geraete-vorschlaege", {}, bekannteGeraete.map((g) =>
+  // One shared suggestion list for all vehicles — the device ids that actually
+  // sent before. Replaces typing by feel with a choice from real data, but still
+  // allows free input (e.g. a device that never sent).
+  const datalist = el("datalist#geraete-vorschlaege", {}, knownDevices.map((g) =>
     el("option", { value: g.id, text: `${g.accepted ? "erlaubt" : "neu"}${g.lastUpdate ? ` · zuletzt ${new Date(g.lastUpdate).toLocaleString("de-DE")}` : ""}` })
   ));
 
@@ -601,20 +597,18 @@ export function renderVehicles() {
         title: "Aktiv setzen",
         on: { click: () => {
           state.activeVehicle = index;
-          // N10: das aktive Fahrzeug bestimmt jetzt direkt, welches Gerät
-          // die App abfragt — vorher war das ein eigenes, unabhängiges Feld
-          // ("Geräteverknüpfung"), das man zusätzlich pflegen musste.
+          // The active vehicle decides directly which device the app queries.
           state.config.device = vehicle.device || "";
           saveConfig();
           renderVehicles(); emit("vehicles");
-          sicherFahrzeug(vehicle, { active: true }); // synct state.config.device über collectPreferences() mit
-          onSourceChanged(); // neues Gerät -> Positionen/Fahrten neu laden, wie vorher beim alten "Speichern"
+          saveVehicle(vehicle, { active: true }); // syncs state.config.device through collectPreferences()
+          onSourceChanged(); // new device -> reload positions and drives
         } },
       }, icon(ICON.check, 15)),
       el("div.si", {}, [
-        // Beide Felder gleich aufgebaut (Label + Eingabe + eigener
-        // Speichern-Knopf in einer Reihe) — vorher hatte nur die Geräte-ID
-        // ein Label, der Name sah dadurch nicht wie ein Eingabefeld aus.
+        // Both fields are built alike (label, input and their own save button in
+        // one row) — earlier only the device id had a label, so the name did not
+        // look like an input field.
         el("div.field", {}, [
           el("label", { text: "Name" }),
           el("div", { style: { display: "flex", gap: "6px", alignItems: "center" } }, [input, save]),
@@ -627,32 +621,31 @@ export function renderVehicles() {
       ]),
       state.vehicles.length > 1
         ? el("button.iconbtn", { title: "Löschen", on: { click: () => {
-            const entfernt = state.vehicles[index];
+            const removed = state.vehicles[index];
             state.vehicles.splice(index, 1);
             if (state.activeVehicle >= state.vehicles.length) state.activeVehicle = 0;
             renderVehicles(); emit("vehicles");
-            if (entfernt.id) sichern(() => deleteVehicle(entfernt.id)); else saveLocalData();
+            if (removed.id) persist(() => deleteVehicle(removed.id)); else saveLocalData();
           } } }, icon(ICON.trash, 15))
         : null,
     ]);
     wireInlineEdit(input, save, () => vehicle.name, (value) => {
-      // sicherFahrzeug() ZUERST — es schreibt vehicle.name synchron (bevor
-      // es asynchron zum Server geht). In der falschen Reihenfolge zeichnet
-      // renderVehicles() sich selbst noch mit dem alten Namen neu (echter
-      // Fund: nach dem Speichern stand weiter der alte Wert im Feld).
-      sicherFahrzeug(vehicle, { name: value });
+      // saveVehicle() FIRST — it writes vehicle.name synchronously (before going to
+      // the server). In the wrong order renderVehicles() redraws itself with the
+      // old name (seen: after saving, the old value was still in the field).
+      saveVehicle(vehicle, { name: value });
       renderVehicles(); emit("vehicles");
     });
-    // Eigener wireInlineEdit-Aufruf für die Geräte-ID — eigenständiges Feld,
-    // eigener Speicherstand, unabhängig vom Namen.
+    // A separate wireInlineEdit call for the device id — its own field and saved
+    // state, independent of the name.
     wireInlineEdit(deviceInput, deviceSave, () => vehicle.device || "", (value) => {
-      // Ist das gerade das aktive Fahrzeug, zieht state.config.device (was
-      // die App tatsächlich abfragt) sofort mit — sonst würde man die
-      // Geräte-ID am aktiven Fahrzeug ändern, ohne dass sich live etwas tut.
+      // If this is the active vehicle, state.config.device (what the app actually
+      // queries) follows at once — otherwise changing the active vehicle's device
+      // id would do nothing live.
       if (index === state.activeVehicle) { state.config.device = value; saveConfig(); }
-      sicherFahrzeug(vehicle, { device: value }); // vor renderVehicles(), siehe Kommentar oben
+      saveVehicle(vehicle, { device: value }); // before renderVehicles(), see the comment above
       renderVehicles(); emit("vehicles");
-      if (index === state.activeVehicle) onSourceChanged(); // neues Gerät -> Positionen/Fahrten neu laden
+      if (index === state.activeVehicle) onSourceChanged(); // new device -> reload positions and drives
     });
     return row;
   });
@@ -670,12 +663,12 @@ export function renderCategories() {
       el("button.iconbtn", { title: "Löschen", on: { click: () => {
         const used = state.places.filter((p) => p.catId === id).length;
         if (used) { toast(`Wird von ${used} Ort(en) genutzt`); return; }
-        const gesichert = { ...cat };
+        const previous = { ...cat };
         delete state.categories[id];
         renderCategories();
         onCategoriesChanged();
-        sichern(() => deleteCategory(id)).then((ok) => {
-          if (!ok) { state.categories[id] = gesichert; renderCategories(); onCategoriesChanged(); }
+        persist(() => deleteCategory(id)).then((ok) => {
+          if (!ok) { state.categories[id] = previous; renderCategories(); onCategoriesChanged(); }
         });
       } } }, icon(ICON.trash, 15)),
     ]);
@@ -683,7 +676,7 @@ export function renderCategories() {
       cat.name = value;
       renderCategories();
       onCategoriesChanged();
-      sichern(() => updateCategory(id, { name: value }));
+      persist(() => updateCategory(id, { name: value }));
     });
     return row;
   }));
@@ -719,8 +712,8 @@ function updateDemoHint() {
 }
 
 function showConnection(status) {
-  // Achtung: #conn-state ist der Behälter — beschriftet wird #conn-title,
-  // sonst würden Statuspunkt und Untertext überschrieben.
+  // Careful: #conn-state is the container — the label is #conn-title, otherwise
+  // the status dot and subtitle would be overwritten.
   const dot = $("#conn-dot");
   const label = $("#conn-title");
   const sub = $("#conn-sub");
@@ -743,8 +736,8 @@ async function testConnection() {
   showConnection({ ok: true, message: "Verbindung wird geprüft …" });
   try {
     const result = await health();
-    // Die Gesundheitsprüfung antwortet auch ohne gültiges Token mit 200 —
-    // erst dieses Feld sagt, ob das Token akzeptiert wurde.
+    // The health check answers 200 even without a valid session — only this
+    // field says whether the session was accepted.
     if (result && result.authenticated === false) {
       showConnection({ ok: false, message: "API erreichbar, aber das Token wird nicht akzeptiert. Bitte prüfen." });
       return;

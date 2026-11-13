@@ -1,5 +1,5 @@
 // Diary: blocks (text and photos), choosing the day and time phrases. Pure
-// computation, no DOM — the editor (views/tag-editor.js) and the logbook
+// computation, no DOM — the editor (views/diary-editor.js) and the logbook
 // (views/journal.js) draw from it.
 //
 // Blocks are stored as JSON in tagebuch.blocks: [{ t: "text", text } | { t: "fotos", ids }].

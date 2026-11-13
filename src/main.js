@@ -17,7 +17,7 @@ import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTr
 import { initPlaces, renderPlaces, renderCategoryChips, buildFilterOptions, photoGradient, resetPlaceFilters } from "./views/places.js";
 import { initPlaceEditor, openPlaceEditor, renderCategoryPicker, isDirty as editorDirty, save as saveEditor, clearEditor } from "./views/place-editor.js";
 import { initJournal, renderJournal } from "./views/journal.js";
-import { initTagEditor, openTagEditor, isDirty as tagDirty, save as saveTag, clearEditor as clearTag } from "./views/tag-editor.js";
+import { initDiaryEditor, openDiaryEditor, isDirty as diaryDirty, save as saveDiary, clearEditor as clearDiary } from "./views/diary-editor.js";
 import { initNoteEditor, captureNote, openNoteEditor, isDirty as noteDirty, save as saveNote, clearEditor as clearNote } from "./views/note-editor.js";
 import { initGuard, loadGuard, renderGuardInfo } from "./views/guard.js";
 import { liveAgeText } from "./live-age.js";
@@ -232,9 +232,9 @@ const noteSheet = createSheet({
 
 const tagSheet = createSheet({
   id: "tag-sheet", confirmId: "tag-confirm",
-  isDirty: tagDirty,
-  onSave: saveTag,
-  onClose: clearTag,
+  isDirty: diaryDirty,
+  onSave: saveDiary,
+  onClose: clearDiary,
 });
 
 const alleSheets = [tripSheet, editSheet, noteSheet, tagSheet];
@@ -353,10 +353,10 @@ function openTag(opts) {
   const tripId = opts?.tripId || t?.id;
   if (!tripId || isRangeTrip(trip(tripId))) { toast("Das Tagebuch gibt es für einzelne Reisen"); return; }
   if (!schliesseAndere(tagSheet)) return;
-  openTagEditor({ tripId, dayKey: opts?.dayKey || null });
+  openDiaryEditor({ tripId, dayKey: opts?.dayKey || null });
 }
 
-initTagEditor({
+initDiaryEditor({
   onOpen: () => tagSheet.open(),
   onChange: () => { tagSheet.close(); renderJournal(); },
 });
