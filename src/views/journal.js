@@ -11,7 +11,7 @@ import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
 import { mapView, tileUrl, routePath } from "../mini-map.js";
 import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
-import { ohneFoto, titelbildId, mitVerwaistenFotos } from "../tagebuch.js";
+import { withoutPhoto, coverPhotoId, withUnplacedPhotos } from "../diary.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
 
@@ -477,11 +477,11 @@ function tagebuchBlock(eintrag, tag) {
   const fotos = new Map(tagebuchFotos(eintrag.id).map((f) => [f.id, f]));
   const info = tagebuchCaption(eintrag, tag);
   // Fotos, die noch in der Ablage des Editors liegen, erscheinen am Anfang des Tages (eines als Titelbild, mehrere als Collage), bis man sie platziert — nichts geht verloren.
-  const bloecke = mitVerwaistenFotos(eintrag.blocks, [...fotos.keys()]);
-  const coverId = titelbildId(bloecke.filter((b) => b.t !== "fotos" || b.ids.some((id) => fotos.has(id)))
+  const bloecke = withUnplacedPhotos(eintrag.blocks, [...fotos.keys()]);
+  const coverId = coverPhotoId(bloecke.filter((b) => b.t !== "fotos" || b.ids.some((id) => fotos.has(id)))
     .map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((id) => fotos.has(id)) } : b)));
   const cover = coverId ? fotos.get(coverId) : null;
-  const rest = ohneFoto(bloecke, cover?.id);
+  const rest = withoutPhoto(bloecke, cover?.id);
   const autor = eintrag.author || "";
   return el("div.jt-erzaehlt", {}, [
     cover ? titelbild(cover, info) : null,

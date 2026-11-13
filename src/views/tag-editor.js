@@ -10,9 +10,9 @@ import { komprimiereFoto } from "../ui/photo.js";
 import { localDayKey } from "../day-utils.js";
 import { ziehbar } from "../drag.js";
 import {
-  bereinigeBlocks, hatInhalt, alleFotoIds, tageFuerEditor, standardTag, fotoTagHinweis,
-  ablageFotos, ordneBlocks, entferneFotoAusBlocks, setzeFoto, textTrennstellen,
-} from "../tagebuch.js";
+  cleanBlocks, hasContent, allPhotoIds, daysForEditor, defaultDay, photoDayHint,
+  trayPhotos, normalizeBlocks, removePhotoFromBlocks, placePhoto,
+} from "../diary.js";
 
 let current = null;       // { tripId, dayKey, id|null }
 let blocks = [];          // Arbeitsstand: [{t:"text",text} | {t:"fotos",ids}]
@@ -34,7 +34,7 @@ const tagLabel = (t, jetzt, belegt) => {
   const wochentag = d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
   const zusatz = t.key === heute ? " · heute" : t.key === gestern ? " · gestern" : "";
   const erzaehlt = belegt.has(t.key) ? " ✓" : "";
-  return `Tag ${t.nummer} · ${wochentag}${zusatz}${erzaehlt}`;
+  return `Tag ${t.number} · ${wochentag}${zusatz}${erzaehlt}`;
 };
 
 export function initTagEditor({ onChange, onOpen }) {
@@ -77,10 +77,10 @@ export function openTagEditor({ tripId, dayKey = null }) {
   if (!t) { toast("Für diese Ansicht gibt es kein Tagebuch"); return; }
   const jetzt = new Date();
   const eintraege = state.tagebuch.filter((e) => e.tripId === tripId);
-  tage = tageFuerEditor(t, { jetzt, extraKeys: eintraege.map((e) => e.dayKey) });
+  tage = daysForEditor(t, { now: jetzt, extraKeys: eintraege.map((e) => e.dayKey) });
   const wahl = dayKey && tage.some((x) => x.key === dayKey)
     ? dayKey
-    : standardTag(tage, new Set(eintraege.map((e) => e.dayKey)), jetzt);
+    : defaultDay(tage, new Set(eintraege.map((e) => e.dayKey)), jetzt);
   openSheet();
   const belegt = new Set(eintraege.map((e) => e.dayKey));
   render($("#tag-day"), tage.map((x) => el("option", { value: x.key, text: tagLabel(x, jetzt, belegt) })));
@@ -94,16 +94,16 @@ function laden(tripId, dayKey) {
   $("#tag-day").value = dayKey;
   const kopie = (liste) => JSON.parse(JSON.stringify(liste));
   let start = eintrag ? kopie(eintrag.blocks) : [];
-  snapshot = JSON.stringify(bereinigeBlocks(ordneBlocks(start)));
+  snapshot = JSON.stringify(cleanBlocks(normalizeBlocks(start)));
 
   const entwurf = lies(entwurfKey(tripId, dayKey));
   const stand = Date.parse(String(eintrag?.updatedAt || "").replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(eintrag?.updatedAt || "") ? "" : "Z")) || 0;
   let status = "";
-  if (entwurf?.blocks && entwurf.ts > stand && JSON.stringify(bereinigeBlocks(entwurf.blocks)) !== snapshot) {
+  if (entwurf?.blocks && entwurf.ts > stand && JSON.stringify(cleanBlocks(entwurf.blocks)) !== snapshot) {
     start = kopie(entwurf.blocks);
     status = "Entwurf wiederhergestellt";
   }
-  blocks = ordneBlocks(start);
+  blocks = normalizeBlocks(start);
   $("#tag-delete").hidden = !current.id;
   $("#tag-day-hint").textContent = "";
   setzeStatus(status);
@@ -122,10 +122,10 @@ function sichereEntwurf(sofort = false) {
   if (!current) return;
   const jetzt = () => {
     const ziel = entwurfKey(current.tripId, current.dayKey);
-    const aktuell = JSON.stringify(bereinigeBlocks(blocks));
+    const aktuell = JSON.stringify(cleanBlocks(blocks));
     if (aktuell === snapshot) { schreibe(ziel, null); return; }
-    schreibe(ziel, { blocks: bereinigeBlocks(blocks), ts: Date.now() });
-    const zeichen = bereinigeBlocks(blocks).reduce((n, b) => n + (b.t === "text" ? b.text.length : 0), 0);
+    schreibe(ziel, { blocks: cleanBlocks(blocks), ts: Date.now() });
+    const zeichen = cleanBlocks(blocks).reduce((n, b) => n + (b.t === "text" ? b.text.length : 0), 0);
     setzeStatus(`Entwurf gespeichert · ${zeichen} Zeichen`);
   };
   clearTimeout(entwurfTimer);
@@ -170,7 +170,7 @@ function zeichne() {
         const thumb = el("div.photo-thumb", { dataset: { id } }, [
           el("img", { src: photoUrl(id), loading: "lazy", alt: "", draggable: false }),
           // Aus dem Text nehmen, nicht löschen: das Foto wandert in die Ablage.
-          el("button", { type: "button", "aria-label": "Aus dem Text nehmen", text: "✕", on: { click: (e) => { e.stopPropagation(); aenderBlocks(entferneFotoAusBlocks(blocks, id)); } } }),
+          el("button", { type: "button", "aria-label": "Aus dem Text nehmen", text: "✕", on: { click: (e) => { e.stopPropagation(); aenderBlocks(removePhotoFromBlocks(blocks, id)); } } }),
         ]);
         fotoZiehbar(thumb, id, "text");
         return thumb;
@@ -180,7 +180,7 @@ function zeichne() {
     }
   });
 
-  const ablage = current?.id ? ablageFotos(blocks, fotoIds()) : [];
+  const ablage = current?.id ? trayPhotos(blocks, fotoIds()) : [];
   knoten.push(el("div.tag-leiste", {}, [
     el("div.tag-leiste-knoepfe", {}, [
       el("button.tag-add", { type: "button", text: "📷 Fotos wählen", on: { click: waehleFotos } }),
@@ -237,9 +237,9 @@ function setzeAnCursor(id) {
   const ziel = blocks.includes(aktiv.block) ? aktiv.block : texte[texte.length - 1];
   const i = blocks.indexOf(ziel);
   const stelle = ziel === aktiv.block ? Math.min(aktiv.stelle, ziel.text.length) : ziel.text.length;
-  if (!ziel.text.trim() || stelle === 0) aenderBlocks(setzeFoto(blocks, id, { art: "zwischen", index: i }));
-  else if (stelle >= ziel.text.length) aenderBlocks(setzeFoto(blocks, id, { art: "zwischen", index: i + 1 }));
-  else aenderBlocks(setzeFoto(blocks, id, { art: "text", block: i, von: stelle, bis: stelle }));
+  if (!ziel.text.trim() || stelle === 0) aenderBlocks(placePhoto(blocks, id, { kind: "between", index: i }));
+  else if (stelle >= ziel.text.length) aenderBlocks(placePhoto(blocks, id, { kind: "between", index: i + 1 }));
+  else aenderBlocks(placePhoto(blocks, id, { kind: "text", block: i, from: stelle, to: stelle }));
 }
 
 /* ---------- Ziehen: Fotos an eine Stelle im Text setzen oder zurück in die Ablage ---------- */
@@ -345,10 +345,10 @@ function zugTakt(jetzt = performance.now()) {
   zug.raf = requestAnimationFrame(zugTakt);
 }
 
-/** Das Ziel unter dem Finger. Liefert { art, ... } wie `setzeFoto`, oder { art: "ablage" } bzw. null. */
+/** Das Ziel unter dem Finger. Returns { kind, ... } like `placePhoto`, or { kind: "tray" }, or null. */
 function zugZiel(pos) {
   const leiste = $(".tag-leiste")?.getBoundingClientRect();
-  if (leiste && pos.y >= leiste.top - 2) return zug.herkunft === "text" ? { art: "ablage" } : null;
+  if (leiste && pos.y >= leiste.top - 2) return zug.herkunft === "text" ? { kind: "tray" } : null;
 
   // Über einer Foto-Gruppe: zwischen deren Fotos einsortieren.
   for (const z of zeilen) {
@@ -366,7 +366,7 @@ function zugZiel(pos) {
     });
     const bezug = thumbs[Math.min(index, thumbs.length - 1)]?.getBoundingClientRect();
     return {
-      art: "gruppe", block: z.block, index,
+      kind: "group", block: z.block, index,
       linie: bezug ? { x: index < thumbs.length ? bezug.left - 4 : bezug.right + 3, y: bezug.top, h: bezug.height, senkrecht: true } : null,
     };
   }
@@ -379,13 +379,13 @@ function zugZiel(pos) {
   };
   zeilen.forEach((z, k) => {
     const r = z.wurzel.getBoundingClientRect();
-    if (k === 0) prüfe(r.top, { art: "zwischen", index: z.block }, r.left, r.width);
+    if (k === 0) prüfe(r.top, { kind: "between", index: z.block }, r.left, r.width);
     const naechste = zeilen[k + 1];
-    if (naechste) prüfe((r.bottom + naechste.wurzel.getBoundingClientRect().top) / 2, { art: "zwischen", index: naechste.block }, r.left, r.width);
-    else prüfe(r.bottom, { art: "zwischen", index: z.block + 1 }, r.left, r.width);
+    if (naechste) prüfe((r.bottom + naechste.wurzel.getBoundingClientRect().top) / 2, { kind: "between", index: naechste.block }, r.left, r.width);
+    else prüfe(r.bottom, { kind: "between", index: z.block + 1 }, r.left, r.width);
     if (z.feld) {
       const fr = z.feld.getBoundingClientRect();
-      for (const t of zug.trenn.get(z.block) || []) prüfe(fr.top + t.y, { art: "text", block: z.block, von: t.von, bis: t.bis }, fr.left, fr.width);
+      for (const t of zug.trenn.get(z.block) || []) prüfe(fr.top + t.y, { kind: "text", block: z.block, from: t.von, to: t.bis }, fr.left, fr.width);
     }
   });
   return beste?.ziel || null;
@@ -396,7 +396,7 @@ function zugAnzeige() {
   zug.geist.style.transform = `translate(${zug.pos.x - 36}px, ${zug.pos.y - 92}px)`;
   zug.ziel = zugZiel(zug.pos);
   const leiste = $(".tag-leiste");
-  leiste?.classList.toggle("ziel", zug.ziel?.art === "ablage");
+  leiste?.classList.toggle("ziel", zug.ziel?.kind === "tray");
   const l = zug.ziel?.linie;
   zug.marke.hidden = !l;
   if (l) {
@@ -426,8 +426,8 @@ function zugEnde(pos) {
   zug.pos = pos;
   const ziel = zugZiel(pos);
   const { id, herkunft } = zugAufraeumen();
-  if (ziel?.art === "ablage") aenderBlocks(entferneFotoAusBlocks(blocks, id));
-  else if (ziel) aenderBlocks(setzeFoto(blocks, id, ziel));
+  if (ziel?.kind === "tray") aenderBlocks(removePhotoFromBlocks(blocks, id));
+  else if (ziel) aenderBlocks(placePhoto(blocks, id, ziel));
   else zeichne();   // nichts getroffen: alles bleibt, wie es war (auch ein während des Zugs fertiger Upload erscheint)
   void herkunft;
 }
@@ -450,7 +450,7 @@ function waehleFotos() {
 /** Der Eintrag muss serverseitig existieren, bevor Fotos daran hängen können. */
 async function sichereEintrag() {
   if (current.id) return current.id;
-  const ergebnis = await speichereTagebuch({ tripId: current.tripId, dayKey: current.dayKey, blocks: bereinigeBlocks(blocks) });
+  const ergebnis = await speichereTagebuch({ tripId: current.tripId, dayKey: current.dayKey, blocks: cleanBlocks(blocks) });
   if (ergebnis.ok) { current.id = ergebnis.id; $("#tag-delete").hidden = false; }
   return ergebnis.ok ? ergebnis.id : null;
 }
@@ -461,8 +461,8 @@ async function fotosGewaehlt(e) {
   e.target.value = "";
   if (!dateien.length || !current) return;
 
-  const hinweis = fotoTagHinweis(dateien, current.dayKey, tage);
-  if (hinweis) $("#tag-day-hint").textContent = `${hinweis.anzahl} ${hinweis.anzahl === 1 ? "Foto ist" : "Fotos sind"} wohl von Tag ${hinweis.nummer}.`;
+  const hinweis = photoDayHint(dateien, current.dayKey, tage);
+  if (hinweis) $("#tag-day-hint").textContent = `${hinweis.count} ${hinweis.count === 1 ? "Foto ist" : "Fotos sind"} wohl von Tag ${hinweis.number}.`;
 
   const id = await sichereEintrag();
   if (!id) return;
@@ -498,13 +498,13 @@ async function loescheFoto(fotoId) {
   }
 }
 
-export const isDirty = () => Boolean(current) && JSON.stringify(bereinigeBlocks(blocks)) !== snapshot;
+export const isDirty = () => Boolean(current) && JSON.stringify(cleanBlocks(blocks)) !== snapshot;
 
 export async function save() {
   if (!current) return;
   if (ladeVorgaenge > 0) { toast("Die Fotos werden noch hochgeladen"); return; }
-  const bereinigt = bereinigeBlocks(blocks);
-  if (!hatInhalt(bereinigt)) {
+  const bereinigt = cleanBlocks(blocks);
+  if (!hasContent(bereinigt)) {
     toast(current.id ? "Eintrag ist leer – Eintrag löschen, wenn er weg soll" : "Noch nichts geschrieben");
     return;
   }
@@ -524,5 +524,5 @@ export const clearEditor = () => {
   current = null;
 };
 
-// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Anfang des Tages, als Titelbild oder Collage (siehe mitVerwaistenFotos).
-export const verwendeteFotos = () => alleFotoIds(blocks);
+// Fotos eines Eintrags, die nirgends stehen, liegen in der Ablage und erscheinen im Logbuch am Anfang des Tages, als Titelbild oder Collage (see withUnplacedPhotos in diary.js).
+export const verwendeteFotos = () => allPhotoIds(blocks);
