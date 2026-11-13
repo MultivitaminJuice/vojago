@@ -6,7 +6,7 @@ import { ICON } from "./icons.js";
 import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
 import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot, restoreStoredRoutes } from "./dataload.js";
 import { authState, login as anmelden, setupAccount, setSignedIn, forgotPassword, resetPassword, verifyEmail } from "./api.js";
-import { starteGastAnsicht, zeigeGastReise, ladeGastLivePosition, ladeGastRoute } from "./guest.js";
+import { startGuestView, showGuestTrip, loadGuestLivePosition, loadGuestRoute } from "./guest.js";
 import { weatherLine } from "./store.js";
 import { distanceKm } from "./geo.js";
 import { mayLeave } from "./ui/dirty-guard.js";
@@ -115,7 +115,7 @@ const tabsGesperrt = new Set();
 function aktualisiereKarteJetzt() {
   if (state.guest) {
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) { ladeGastLivePosition(t); ladeGastRoute(t); }
+    if (t) { loadGuestLivePosition(t); loadGuestRoute(t); }
     return;
   }
   if (state.config.demo) return;
@@ -270,7 +270,7 @@ function openTripDetail(id) {
   // Gast-Ansicht: keine bearbeitbare Detail-Ansicht, nur auf der Karte
   // zeigen — das ist bei "alle Reisen" der einzige Weg, zwischen Reisen zu
   // wechseln (siehe Tabbar-Aufbau weiter unten).
-  if (state.guest) { zeigeGastReise(id); go("map"); return; }
+  if (state.guest) { showGuestTrip(id); go("map"); return; }
   if (!schliesseAndere(tripSheet)) return;
   currentTripId = id;
   tripDetailEdit = renderTripDetail(id, {
@@ -1221,7 +1221,7 @@ if (gastToken) {
   const vehline = $("#vehline");
   vehline.textContent = "Gast-Ansicht";
   vehline.classList.remove("hidden");
-  starteGastAnsicht(gastToken)
+  startGuestView(gastToken)
     .then((antwort) => {
       // "Mehr" bietet Gästen nichts (keine Einstellungen, kein Bearbeiten) —
       // Platz in der Leiste bleibt, wirkt aber inaktiv, ohne Beschriftung.
@@ -1246,12 +1246,12 @@ if (gastToken) {
   setInterval(() => {
     if (document.hidden) return;
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) ladeGastLivePosition(t);
+    if (t) loadGuestLivePosition(t);
   }, 30000);
   setInterval(() => {
     if (document.hidden) return;
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) ladeGastRoute(t);
+    if (t) loadGuestRoute(t);
   }, 5 * 60 * 1000);
 } else {
   /* Beim Start klären: Konto vorhanden? Angemeldet? */

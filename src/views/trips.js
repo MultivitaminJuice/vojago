@@ -11,7 +11,7 @@ import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.
 import { isConfigured, createTrip, updateTrip, deleteTrip as apiDeleteTrip, assignDrive, updateDriveKind } from "../api.js";
 import { weatherLine } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
-import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
+import { miniRoute, elevationProfile, speedProfile, niceScale } from "./charts.js";
 import { dateField } from "../ui/calendar.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
 import { createMemo } from "../memo.js";
@@ -779,7 +779,7 @@ function renderGesamtCharts(t) {
 
 /** Balkendiagramm mit Skala; ein Tipp auf einen Balken zeigt dessen Kilometer darüber. */
 function kmBalken(t) {
-  const { max, ticks } = skala(Math.max(...t.bars, 0));
+  const { max, ticks } = niceScale(Math.max(...t.bars, 0));
   const proz = (v) => `${(v / max) * 100}%`;
   const balken = t.bars.map((v, i) => {
     const knopf = el("button.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""), {
