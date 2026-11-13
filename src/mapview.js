@@ -46,7 +46,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
     style: {
       version: 8,
       sources: {
-        "tiles-light": { type: "raster", tiles: [kachelUrl(state.config.kartenstil, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
+        "tiles-light": { type: "raster", tiles: [kachelUrl(state.config.mapStyle, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
         dem: { type: "raster-dem", tiles: [HOEHEN_KACHELN], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: HOEHEN_QUELLE },
         "route-solid": {
           type: "geojson",
@@ -61,11 +61,11 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
         "route-luecken": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
       },
       layers: [
-        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.kartenstil) },
+        { id: "tiles-light", type: "raster", source: "tiles-light", paint: kachelPaint(isDark(), state.config.mapStyle) },
         // Geländeschummerung: nur sichtbar, wenn im Ebenen-Menü eingeschaltet
         // (dann erst werden die Höhenkacheln überhaupt geladen).
         { id: "schummerung", type: "hillshade", source: "dem",
-          layout: { visibility: state.config.gelaende ? "visible" : "none" }, paint: schummerungPaint(isDark()) },
+          layout: { visibility: state.config.terrain ? "visible" : "none" }, paint: schummerungPaint(isDark()) },
         { id: "route-casing", type: "line", source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": isDark() ? "#000" : "#0a1919", "line-opacity": 0.35, "line-width": 9 } },
@@ -76,7 +76,7 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
           layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
         { id: "route-luecken", type: "line", source: "route-luecken",
-          layout: { "line-cap": "butt", "line-join": "round", visibility: state.config.lueckenMarkieren ? "visible" : "none" },
+          layout: { "line-cap": "butt", "line-join": "round", visibility: state.config.markGaps ? "visible" : "none" },
           paint: { "line-color": "#ffffff", "line-opacity": 0.92, "line-width": 5, "line-dasharray": [1, 1.4] } },
         // Kein statischer "route"-Verlaufslayer mehr hier — der wird pro
         // sichtbarem Segment dynamisch angelegt (siehe zeichneVerlaufsSegmente()
@@ -142,7 +142,7 @@ export function setTerrain(on) {
 function applyTheme() {
   if (!ready) return;
   const dark = isDark();
-  for (const [k, v] of Object.entries(kachelPaint(dark, state.config.kartenstil))) map.setPaintProperty("tiles-light", k, v);
+  for (const [k, v] of Object.entries(kachelPaint(dark, state.config.mapStyle))) map.setPaintProperty("tiles-light", k, v);
   for (const [k, v] of Object.entries(schummerungPaint(dark))) map.setPaintProperty("schummerung", k, v);
   map.setPaintProperty("route-casing", "line-color", dark ? "#000" : "#0a1919");
 }
@@ -192,7 +192,7 @@ function onMapClick(e) {
 
 /** Tipp auf eine Datenlücke (die gestrichelte Verbindungslinie): sagt, dass dort nichts gemessen wurde. */
 function zeigeLueckenTipp(lng, lat, toleranz) {
-  if (!state.config.lueckenMarkieren) return;
+  if (!state.config.markGaps) return;
   let nah = null;
   for (const l of tippLuecken) {
     const d = distanceToSegment(lng, lat, l.from, l.to);

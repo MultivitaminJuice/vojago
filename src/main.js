@@ -5,7 +5,7 @@ import { $, $$, el, render, toast, icon } from "./dom.js";
 import { ICON } from "./icons.js";
 import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
 import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot, restoreStoredRoutes } from "./dataload.js";
-import { authState, login as anmelden, setupAccount, setAngemeldet, forgotPassword, resetPassword, verifyEmail } from "./api.js";
+import { authState, login as anmelden, setupAccount, setSignedIn, forgotPassword, resetPassword, verifyEmail } from "./api.js";
 import { starteGastAnsicht, zeigeGastReise, ladeGastLivePosition, ladeGastRoute } from "./guest.js";
 import { wetterZeile } from "./store.js";
 import { distanceKm } from "./geo.js";
@@ -113,7 +113,7 @@ const tabsGesperrt = new Set();
 // unterschiedliche Funktionen (siehe die jeweiligen Intervalle weiter
 // unten in dieser Datei), hier beide Fälle einmal zentral.
 function aktualisiereKarteJetzt() {
-  if (state.gast) {
+  if (state.guest) {
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
     if (t) { ladeGastLivePosition(t); ladeGastRoute(t); }
     return;
@@ -270,7 +270,7 @@ function openTripDetail(id) {
   // Gast-Ansicht: keine bearbeitbare Detail-Ansicht, nur auf der Karte
   // zeigen — das ist bei "alle Reisen" der einzige Weg, zwischen Reisen zu
   // wechseln (siehe Tabbar-Aufbau weiter unten).
-  if (state.gast) { zeigeGastReise(id); go("map"); return; }
+  if (state.guest) { zeigeGastReise(id); go("map"); return; }
   if (!schliesseAndere(tripSheet)) return;
   currentTripId = id;
   tripDetailEdit = renderTripDetail(id, {
@@ -293,7 +293,7 @@ function openEditor(place) {
   // Gast-Ansicht: nur lesen, kein Editor. Der Server würde ein Speichern
   // ohnehin ablehnen (keine Sitzung) — hier geht es nur darum, gar nicht
   // erst einen toten Knopf anzubieten.
-  if (state.gast) return;
+  if (state.guest) return;
   if (!schliesseAndere(editSheet)) return;
   editSheet.open();
   openPlaceEditor(place);
@@ -336,7 +336,7 @@ initPlaceEditor({
 });
 
 function openNote(note) {
-  if (state.gast) return; // nur lesen, kein Editor — wie bei openEditor()
+  if (state.guest) return; // nur lesen, kein Editor — wie bei openEditor()
   if (!schliesseAndere(noteSheet)) return;
   openNoteEditor(note);
 }
@@ -348,7 +348,7 @@ initNoteEditor({
 });
 
 function openTag(opts) {
-  if (state.gast) return; // Gäste lesen nur
+  if (state.guest) return; // Gäste lesen nur
   const t = journalTrip();
   const tripId = opts?.tripId || t?.id;
   if (!tripId || isRangeTrip(trip(tripId))) { toast("Das Tagebuch gibt es für einzelne Reisen"); return; }
@@ -474,7 +474,7 @@ function renderRangeSummary() {
 async function switchTripContext(value, control) {
   if (!value) return;
   if (value === "__new") {
-    if (state.gast) return; // Gäste legen keine Reisen an
+    if (state.guest) return; // Gäste legen keine Reisen an
     closeTripPicker();
     await startNewTripFromContext(control);
     renderTripContexts();
@@ -533,7 +533,7 @@ function openTripPicker() {
   // Bei Freigabe auf nur eine Reise gibt es nichts zum Wechseln — der
   // Picker soll dann gar nicht erst aufgehen (sonst wirkt es, als gäbe es
   // eine Wahl, die es nicht gibt).
-  if (state.gast && !state.gast.alleReisen) return;
+  if (state.guest && !state.guest.allTrips) return;
   renderTripPicker();
   tripPicker.hidden = false;
 }
@@ -543,7 +543,7 @@ function closeTripPicker() {
 }
 
 function openRangePicker() {
-  if (state.gast) return;
+  if (state.guest) return;
   if (!rangeCal) {
     rangeCal = calendar({ mode: "range", onChange: renderRangeSummary });
     $("#range-calendar")?.appendChild(rangeCal.node);
@@ -583,7 +583,7 @@ function renderTripPicker() {
   if (!tripPickerList) return;
   const selected = state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
   render(tripPickerList, [
-    state.gast ? null : el("button.trip-picker-row", {
+    state.guest ? null : el("button.trip-picker-row", {
       "aria-pressed": String(isRangeTrip(selected)),
       on: { click: () => switchTripContext("__range") },
     }, [
@@ -605,7 +605,7 @@ function renderTripPicker() {
       ]),
       el("em", { text: kmKurz(t.km) }),
     ])),
-    state.gast ? null : el("button.trip-picker-row.trip-picker-new", {
+    state.guest ? null : el("button.trip-picker-row.trip-picker-new", {
       on: { click: (e) => switchTripContext("__new", e.currentTarget) },
     }, [
       el("i", { text: "+" }),
@@ -801,11 +801,11 @@ for (const [id, key] of [["lc-overnight", "nights"], ["lc-places", "places"], ["
 // Gelände-Schummerung gehört zur Karte dieses Geräts (nicht zur Reise) — daher
 // in der Gerätekonfiguration statt in state.layers.
 const terrainSwitch = $("#lc-terrain");
-terrainSwitch.setAttribute("aria-checked", String(Boolean(state.config.gelaende)));
+terrainSwitch.setAttribute("aria-checked", String(Boolean(state.config.terrain)));
 terrainSwitch.addEventListener("click", () => {
   const on = terrainSwitch.getAttribute("aria-checked") !== "true";
   terrainSwitch.setAttribute("aria-checked", String(on));
-  state.config.gelaende = on;
+  state.config.terrain = on;
   saveConfig();
   mapview.setTerrain(on);
 });
@@ -873,7 +873,7 @@ function renderVehicleLine() {
   line.textContent = vehicle ? vehicle.name + (state.vehicles.length > 1 ? " ▾" : "") : "";
   line.classList.toggle("hidden", !state.showVehicleName || !vehicle);
 }
-$("#vehline").addEventListener("click", (e) => { e.stopPropagation(); if (!state.gast) oeffneEinstellungen(); });
+$("#vehline").addEventListener("click", (e) => { e.stopPropagation(); if (!state.guest) oeffneEinstellungen(); });
 
 // N3 — Marke ist die Startseite: aktuelle Reise auf der Karte, ganz eingepasst
 $("#home-btn").addEventListener("click", () => {
@@ -1064,7 +1064,7 @@ async function gateAbsenden() {
     } else {
       await anmelden(benutzer, passwort);
     }
-    setAngemeldet(true);
+    setSignedIn(true);
     // Nicht nur den eingegebenen Namen übernehmen, sondern den vollen
     // Kontostand nachladen — sonst geht eine schon hinterlegte E-Mail in
     // der Anzeige verloren (state.account würde sie sonst überschreiben).
@@ -1136,7 +1136,7 @@ if (resetToken) {
     knopf.disabled = true;
     try {
       await resetPassword(resetToken, passwort);
-      setAngemeldet(true);
+      setSignedIn(true);
       // Wie beim Login: den vollen Kontostand nachladen, sonst verschwindet
       // eine schon hinterlegte E-Mail aus der Anzeige.
       const zustand = await authState();
@@ -1257,7 +1257,7 @@ if (gastToken) {
   /* Beim Start klären: Konto vorhanden? Angemeldet? */
   authState()
     .then((zustand) => {
-      setAngemeldet(Boolean(zustand.angemeldet));
+      setSignedIn(Boolean(zustand.angemeldet));
       if (zustand.angemeldet) {
         state.account = { username: zustand.username, email: zustand.email, emailVerified: zustand.emailVerified, isAdmin: Boolean(zustand.isAdmin) };
         return starteDaten();

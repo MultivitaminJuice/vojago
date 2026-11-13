@@ -4,7 +4,7 @@ import { ICON } from "../icons.js";
 import {
   state, trip, activeTrip, tripPlaces, tripNotes, rangeTrips, isRangeTrip,
   endTrip, resumeTrip, startTrip, deleteTrip, showTripOnMap, showAdhocOnMap, setRouteDriveFilter, emit,
-  ROUTE_DRIVE_FILTERS, aktuellerDatenStand,
+  ROUTE_DRIVE_FILTERS, dataRevision,
 } from "../state.js";
 import { starterPath } from "../demo.js";
 import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.js";
@@ -376,7 +376,7 @@ function selectedTrip() {
 // (see memo.js); switching views or redrawing no longer recomputes them.
 const werte = createMemo();
 const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathGrob ? "grob" : "voll"}`;
-const merkBedingung = (t) => ({ revision: aktuellerDatenStand(), path: t?.path, running: Boolean(t?.live) || isRangeTrip(t) });
+const merkBedingung = (t) => ({ revision: dataRevision(), path: t?.path, running: Boolean(t?.live) || isRangeTrip(t) });
 
 function tripSummary(t) {
   return werte(merkSchluessel("reise", t), merkBedingung(t), () => {

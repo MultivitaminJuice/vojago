@@ -1,5 +1,5 @@
 // Keeps one computed value per key until the data it depends on changes.
-// `revision` is the data revision (state.js: aktuellerDatenStand) and `path`
+// `revision` is the data revision (state.js: dataRevision) and `path`
 // the route array the value was computed from; a new route is always a new
 // array. Values of a running trip are also renewed after `maxAgeMs`, because
 // their duration grows with the clock.

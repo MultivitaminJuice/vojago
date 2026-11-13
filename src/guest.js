@@ -19,12 +19,12 @@ let aktiverToken = null;
 export async function starteGastAnsicht(token) {
   aktiverToken = token;
   const antwort = await fetchShare(token);
-  state.gast = { scope: antwort.scope, alleReisen: antwort.alleReisen, label: antwort.label || "", token };
+  state.guest = { scope: antwort.scope, allTrips: antwort.alleReisen, label: antwort.label || "", token };
   state.trips = (antwort.trips || []).map(toTrip);
   state.places = (antwort.places || []).map(toPlace);
   state.notes = (antwort.notes || []).map(toNote);
   state.photos = (antwort.photos || []).map(toPhoto);
-  state.tagebuch = (antwort.tagebuch || []).map(toTagebuch);
+  state.diary = (antwort.tagebuch || []).map(toTagebuch);
   if (antwort.categories?.length) {
     state.categories = Object.fromEntries(antwort.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
   }

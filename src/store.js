@@ -5,12 +5,12 @@
 // erst lokal zeigen (die App bleibt flott), dann zentral sichern — und wenn
 // das Sichern scheitert, wird die Anzeige zurückgenommen. Nichts soll auf dem
 // Bildschirm stehen, was nirgends gespeichert ist.
-import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertTagebuch, removeTagebuch, emit } from "./state.js";
+import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertDiaryEntry, removeDiaryEntry, emit } from "./state.js";
 import { toast } from "./dom.js";
 import { findeVorhandenenOrt, AUTO_ORT_PLATZHALTER_TITEL } from "./dataload.js";
 import {
   isConfigured, createPlace, updatePlace, deletePlace,
-  createNote, updateNote, deleteNote, saveTagebuch, deleteTagebuch, weather as fetchWeather, geocode as fetchGeocode,
+  createNote, updateNote, deleteNote, saveDiaryEntry, deleteDiaryEntry, weather as fetchWeather, geocode as fetchGeocode,
 } from "./api.js";
 
 /** Nur im verbundenen Betrieb gibt es eine zentrale Ablage. */
@@ -133,16 +133,16 @@ export async function loescheNotiz(id) {
  * fehl, kommt der vorherige zurück. Liefert { ok, id }.
  */
 export async function speichereTagebuch(eintrag) {
-  const vorher = state.tagebuch.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
+  const vorher = state.diary.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
   if (!zentral()) {
     const id = vorher?.id || eintrag.id || newId("tag");
-    upsertTagebuch({ ...eintrag, id });
+    upsertDiaryEntry({ ...eintrag, id });
     return { ok: true, id };
   }
   try {
-    const antwort = await saveTagebuch({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
+    const antwort = await saveDiaryEntry({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
     const jetzt = new Date().toISOString();
-    upsertTagebuch({
+    upsertDiaryEntry({
       ...eintrag, id: antwort.id,
       author: vorher?.author || state.account?.username || eintrag.author || "",
       createdAt: vorher?.createdAt || jetzt, updatedAt: jetzt,
@@ -155,15 +155,15 @@ export async function speichereTagebuch(eintrag) {
 }
 
 export async function loescheTagebuch(id) {
-  const vorher = state.tagebuch.find((e) => e.id === id) || null;
+  const vorher = state.diary.find((e) => e.id === id) || null;
   const fotos = state.photos.filter((p) => p.tagebuchId === id);
-  removeTagebuch(id);
+  removeDiaryEntry(id);
   if (!zentral()) return true;
   try {
-    await deleteTagebuch(id);
+    await deleteDiaryEntry(id);
     return true;
   } catch (err) {
-    if (vorher) { upsertTagebuch(vorher); state.photos.push(...fotos); emit("photos"); }
+    if (vorher) { upsertDiaryEntry(vorher); state.photos.push(...fotos); emit("photos"); }
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }

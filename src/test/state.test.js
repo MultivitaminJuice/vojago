@@ -1,67 +1,72 @@
-// Verdrahtungs-Tests für state.js — bewusst anders als route-visibility.test.js:
-// dort werden reine Funktionen mit fest eingetippten Filterwerten aufgerufen,
-// das prüft nie, ob ein neuer Wert überhaupt bis zu ihnen durchkommt. Genau
-// diese Lücke hat einen echten Fehler verdeckt (18. August 2026): der Picker
-// bot "nicht_zugeordnet" an, setRouteDriveFilter() hatte aber noch die alte,
-// engere Liste und wies den Klick still ab — kein Test hier hätte das
-// bemerkt, weil es keinen hier gab. Diese Datei prüft die Verdrahtung selbst:
-// jeder in ROUTE_DRIVE_FILTERS gelistete Wert muss durch JEDES Tor kommen,
-// mit dem state.js ihn validiert.
+// Wiring tests for state.js — deliberately different from route-visibility.test.js,
+// which calls pure functions with hard-coded filter values and so never checks
+// whether a new value gets through to them at all. That gap hid a real bug
+// (18 August 2026): the picker offered "nicht_zugeordnet", but
+// setRouteDriveFilter() still had the old, shorter list and silently rejected
+// the tap. This file checks the wiring itself: every value listed in
+// ROUTE_DRIVE_FILTERS must pass EVERY gate state.js validates it with.
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { state, ROUTE_DRIVE_FILTERS, MAP_METRICS, setRouteDriveFilter, setMetric, collectPreferences, applyPreferences } from "../state.js";
+import { state, ROUTE_DRIVE_FILTERS, MAP_METRICS, setRouteDriveFilter, setMetric, collectPreferences, applyPreferences, migrateConfig } from "../state.js";
 
-test("setRouteDriveFilter: jeder gültige Wert wird tatsächlich übernommen", () => {
-  for (const wert of ROUTE_DRIVE_FILTERS) {
-    setRouteDriveFilter(wert);
-    assert.equal(state.routeDriveFilter, wert, `setRouteDriveFilter("${wert}") wurde nicht übernommen`);
+test("setRouteDriveFilter: every valid value is actually taken", () => {
+  for (const value of ROUTE_DRIVE_FILTERS) {
+    setRouteDriveFilter(value);
+    assert.equal(state.routeDriveFilter, value, `setRouteDriveFilter("${value}") was not taken`);
   }
 });
 
-test("setRouteDriveFilter: unbekannte Werte werden abgelehnt, nicht stillschweigend übernommen", () => {
+test("setRouteDriveFilter: unknown values are rejected, not silently taken", () => {
   setRouteDriveFilter("etappe");
-  setRouteDriveFilter("erfunden");
+  setRouteDriveFilter("made-up");
   assert.equal(state.routeDriveFilter, "etappe");
 });
 
-test("collectPreferences/applyPreferences: jeder gültige Filterwert übersteht den Rundlauf", () => {
-  for (const wert of ROUTE_DRIVE_FILTERS) {
-    setRouteDriveFilter(wert);
+test("collectPreferences/applyPreferences: every valid filter value survives the round trip", () => {
+  for (const value of ROUTE_DRIVE_FILTERS) {
+    setRouteDriveFilter(value);
     const prefs = collectPreferences();
-    assert.equal(prefs.routeDriveFilter, wert, `collectPreferences() verwarf "${wert}"`);
+    assert.equal(prefs.routeDriveFilter, value, `collectPreferences() dropped "${value}"`);
 
-    setRouteDriveFilter("etappe"); // zurücksetzen, um applyPreferences ehrlich zu prüfen
+    setRouteDriveFilter("etappe"); // reset, so applyPreferences is checked honestly
     applyPreferences(prefs);
-    assert.equal(state.routeDriveFilter, wert, `applyPreferences() übernahm "${wert}" nicht`);
+    assert.equal(state.routeDriveFilter, value, `applyPreferences() did not take "${value}"`);
   }
 });
 
-// Dieselbe Absicherung für die Karten-Kenngröße (state.metric) — genauso
-// an mehreren Stellen dupliziert wie routeDriveFilter, genauso anfällig
-// dafür, dass ein neuer Wert (hier: "dist") an einer der Stellen vergessen
-// wird.
-test("setMetric: jeder gültige Wert wird tatsächlich übernommen", () => {
-  for (const wert of MAP_METRICS) {
-    setMetric(wert);
-    assert.equal(state.metric, wert, `setMetric("${wert}") wurde nicht übernommen`);
+// The same safeguard for the map colouring (state.metric) — duplicated in as
+// many places as routeDriveFilter and just as prone to a new value (here:
+// "dist") being forgotten in one of them.
+test("setMetric: every valid value is actually taken", () => {
+  for (const value of MAP_METRICS) {
+    setMetric(value);
+    assert.equal(state.metric, value, `setMetric("${value}") was not taken`);
   }
 });
 
-test("setMetric: unbekannte Werte werden abgelehnt, nicht stillschweigend übernommen", () => {
+test("setMetric: unknown values are rejected, not silently taken", () => {
   setMetric("day");
-  setMetric("erfunden");
+  setMetric("made-up");
   assert.equal(state.metric, "day");
 });
 
-test("collectPreferences/applyPreferences: jeder gültige Metric-Wert übersteht den Rundlauf", () => {
-  for (const wert of MAP_METRICS) {
-    setMetric(wert);
+test("collectPreferences/applyPreferences: every valid metric value survives the round trip", () => {
+  for (const value of MAP_METRICS) {
+    setMetric(value);
     const prefs = collectPreferences();
-    assert.equal(prefs.metric, wert, `collectPreferences() verwarf "${wert}"`);
+    assert.equal(prefs.metric, value, `collectPreferences() dropped "${value}"`);
 
     setMetric("day");
     applyPreferences(prefs);
-    assert.equal(state.metric, wert, `applyPreferences() übernahm "${wert}" nicht`);
+    assert.equal(state.metric, value, `applyPreferences() did not take "${value}"`);
   }
+});
+
+test("migrateConfig: settings stored under the old German keys are taken over", () => {
+  assert.deepEqual(migrateConfig({ theme: "dark", gelaende: true, kartenstil: "dezent", lueckenMarkieren: true }),
+    { theme: "dark", terrain: true, mapStyle: "dezent", markGaps: true });
+  // a value already stored under the new key wins
+  assert.deepEqual(migrateConfig({ kartenstil: "dezent", mapStyle: "farbig" }), { mapStyle: "farbig" });
+  assert.deepEqual(migrateConfig(null), {});
 });

@@ -382,24 +382,24 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   zeigeTheme();
 
   const zeigeKartenstil = () => {
-    const aktuell = gueltigerKartenstil(state.config.kartenstil);
+    const aktuell = gueltigerKartenstil(state.config.mapStyle);
     $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === aktuell)));
   };
   $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.addEventListener("click", () => {
-    state.config.kartenstil = gueltigerKartenstil(b.dataset.kartenstilWahl);
+    state.config.mapStyle = gueltigerKartenstil(b.dataset.kartenstilWahl);
     saveConfig();
-    mapview.setKartenstil(state.config.kartenstil);
+    mapview.setKartenstil(state.config.mapStyle);
     zeigeKartenstil();
   }));
   zeigeKartenstil();
 
   const lueckenSwitch = $("#cfg-luecken");
   if (lueckenSwitch) {
-    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.lueckenMarkieren)));
+    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.markGaps)));
     lueckenSwitch.addEventListener("click", () => {
       const an = lueckenSwitch.getAttribute("aria-checked") !== "true";
       lueckenSwitch.setAttribute("aria-checked", String(an));
-      state.config.lueckenMarkieren = an;
+      state.config.markGaps = an;
       saveConfig();
       mapview.setLuecken(an);
     });
