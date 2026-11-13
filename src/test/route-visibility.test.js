@@ -18,7 +18,7 @@ const path = [
   { lon: 7.5, lat: 51.5, elev: 75, spd: 60, day: 1, time: "2026-08-10T13:00:00.000Z", cum: 75 },
 ];
 
-test("RouteVisibility: Etappenfilter zeigt keine Strecke, wenn nur Abstecher markiert sind", () => {
+test("RouteVisibility: the stage filter shows no route when only detours are marked", () => {
   const drives = [
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
   ];
@@ -30,7 +30,7 @@ test("RouteVisibility: Etappenfilter zeigt keine Strecke, wenn nur Abstecher mar
   assert.equal(visible.length, 0);
 });
 
-test("RouteVisibility: normale Etappen bleiben sichtbar", () => {
+test("RouteVisibility: normal stages stay visible", () => {
   const drives = [
     { tripId: "reise-1", kind: "etappe", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
   ];
@@ -44,7 +44,7 @@ test("RouteVisibility: normale Etappen bleiben sichtbar", () => {
   );
 });
 
-test("RouteVisibility: Etappenfilter zeigt markierte Etappe zwischen Abstechern", () => {
+test("RouteVisibility: the stage filter shows a marked stage between detours", () => {
   const drives = [
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
     { tripId: "reise-1", kind: "etappe", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
@@ -60,7 +60,7 @@ test("RouteVisibility: Etappenfilter zeigt markierte Etappe zwischen Abstechern"
   );
 });
 
-test("RouteVisibility: Alle zeigt Etappen und Abstecher", () => {
+test("RouteVisibility: the all filter shows stages and detours", () => {
   const drives = [
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
   ];
@@ -68,7 +68,7 @@ test("RouteVisibility: Alle zeigt Etappen und Abstecher", () => {
   assert.equal(visibleRoutePath(path, drives, "reise-1", "alle").length, path.length);
 });
 
-test("RouteVisibility: Versorgungsfilter zeigt nur Abstecher", () => {
+test("RouteVisibility: the supply filter shows only detours", () => {
   const drives = [
     { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
@@ -86,7 +86,7 @@ test("RouteVisibility: Versorgungsfilter zeigt nur Abstecher", () => {
   assert.equal(driveMatchesRouteFilter(drives[1], "abstecher"), true);
 });
 
-test("RouteVisibility: Orte und Notizen folgen dem Fahrtenfilter", () => {
+test("RouteVisibility: places and notes follow the drive filter", () => {
   const drives = [
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
   ];
@@ -96,27 +96,27 @@ test("RouteVisibility: Orte und Notizen folgen dem Fahrtenfilter", () => {
   assert.equal(itemMatchesRouteFilter({}, drives, "reise-1", "abstecher"), false);
 });
 
-// Echter Fund (24. Oktober 2026): Die Fahrtenliste wird seltener geladen als der
-// Pfad. Bei laufender Reise fehlte deshalb das jüngste Stück der Strecke.
-test("RouteVisibility: offenes Ende zeigt Punkte nach der letzten bekannten Fahrt", () => {
+// Seen on 24 October 2026: the drive list is loaded less often than the
+// path, so for a running trip the most recent piece of the route was missing.
+test("RouteVisibility: the open end shows points after the last known drive", () => {
   const drives = [
     { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T10:00:00.000Z" },
   ];
   const ohne = visibleRouteSegments(path, drives, "reise-1").flat().map((p) => p.time);
-  const mit = visibleRouteSegments(path, drives, "reise-1", "etappe", { offenesEnde: true }).flat().map((p) => p.time);
+  const mit = visibleRouteSegments(path, drives, "reise-1", "etappe", { openEnd: true }).flat().map((p) => p.time);
   assert.equal(ohne.at(-1), "2026-08-10T10:00:00.000Z");
   assert.equal(mit.at(-1), "2026-08-10T13:00:00.000Z", "die neueren Punkte sind sichtbar");
 });
 
-test("RouteVisibility: offenes Ende beginnt erst nach der letzten bekannten Fahrt jeder Art (Abstecher bleibt ausgeblendet)", () => {
+test("RouteVisibility: the open end starts only after the last known drive of any kind (a detour stays hidden)", () => {
   const drives = [
     { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
     { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
   ];
-  const segmente = visibleRouteSegments(path, drives, "reise-1", "etappe", { offenesEnde: true });
+  const segmente = visibleRouteSegments(path, drives, "reise-1", "etappe", { openEnd: true });
   assert.deepEqual(
     segmente.map((s) => s.map((p) => p.time.slice(11, 13))),
     [["08", "09"], ["12", "13"]],
-    "Etappe sichtbar, Abstecher (10–11 Uhr) weg, jüngere Punkte (12–13 Uhr) sichtbar",
+    "stage visible, detour (10–11) gone, newer points (12–13) visible",
   );
 });

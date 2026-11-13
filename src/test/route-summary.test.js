@@ -7,12 +7,12 @@ const path = [
   { lon: 7, lat: 51, elev: 50, spd: 20, time: "2026-08-09T08:00:00.000Z", day: 1, cum: 0 },
   { lon: 7.1, lat: 51.1, elev: 90, spd: 80, time: "2026-08-09T09:00:00.000Z", day: 1, cum: 12 },
   { lon: 7.2, lat: 51.2, elev: 130, spd: 70, time: "2026-08-10T08:00:00.000Z", day: 2, cum: 12 },
-  // ~27 km in 90 min (18 km/h im Schnitt) — als Lücke zählt sie nur, wenn die
-  // Strecke einer echten Fahrt entspricht (siehe bewegungsMinuten).
+  // ~27 km in 90 min (18 km/h on average) — as a gap it only counts when the
+  // distance matches real driving (see movingMinutes).
   { lon: 7.4, lat: 51.4, elev: 180, spd: 100, time: "2026-08-10T09:30:00.000Z", day: 2, cum: 30 },
 ];
 
-test("RouteSummary: Reise bündelt Strecke, Fahrzeit, Tempo, Orte und Nächte", () => {
+test("RouteSummary: a trip bundles distance, driving time, speed, places and nights", () => {
   const summary = summarizeTrip({
     id: "trip_1",
     name: "Testreise",
@@ -44,7 +44,7 @@ test("RouteSummary: Reise bündelt Strecke, Fahrzeit, Tempo, Orte und Nächte", 
   assert.equal(summary.stats.days, 2);
 });
 
-test("RouteSummary: wiederholte Übernachtungen am selben Ort bleiben ein Übernachtungsplatz", () => {
+test("RouteSummary: repeated overnight stays at the same spot stay one overnight place", () => {
   const summary = summarizeTrip({
     id: "trip_overnight",
     name: "Übernachtungsreise",
@@ -63,7 +63,7 @@ test("RouteSummary: wiederholte Übernachtungen am selben Ort bleiben ein Übern
   assert.equal(summary.stats.nights, 2);
 });
 
-test("RouteSummary: Tages-Summaries normalisieren den Kilometerstand", () => {
+test("RouteSummary: day summaries normalise the distance", () => {
   const days = summarizeTripDays({ id: "trip_1", name: "Testreise", hue: 28, path });
 
   assert.equal(days.length, 2);
@@ -73,7 +73,7 @@ test("RouteSummary: Tages-Summaries normalisieren den Kilometerstand", () => {
   assert.equal(days[1].path.at(-1).cum, 18);
 });
 
-test("RouteSummary: Fahrzeit ignoriert lange Standzeiten in der GPS-Spur", () => {
+test("RouteSummary: driving time ignores long stands in the GPS track", () => {
   const summary = summarizeTrip({
     id: "trip_stand",
     name: "Standreise",
@@ -95,7 +95,7 @@ test("RouteSummary: Fahrzeit ignoriert lange Standzeiten in der GPS-Spur", () =>
   assert.equal(summary.stats.averageKmh, 50);
 });
 
-test("RouteSummary: Fahrt nutzt GPS-Bewegungszeit vor aufgeblähter Berichtsdauer", () => {
+test("RouteSummary: a drive prefers the GPS moving time over an inflated report duration", () => {
   const summary = summarizeDrive({
     id: "drive_stand",
     tripId: "trip_1",
@@ -117,7 +117,7 @@ test("RouteSummary: Fahrt nutzt GPS-Bewegungszeit vor aufgeblähter Berichtsdaue
   assert.equal(summary.stats.averageKmh, 50);
 });
 
-test("RouteSummary: leere Reisetage werden in der Tagesliste ausgeblendet", () => {
+test("RouteSummary: empty trip days are hidden in the day list", () => {
   const days = summarizeTripDays({
     id: "trip_empty_days",
     name: "Kalenderreise",
@@ -136,7 +136,7 @@ test("RouteSummary: leere Reisetage werden in der Tagesliste ausgeblendet", () =
   assert.deepEqual(days.map((d) => d.title), []);
 });
 
-test("RouteSummary: Reisetage entstehen aus Track und Fahrten im Reisezeitraum", () => {
+test("RouteSummary: trip days come from the track and the drives within the trip", () => {
   const days = summarizeTripDays({
     id: "trip_calendar",
     name: "Kalenderreise",
@@ -156,7 +156,7 @@ test("RouteSummary: Reisetage entstehen aus Track und Fahrten im Reisezeitraum",
   assert.equal(days[1].stats.distanceKm, 10);
 });
 
-test("RouteSummary: laufende Reise bleibt zeitlich offen", () => {
+test("RouteSummary: a running trip stays open in time", () => {
   const summary = summarizeTrip({
     id: "trip_live",
     name: "Laufende Reise",
@@ -172,7 +172,7 @@ test("RouteSummary: laufende Reise bleibt zeitlich offen", () => {
   assert.ok(summary.stats.periodMinutes > 0);
 });
 
-test("RouteSummary: Fahrt kann auch ohne geladene Spur ausgewertet werden", () => {
+test("RouteSummary: a drive can be evaluated without a loaded track", () => {
   const summary = summarizeDrive({
     id: "drive_1",
     tripId: "trip_1",
@@ -189,7 +189,7 @@ test("RouteSummary: Fahrt kann auch ohne geladene Spur ausgewertet werden", () =
   assert.equal(summary.stats.maxKmh, 104);
 });
 
-test("RouteSummary: Karten-Vorschau bleibt kompatibel mit Trip-Like-Objekten", () => {
+test("RouteSummary: the map preview stays compatible with trip-like objects", () => {
   const summary = summarizeDrive({
     id: "drive_1",
     from: "2026-08-10T08:00:00.000Z",
@@ -204,15 +204,15 @@ test("RouteSummary: Karten-Vorschau bleibt kompatibel mit Trip-Like-Objekten", (
   assert.equal(tripLike.path[0].cum, 0);
 });
 
-// Echter Fund (16. Oktober 2026): ein Stopp, in dem der Router verstummt, zählte
-// als Fahrzeit, sobald die letzte Meldung davor oder die erste danach noch
-// ≥ 5 km/h trug (Restgeschwindigkeit/Anfahren) — Gesamt/Tage 1589 min statt ~1295.
-test("RouteSummary: eine Meldelücke am selben Fleck zählt nicht als Fahrzeit, auch wenn ein Randpunkt schnell war", () => {
+// Seen on 16 October 2026: a stop during which the router went quiet counted
+// as driving time as soon as the last report before or the first after it
+// carried ≥ 5 km/h (residual speed, pulling away) — totals 1589 min instead of ~1295.
+test("RouteSummary: a reporting gap at the same spot is not driving time, even when an end point was fast", () => {
   const summary = summarizeDrive({ id: "d", from: "2026-09-25T08:00:00.000Z", to: "2026-09-25T10:00:00.000Z", km: 5, minutes: 120 }, {
     path: [
       { lon: 10.0, lat: 48.0, elev: 0, spd: 40, time: "2026-09-25T08:00:00.000Z", day: 1, cum: 0 },
       { lon: 10.001, lat: 48.0, elev: 0, spd: 5, time: "2026-09-25T08:01:00.000Z", day: 1, cum: 0.07 },
-      // 65 Minuten Stille am selben Ort, Randpunkte beide ≥ 5 km/h
+      // 65 minutes of silence at the same spot, both end points ≥ 5 km/h
       { lon: 10.001, lat: 48.0, elev: 0, spd: 5, time: "2026-09-25T09:06:00.000Z", day: 1, cum: 0.07 },
       { lon: 10.002, lat: 48.0, elev: 0, spd: 30, time: "2026-09-25T09:07:00.000Z", day: 1, cum: 0.14 },
     ],
@@ -220,23 +220,23 @@ test("RouteSummary: eine Meldelücke am selben Fleck zählt nicht als Fahrzeit, 
   assert.equal(summary.stats.driveMinutes, 2, "nur die beiden 1-Minuten-Intervalle zählen");
 });
 
-test("RouteSummary: eine Meldelücke mit echter Fortbewegung (Tunnel) bleibt Fahrzeit", () => {
+test("RouteSummary: a reporting gap with real movement (tunnel) stays driving time", () => {
   const summary = summarizeDrive({ id: "d", from: "2026-09-24T16:20:00.000Z", to: "2026-09-24T16:30:00.000Z", km: 20, minutes: 10 }, {
     path: [
       { lon: 10.0, lat: 48.0, elev: 0, spd: 119, time: "2026-09-24T16:20:00.000Z", day: 1, cum: 0 },
-      // 7 Minuten ohne Meldung, ~14 km weiter (≈ 120 km/h im Schnitt)
+      // 7 minutes without a report, ~14 km further (≈ 120 km/h on average)
       { lon: 10.17, lat: 48.0, elev: 0, spd: 112, time: "2026-09-24T16:27:00.000Z", day: 1, cum: 12.6 },
     ],
   });
   assert.equal(summary.stats.driveMinutes, 7);
 });
 
-test("RouteSummary: normale Messintervalle zählen bei bewegtem Fahrzeug, bei Stand nicht (ohne gemeldete Fahrtdauer als Rückfall)", () => {
+test("RouteSummary: normal sampling intervals count while moving, not while standing (without a reported drive duration as fallback)", () => {
   const punkte = (spd) => Array.from({ length: 31 }, (_, i) => ({
     lon: 10 + i * 0.0003, lat: 48, elev: 0, spd, time: new Date(Date.UTC(2026, 8, 25, 8, 0, i * 2)).toISOString(), day: 1, cum: i * 0.02,
   }));
-  const fahrend = summarizeDrive({ id: "a", from: "x", to: "y", km: 1, minutes: 1 }, { path: punkte(50) });
+  const moving = summarizeDrive({ id: "a", from: "x", to: "y", km: 1, minutes: 1 }, { path: punkte(50) });
   const stehend = summarizeDrive({ id: "b", from: "x", to: "y", km: 0, minutes: 0 }, { path: punkte(0) });
-  assert.equal(fahrend.stats.driveMinutes, 1); // 30 Intervalle à 2 s = 60 s
+  assert.equal(moving.stats.driveMinutes, 1); // 30 intervals of 2 s = 60 s
   assert.equal(stehend.stats.driveMinutes, 0);
 });

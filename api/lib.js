@@ -362,7 +362,7 @@ export function compactRoute(rows, total = rows.length) {
   };
 }
 
-const MAX_LUECKE_MINUTEN = 120; // wie src/route-summary.js: MAX_BEWEGUNGSLUECKE_MINUTEN
+const MAX_LUECKE_MINUTEN = 120; // same as src/route-summary.js: MAX_MOVING_GAP_MINUTES
 
 function haversineMeter(a, b) {
   const R = 6371000;
@@ -579,7 +579,7 @@ function baueStopp(kanten) {
  * Fahrten aus einer nach Zeit aufsteigend sortierten Liste von
  * positions-Zeilen ableiten (Traccar-Trip-Report-Form). Bewusst eigen
  * gebaut, kein Nachbau von Traccars Algorithmus — Grundidee wie die
- * bestehende Bewegungserkennung in src/route-summary.js (bewegungsMinuten):
+ * bestehende Bewegungserkennung in src/route-summary.js (movingMinutes):
  * je zwei aufeinanderfolgende Punkte bilden eine Kante, aufeinanderfolgende
  * "bewegt"-Kanten bilden eine Fahrt.
  */

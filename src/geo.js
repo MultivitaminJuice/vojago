@@ -1,8 +1,8 @@
-// Geografische Helfer: Entfernungen, Glättung, Begrenzungsrahmen.
+// Geographic helpers: distances, smoothing, bounding boxes.
 
-const R = 6371; // Erdradius in km
+const R = 6371; // earth radius in km
 
-/** Entfernung zweier Punkte in Kilometern. */
+/** Distance between two points in kilometres. */
 export function distanceKm(lon1, lat1, lon2, lat2) {
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -23,10 +23,10 @@ const crValue = (p0, p1, p2, p3, t, key) => {
 };
 
 /**
- * Verdichtet Stützpunkte zu einer weichen Route (Catmull-Rom) und ergänzt
- * je Punkt die aufsummierte Strecke `cum` (km) sowie den Reisetag `day`.
+ * Densifies waypoints into a smooth route (Catmull-Rom) and adds the running
+ * distance `cum` (km) and the trip day `day` to every point.
  * @param {Array<{lon,lat,elev,spd,night?:boolean}>} waypoints
- * @param {number} steps Zwischenpunkte je Abschnitt
+ * @param {number} steps intermediate points per section
  */
 export function buildPath(waypoints, steps = 14) {
   const pts = [];
@@ -62,31 +62,26 @@ export function buildPath(waypoints, steps = 14) {
 
 export const pathLengthKm = (path) => (path.length ? path[path.length - 1].cum : 0);
 
-// GPS-Rauschen im Stand: aufeinanderfolgende Fixe "springen" ein paar Meter
-// hin und her (z. B. Mehrwegeausbreitung an Gebäuden — Nutzer-Fund,
-// 5. September 2026: sichtbare Schleife auf einem Parkplatz, obwohl das
-// Fahrzeug fest stand), ohne dass real Bewegung stattfand. Reine
-// Anzeigekorrektur — nur der abgeleitete Pfad wird geglättet, die
-// gespeicherten Rohpositionen bleiben unangetastet (siehe Aufrufer). Bleibt
-// ein Fix innerhalb von STAND_GLAETTUNG_RADIUS_M vom zuletzt gesetzten
-// Anker UND meldet er nur geringe Geschwindigkeit, übernimmt er dessen
-// Position statt seiner eigenen; ein Fix außerhalb des Radius setzt einen
-// neuen Anker (echte, wenn auch langsame Weiterfahrt bleibt sichtbar).
-// Geschwindigkeits-Schwelle bewusst niedriger als STAND_SPEED_MAX_KMH (5,
-// src/dataload.js) — hier geht es nicht darum, "steht" im Sinne eines
-// Stopps zu erkennen, sondern nur offensichtliches Rauschen bei
-// eindeutigem Stillstand zu glätten.
-const STAND_GLAETTUNG_RADIUS_M = 12;
-const STAND_GLAETTUNG_MAX_KMH = 3;
+// GPS noise while standing: consecutive fixes "jump" a few metres back and
+// forth (e.g. multipath next to buildings — seen on 5 September 2026 as a
+// visible loop on a parking lot while the vehicle stood still). Display only:
+// just the derived path is smoothed, the stored positions stay untouched (see
+// callers). A fix within STANDING_RADIUS_M of the current anchor AND with a low
+// speed takes the anchor's position instead of its own; a fix outside the
+// radius sets a new anchor (real, if slow, movement stays visible). The speed
+// threshold is lower than the one for detecting stops: this only smooths
+// obvious noise while clearly standing still.
+const STANDING_RADIUS_M = 12;
+const STANDING_MAX_KMH = 3;
 
-export function glaetteStandRauschen(waypoints) {
-  let anker = null;
+export function smoothStandingNoise(waypoints) {
+  let anchor = null;
   return waypoints.map((w) => {
-    if ((w.spd || 0) > STAND_GLAETTUNG_MAX_KMH) { anker = null; return w; }
-    if (anker && distanceKm(anker.lon, anker.lat, w.lon, w.lat) * 1000 <= STAND_GLAETTUNG_RADIUS_M) {
-      return { ...w, lat: anker.lat, lon: anker.lon };
+    if ((w.spd || 0) > STANDING_MAX_KMH) { anchor = null; return w; }
+    if (anchor && distanceKm(anchor.lon, anchor.lat, w.lon, w.lat) * 1000 <= STANDING_RADIUS_M) {
+      return { ...w, lat: anchor.lat, lon: anchor.lon };
     }
-    anker = { lat: w.lat, lon: w.lon };
+    anchor = { lat: w.lat, lon: w.lon };
     return w;
   });
 }
@@ -112,7 +107,7 @@ export function elevationRange(path) {
   return { min, max };
 }
 
-/** Punkt auf der Route bei einer bestimmten Kilometermarke. */
+/** Point on the route at a given kilometre mark. */
 export function pointAtKm(path, km) {
   for (let i = 1; i < path.length; i++) {
     if (path[i].cum >= km) {
@@ -124,7 +119,7 @@ export function pointAtKm(path, km) {
   return path[path.length - 1];
 }
 
-/** Sinnvoller Abstand für Kilometermarken (ca. 7 Stück). */
+/** A sensible spacing for kilometre markers (about seven of them). */
 export function kmMarkerStep(total) {
   const raw = total / 7;
   const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
@@ -133,97 +128,95 @@ export function kmMarkerStep(total) {
 }
 
 /**
- * Linie für die Darstellung vereinfachen (Douglas-Peucker): Punkte, die weniger
- * als `toleranzM` Meter von der Verbindung ihrer Nachbarn abweichen, entfallen.
- * Erste und letzte Punkte bleiben, die übrigen Punkte bleiben unverändert
- * (mit allen Feldern wie `cum`, `time`, `day`). Nur fürs Zeichnen gedacht —
- * Statistik (Kilometer, Höhe, Fahrzeit) rechnet weiter mit dem vollen Pfad.
+ * Simplify a line for drawing (Douglas-Peucker): points that deviate less than
+ * `toleranceM` metres from the connection of their neighbours are dropped. The
+ * first and last points stay, the remaining points are unchanged (with all
+ * fields such as `cum`, `time`, `day`). For drawing only — statistics
+ * (kilometres, elevation, driving time) keep using the full path.
  *
- * Hintergrund: Eine Reise hat Zehntausende Punkte (6 Tage ≈ 72 000), die
- * Karte bekam sie ungekürzt (zweimal: Basislinie und Farbverlauf). Das
- * überfordert die Grafik von Handys — Teile der Linie fehlten oder wurden
- * als Gerade quer über die Karte gezeichnet. Mit 3 m Toleranz bleiben rund
- * 10 % der Punkte, optisch ohne Unterschied.
+ * Background: phones struggled to draw tens of thousands of points twice (base
+ * line and colour gradient) — parts of the line were missing or drawn as a
+ * straight line across the map. With 3 m tolerance about 10 % of the points
+ * remain, with no visible difference.
  */
-export function vereinfache(punkte, toleranzM = 3) {
-  const n = punkte?.length || 0;
-  if (n <= 2) return punkte || [];
-  const k = Math.cos((punkte[0].lat * Math.PI) / 180);
+export function simplify(points, toleranceM = 3) {
+  const n = points?.length || 0;
+  if (n <= 2) return points || [];
+  const k = Math.cos((points[0].lat * Math.PI) / 180);
   const m = 111320;
   const X = (p) => p.lon * k * m;
   const Y = (p) => p.lat * m;
-  const behalten = new Uint8Array(n);
-  behalten[0] = behalten[n - 1] = 1;
-  const stapel = [[0, n - 1]];
-  while (stapel.length) {
-    const [a, b] = stapel.pop();
-    const ax = X(punkte[a]), ay = Y(punkte[a]);
-    const dx = X(punkte[b]) - ax, dy = Y(punkte[b]) - ay;
-    const laenge2 = dx * dx + dy * dy;
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const ax = X(points[a]), ay = Y(points[a]);
+    const dx = X(points[b]) - ax, dy = Y(points[b]) - ay;
+    const length2 = dx * dx + dy * dy;
     let max = 0, idx = -1;
     for (let i = a + 1; i < b; i++) {
-      const px = X(punkte[i]) - ax, py = Y(punkte[i]) - ay;
-      const t = laenge2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / laenge2)) : 0;
-      const abstand = Math.hypot(px - t * dx, py - t * dy);
-      if (abstand > max) { max = abstand; idx = i; }
+      const px = X(points[i]) - ax, py = Y(points[i]) - ay;
+      const t = length2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / length2)) : 0;
+      const distance = Math.hypot(px - t * dx, py - t * dy);
+      if (distance > max) { max = distance; idx = i; }
     }
-    if (max > toleranzM && idx > 0) { behalten[idx] = 1; stapel.push([a, idx], [idx, b]); }
+    if (max > toleranceM && idx > 0) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
   }
-  return punkte.filter((_, i) => behalten[i]);
+  return points.filter((_, i) => keep[i]);
 }
 
-/** Meter je Bildschirmpixel bei einem Zoom (MapLibre, 512-px-Kacheln) auf einer Breite. */
-export const meterProPixel = (zoom, lat) => (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+/** Metres per screen pixel at a zoom level (MapLibre, 512 px tiles) on a latitude. */
+export const metersPerPixel = (zoom, lat) => (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 
 /**
- * Alle Durchfahrten der Route an einer Tipp-Position. Wurde dieselbe Strecke
- * mehrfach befahren (Hin- und Rückweg), liegen mehrere Routenstücke innerhalb
- * der Toleranz — gezeigt wird je Durchfahrt der nächstgelegene Punkt, in
- * zeitlicher Reihenfolge. Zwei Punkte gehören zur selben Durchfahrt, solange
- * höchstens `lueckeMs` zwischen ihnen liegt (ohne Zeitstempel: 30 Punkte).
- * Rechnet mit dem vollen Pfad (nicht der vereinfachten Zeichnung), damit
- * Kilometer, Uhrzeit und Tempo exakt stimmen. Gleichwinklige Näherung: auf
- * Tipp-Abstände von wenigen hundert Metern völlig ausreichend.
+ * All passes of the route at a tap position. When the same road was driven
+ * more than once (out and back), several pieces of the route lie within the
+ * tolerance — for each pass the nearest point is returned, in time order. Two
+ * points belong to the same pass while at most `gapMs` lies between them
+ * (without timestamps: 30 points). Works on the full path (not the simplified
+ * drawing), so kilometres, time and speed are exact. Equirectangular
+ * approximation: plenty for tap distances of a few hundred metres.
  */
-export function routenTreffer(path, lon, lat, toleranzM, lueckeMs = 300_000) {
+export function routeHits(path, lon, lat, toleranceM, gapMs = 300_000) {
   if (!Array.isArray(path) || !path.length) return [];
   const mLat = 111_320;
   const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
-  const grenze = toleranzM * toleranzM;
-  const durchfahrten = [];
-  let aktuell = null;
+  const limit = toleranceM * toleranceM;
+  const passes = [];
+  let current = null;
   for (let i = 0; i < path.length; i++) {
     const dx = (path[i].lon - lon) * mLon;
     const dy = (path[i].lat - lat) * mLat;
-    const abstand2 = dx * dx + dy * dy;
-    if (abstand2 > grenze) continue;
-    const zeit = Date.parse(path[i].time || "");
-    const zusammen = aktuell && (Number.isFinite(zeit) && Number.isFinite(aktuell.letzteZeit)
-      ? zeit - aktuell.letzteZeit <= lueckeMs
-      : i - aktuell.letzterIndex <= 30);
-    if (!zusammen) {
-      aktuell = { punkt: path[i], index: i, abstand2, letzterIndex: i, letzteZeit: zeit };
-      durchfahrten.push(aktuell);
+    const distance2 = dx * dx + dy * dy;
+    if (distance2 > limit) continue;
+    const time = Date.parse(path[i].time || "");
+    const samePass = current && (Number.isFinite(time) && Number.isFinite(current.lastTime)
+      ? time - current.lastTime <= gapMs
+      : i - current.lastIndex <= 30);
+    if (!samePass) {
+      current = { point: path[i], index: i, distance2, lastIndex: i, lastTime: time };
+      passes.push(current);
       continue;
     }
-    if (abstand2 < aktuell.abstand2) { aktuell.punkt = path[i]; aktuell.index = i; aktuell.abstand2 = abstand2; }
-    aktuell.letzterIndex = i;
-    aktuell.letzteZeit = zeit;
+    if (distance2 < current.distance2) { current.point = path[i]; current.index = i; current.distance2 = distance2; }
+    current.lastIndex = i;
+    current.lastTime = time;
   }
-  return durchfahrten.map((d) => ({ punkt: d.punkt, index: d.index, abstandM: Math.sqrt(d.abstand2) }));
+  return passes.map((d) => ({ point: d.point, index: d.index, distanceM: Math.sqrt(d.distance2) }));
 }
 
 /**
- * Von mehreren Durchfahrten nur die, die wirklich an derselben Stelle liegen wie
- * die dem Finger nächste. Bei weitem Zoom sind 22 Pixel viele Kilometer — dann
- * lägen sonst Hin-, Rückweg und Abstecher auf getrennten Straßen im Tipp-Bereich,
- * obwohl sie nur auf dem Bildschirm übereinanderliegen. `maxM` deckt den Versatz
- * zweier Fahrten auf derselben Straße ab (Spur, GPS-Rauschen, Messabstand).
+ * Of several passes only those that really lie at the same spot as the one
+ * nearest to the finger. At a wide zoom 22 pixels are many kilometres — out and
+ * back and a detour on separate roads would otherwise all be in the tap area,
+ * although they only overlap on screen. `maxM` covers the offset of two drives
+ * on the same road (lane, GPS noise, sample spacing).
  */
-export function gleicheStelle(treffer, maxM = 100) {
-  if (treffer.length < 2) return treffer;
-  const anker = treffer.reduce((b, t) => (t.abstandM < b.abstandM ? t : b)).punkt;
+export function sameSpot(hits, maxM = 100) {
+  if (hits.length < 2) return hits;
+  const anchor = hits.reduce((b, t) => (t.distanceM < b.distanceM ? t : b)).point;
   const mLat = 111_320;
-  const mLon = 111_320 * Math.cos((anker.lat * Math.PI) / 180);
-  return treffer.filter((t) => Math.hypot((t.punkt.lon - anker.lon) * mLon, (t.punkt.lat - anker.lat) * mLat) <= maxM);
+  const mLon = 111_320 * Math.cos((anchor.lat * Math.PI) / 180);
+  return hits.filter((t) => Math.hypot((t.point.lon - anchor.lon) * mLon, (t.point.lat - anchor.lat) * mLat) <= maxM);
 }

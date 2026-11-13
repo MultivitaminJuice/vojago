@@ -1,60 +1,55 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { nachtfensterStunden, pruefeAutomatischeUebernachtung, standdauerStunden, entscheideStandKategorie } from "../overnight-rules.js";
+import { nightWindowHours, checkAutomaticOvernight, standingHours, classifyStand } from "../overnight-rules.js";
 
-const lokal = (tag, stunde, minute = 0) => new Date(2026, 7, tag, stunde, minute).toISOString();
+const local = (day, hour, minute = 0) => new Date(2026, 7, day, hour, minute).toISOString();
 
-test("Übernachtung: 23 bis 4 Uhr wird trotz nur 5 Stunden Stand erkannt", () => {
-  const pruefung = pruefeAutomatischeUebernachtung(lokal(10, 23), lokal(11, 4));
+test("overnight: 23:00 to 04:00 is recognised despite only 5 hours of standing", () => {
+  const check = checkAutomaticOvernight(local(10, 23), local(11, 4));
 
-  assert.equal(pruefung.qualifiziert, true);
-  assert.equal(Math.round(pruefung.standStunden), 5);
-  assert.equal(Math.round(pruefung.nachtStunden), 5);
+  assert.equal(check.qualifies, true);
+  assert.equal(Math.round(check.standingHours), 5);
+  assert.equal(Math.round(check.nightHours), 5);
 });
 
-test("Übernachtung: Datumswechsel allein reicht nicht", () => {
-  const pruefung = pruefeAutomatischeUebernachtung(lokal(10, 21), lokal(11, 1));
+test("overnight: a change of date alone is not enough", () => {
+  const check = checkAutomaticOvernight(local(10, 21), local(11, 1));
 
-  assert.equal(pruefung.qualifiziert, false);
-  assert.equal(Math.round(pruefung.standStunden), 4);
-  assert.equal(Math.round(pruefung.nachtStunden), 3);
+  assert.equal(check.qualifies, false);
+  assert.equal(Math.round(check.standingHours), 4);
+  assert.equal(Math.round(check.nightHours), 3);
 });
 
-test("Übernachtung: langer Tagesstopp ohne Nachtfenster wird nicht erkannt", () => {
-  const pruefung = pruefeAutomatischeUebernachtung(lokal(10, 10), lokal(10, 16));
+test("overnight: a long day stop without the night window is not recognised", () => {
+  const check = checkAutomaticOvernight(local(10, 10), local(10, 16));
 
-  assert.equal(pruefung.qualifiziert, false);
-  assert.equal(Math.round(pruefung.standStunden), 6);
-  assert.equal(pruefung.nachtStunden, 0);
+  assert.equal(check.qualifies, false);
+  assert.equal(Math.round(check.standingHours), 6);
+  assert.equal(check.nightHours, 0);
 });
 
-test("Übernachtung: Nachtfenster-Anteil wird über Mitternacht berechnet", () => {
-  assert.equal(standdauerStunden(lokal(10, 20), lokal(11, 2)), 6);
-  assert.equal(nachtfensterStunden(lokal(10, 20), lokal(11, 2)), 4);
-  assert.equal(pruefeAutomatischeUebernachtung(lokal(10, 20), lokal(11, 2)).qualifiziert, true);
+test("overnight: the night window share is computed across midnight", () => {
+  assert.equal(standingHours(local(10, 20), local(11, 2)), 6);
+  assert.equal(nightWindowHours(local(10, 20), local(11, 2)), 4);
+  assert.equal(checkAutomaticOvernight(local(10, 20), local(11, 2)).qualifies, true);
 });
 
-// entscheideStandKategorie() — kurze Stopps (z. B. ein Einkauf tagsüber)
-// sollen erfasst werden, ohne die eigentliche Übernachtungserkennung
-// aufzuweichen (Nutzerwunsch, 05.09.2026: ein Einkaufsbesuch fiel bisher
-// komplett durchs Raster).
-test("Stand-Kategorie: qualifiziert sich als Übernachtung, wird auch so eingestuft", () => {
-  const e = entscheideStandKategorie(lokal(10, 23), lokal(11, 4));
-  assert.equal(e.catId, "uebernachtung");
+// classifyStand() — short stops (e.g. shopping during the day) are recorded
+// without weakening the overnight detection (requested 05.09.2026: a shopping
+// visit used to slip through entirely).
+test("stand category: what qualifies as an overnight stay is classified as one", () => {
+  assert.equal(classifyStand(local(10, 23), local(11, 4)).catId, "uebernachtung");
 });
 
-test("Stand-Kategorie: kurzer Tagesstopp (z. B. Einkaufsbesuch) wird als Stopp erfasst", () => {
-  const e = entscheideStandKategorie(lokal(10, 14), lokal(10, 15, 30)); // 1,5h, mitten am Tag
-  assert.equal(e.catId, "stopp");
+test("stand category: a short day stop (e.g. shopping) is recorded as a stop", () => {
+  assert.equal(classifyStand(local(10, 14), local(10, 15, 30)).catId, "stopp"); // 1.5 h in the middle of the day
 });
 
-test("Stand-Kategorie: langer Tagesstopp ohne Nachtfenster bleibt ein Stopp, keine Übernachtung", () => {
-  const e = entscheideStandKategorie(lokal(10, 10), lokal(10, 16)); // 6h, kein Nachtfenster
-  assert.equal(e.catId, "stopp");
+test("stand category: a long day stop without the night window stays a stop, not an overnight stay", () => {
+  assert.equal(classifyStand(local(10, 10), local(10, 16)).catId, "stopp"); // 6 h, no night window
 });
 
-test("Stand-Kategorie: zu kurz für beides (z. B. eine Ampel) wird gar nicht erfasst", () => {
-  const e = entscheideStandKategorie(lokal(10, 14), lokal(10, 14, 5)); // 5 Minuten
-  assert.equal(e, null);
+test("stand category: too short for both (e.g. a traffic light) is not recorded", () => {
+  assert.equal(classifyStand(local(10, 14), local(10, 14, 5)), null); // 5 minutes
 });

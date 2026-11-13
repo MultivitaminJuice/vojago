@@ -1,89 +1,90 @@
-const MS_PRO_STUNDE = 3600000;
+// Rules for automatic overnight stays and short stops, shared by the app and the
+// ingest container (tracker-backend/src/auto-import.js). They work with LOCAL
+// times (the night window 22–6, calendar days), so the ingest container runs
+// with the time zone of its users (see tracker-backend/Dockerfile).
+// The category ids "uebernachtung" and "stopp" are stored values and stay as they are.
+const MS_PER_HOUR = 3600000;
 
-export const AUTOMATISCHE_UEBERNACHTUNG_MIN_STAND_STUNDEN = 5;
-export const AUTOMATISCHE_UEBERNACHTUNG_NACHT_START = 22;
-export const AUTOMATISCHE_UEBERNACHTUNG_NACHT_ENDE = 6;
-export const AUTOMATISCHE_UEBERNACHTUNG_MIN_NACHT_STUNDEN = 2;
+export const OVERNIGHT_MIN_STANDING_HOURS = 5;
+export const OVERNIGHT_NIGHT_START = 22;
+export const OVERNIGHT_NIGHT_END = 6;
+export const OVERNIGHT_MIN_NIGHT_HOURS = 2;
 
-function datumAusIso(iso) {
+function dateFromIso(iso) {
   const ms = Date.parse(iso || "");
   return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
-function startDesLokalenTages(date) {
+function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function plusTage(date, tage) {
-  const kopie = new Date(date);
-  kopie.setDate(kopie.getDate() + tage);
-  return kopie;
+function plusDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
 }
 
-export function standdauerStunden(vonIso, bisIso = new Date().toISOString()) {
-  const von = Date.parse(vonIso || "");
-  const bis = Date.parse(bisIso || "");
-  if (!Number.isFinite(von) || !Number.isFinite(bis) || bis <= von) return 0;
-  return (bis - von) / MS_PRO_STUNDE;
+/** Hours between two times (0 when invalid or reversed). */
+export function standingHours(fromIso, toIso = new Date().toISOString()) {
+  const from = Date.parse(fromIso || "");
+  const to = Date.parse(toIso || "");
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
+  return (to - from) / MS_PER_HOUR;
 }
 
-export function nachtfensterStunden(vonIso, bisIso = new Date().toISOString()) {
-  const vonDate = datumAusIso(vonIso);
-  const bisDate = datumAusIso(bisIso);
-  if (!vonDate || !bisDate || bisDate <= vonDate) return 0;
+/** Hours of a stand that fall into the night window (22:00–06:00 local time). */
+export function nightWindowHours(fromIso, toIso = new Date().toISOString()) {
+  const fromDate = dateFromIso(fromIso);
+  const toDate = dateFromIso(toIso);
+  if (!fromDate || !toDate || toDate <= fromDate) return 0;
 
-  let tag = plusTage(startDesLokalenTages(vonDate), -1);
-  const letzterTag = plusTage(startDesLokalenTages(bisDate), 1);
-  let summe = 0;
-  while (tag <= letzterTag) {
-    const start = new Date(tag);
-    start.setHours(AUTOMATISCHE_UEBERNACHTUNG_NACHT_START, 0, 0, 0);
-    const ende = plusTage(start, AUTOMATISCHE_UEBERNACHTUNG_NACHT_START > AUTOMATISCHE_UEBERNACHTUNG_NACHT_ENDE ? 1 : 0);
-    ende.setHours(AUTOMATISCHE_UEBERNACHTUNG_NACHT_ENDE, 0, 0, 0);
+  let day = plusDays(startOfLocalDay(fromDate), -1);
+  const lastDay = plusDays(startOfLocalDay(toDate), 1);
+  let sum = 0;
+  while (day <= lastDay) {
+    const start = new Date(day);
+    start.setHours(OVERNIGHT_NIGHT_START, 0, 0, 0);
+    const end = plusDays(start, OVERNIGHT_NIGHT_START > OVERNIGHT_NIGHT_END ? 1 : 0);
+    end.setHours(OVERNIGHT_NIGHT_END, 0, 0, 0);
 
-    const overlap = Math.min(bisDate.getTime(), ende.getTime()) - Math.max(vonDate.getTime(), start.getTime());
-    if (overlap > 0) summe += overlap / MS_PRO_STUNDE;
-    tag = plusTage(tag, 1);
+    const overlap = Math.min(toDate.getTime(), end.getTime()) - Math.max(fromDate.getTime(), start.getTime());
+    if (overlap > 0) sum += overlap / MS_PER_HOUR;
+    day = plusDays(day, 1);
   }
-  return summe;
+  return sum;
 }
 
-export function pruefeAutomatischeUebernachtung(vonIso, bisIso = new Date().toISOString()) {
-  const standStunden = standdauerStunden(vonIso, bisIso);
-  const nachtStunden = nachtfensterStunden(vonIso, bisIso);
-  const qualifiziert =
-    standStunden >= AUTOMATISCHE_UEBERNACHTUNG_MIN_STAND_STUNDEN &&
-    nachtStunden >= AUTOMATISCHE_UEBERNACHTUNG_MIN_NACHT_STUNDEN;
+/** Does a stand count as an automatic overnight stay? Returns the decision with its numbers. */
+export function checkAutomaticOvernight(fromIso, toIso = new Date().toISOString()) {
+  const standing = standingHours(fromIso, toIso);
+  const night = nightWindowHours(fromIso, toIso);
+  const qualifies = standing >= OVERNIGHT_MIN_STANDING_HOURS && night >= OVERNIGHT_MIN_NIGHT_HOURS;
   return {
-    qualifiziert,
-    standStunden,
-    nachtStunden,
-    minStandStunden: AUTOMATISCHE_UEBERNACHTUNG_MIN_STAND_STUNDEN,
-    minNachtStunden: AUTOMATISCHE_UEBERNACHTUNG_MIN_NACHT_STUNDEN,
-    nachtStart: AUTOMATISCHE_UEBERNACHTUNG_NACHT_START,
-    nachtEnde: AUTOMATISCHE_UEBERNACHTUNG_NACHT_ENDE,
+    qualifies,
+    standingHours: standing,
+    nightHours: night,
+    minStandingHours: OVERNIGHT_MIN_STANDING_HOURS,
+    minNightHours: OVERNIGHT_MIN_NIGHT_HOURS,
+    nightStart: OVERNIGHT_NIGHT_START,
+    nightEnd: OVERNIGHT_NIGHT_END,
   };
 }
 
-// Auch spürbar kürzere Stopps (ein Einkauf, ein Restaurantbesuch, ein
-// Museum) sollen erfasst werden, nicht nur Übernachtungen — bisher fiel
-// z. B. ein Einkaufsbesuch tagsüber komplett durchs Raster, weil er weder
-// die Standdauer- noch die Nachtfenster-Schwelle der Übernachtung
-// erreichte. Ob/wie solche Stopps später in der Oberfläche auftauchen,
-// ist eine eigene Frage — ohne Erfassung gäbe es dafür aber gar keine
-// Grundlage. 20 Minuten: lang genug, um kein bloßer Ampelstopp oder
-// GPS-Ausrutscher zu sein, kurz genug, um einen kurzen Besuch wirklich zu
-// erfassen (Nutzerwunsch, 05.09.2026).
-export const KURZER_STOPP_MIN_STUNDEN = 20 / 60;
+// Clearly shorter stops (shopping, a restaurant, a museum) are recorded too,
+// not only overnight stays. 20 minutes: long enough not to be a traffic light
+// or a GPS glitch, short enough to catch a short visit (requested 05.09.2026).
+export const SHORT_STOP_MIN_HOURS = 20 / 60;
 
-/** Entscheidet, OB und ALS WAS ein Stand automatisch erfasst werden soll:
- * als Übernachtung (übliche Regeln), sonst als bloßer kurzer Stopp (nur
- * eine Mindestdauer, kein Nachtfenster nötig), oder gar nicht (zu kurz für
- * beides). `standStunden` wird nur einmal berechnet und wiederverwendet,
- * statt pruefeAutomatischeUebernachtung() ein zweites Mal aufzurufen. */
-export function entscheideStandKategorie(vonIso, bisIso = new Date().toISOString()) {
-  const uebernachtung = pruefeAutomatischeUebernachtung(vonIso, bisIso);
-  if (uebernachtung.qualifiziert) return { catId: "uebernachtung", pruefung: uebernachtung };
-  if (uebernachtung.standStunden >= KURZER_STOPP_MIN_STUNDEN) return { catId: "stopp", pruefung: uebernachtung };
+/**
+ * Decides WHETHER and AS WHAT a stand is recorded automatically: as an
+ * overnight stay (the usual rules), otherwise as a short stop (only a minimum
+ * duration, no night window), or not at all (too short for both).
+ * Returns { catId: "uebernachtung" | "stopp", check } or null.
+ */
+export function classifyStand(fromIso, toIso = new Date().toISOString()) {
+  const overnight = checkAutomaticOvernight(fromIso, toIso);
+  if (overnight.qualifies) return { catId: "uebernachtung", check: overnight };
+  if (overnight.standingHours >= SHORT_STOP_MIN_HOURS) return { catId: "stopp", check: overnight };
   return null;
 }

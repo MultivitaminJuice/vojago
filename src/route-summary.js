@@ -1,16 +1,19 @@
+// Statistics of a trip, a day or a drive (distance, driving time, speeds,
+// elevation, overnight places) computed from the route path and the drives.
+// The summary types "reise", "tag" and "fahrt" are used by the views.
 import { elevationRange, pathLengthKm } from "./geo.js";
 import { dayKeyForTripDay, localDayKey, tripDayKeys, tripDayNumberForIso } from "./day-utils.js";
 
-const UEBERNACHTUNGSPLATZ_RADIUS_KM = 0.3;
-const SICHTBARER_TRACK_TAG_MIN_KM = 5;
-const BEWEGUNG_MIN_KMH = 5;
-const MAX_BEWEGUNGSLUECKE_MINUTEN = 120;
-// Bis zu dieser Länge ist ein Abstand zwischen zwei Punkten ein normales
-// Messintervall (bewegt der Router sich, meldet er alle paar Sekunden); alles
-// darüber ist eine Meldelücke, die nur zählt, wenn sich das Fahrzeug darin
-// tatsächlich fortbewegt hat (siehe bewegungsMinuten).
-const NORMALES_INTERVALL_MINUTEN = 2;
-const LUECKE_MIN_KMH = 10;
+const OVERNIGHT_PLACE_RADIUS_KM = 0.3;
+const VISIBLE_TRACK_DAY_MIN_KM = 5;
+const MOVING_MIN_KMH = 5;
+const MAX_MOVING_GAP_MINUTES = 120;
+// Up to this length a gap between two points is a normal sampling interval
+// (while moving, the router reports every few seconds); anything longer is a
+// reporting gap that only counts when the vehicle actually moved during it
+// (see movingMinutes).
+const NORMAL_INTERVAL_MINUTES = 2;
+const GAP_MIN_KMH = 10;
 
 const isoDate = (iso) => {
   return localDayKey(iso);
@@ -54,42 +57,41 @@ function pathRange(path) {
 }
 
 /**
- * Effektive Fahrzeit: Summe der Zeitabstände, in denen das Fahrzeug fuhr.
+ * Effective driving time: the sum of the intervals in which the vehicle moved.
  *
- * Früher zählte jeder Abstand ≤ 120 min als Fahrzeit, sobald EINER der beiden
- * Randpunkte ≥ 5 km/h meldete — beim Parken meldet der Router aber gar nichts
- * mehr, die letzte Meldung vor und die erste nach der Stille tragen oft noch
- * Restgeschwindigkeit (GPS-Rauschen, Anfahren). Ein 65-minütiger Stopp zählte
- * so komplett als Fahrt (echter Fund, 16. Oktober 2026: Gesamt/Tage 1589 min,
- * die Fahrten-Liste und eine reine Intervall-Zählung kamen übereinstimmend auf
- * rund 1295). Jetzt: normale Intervalle (≤ 2 min) zählen bei bewegtem
- * Randpunkt wie bisher; eine längere Lücke zählt nur, wenn die zurückgelegte
- * Strecke darin einer echten Fahrt entspricht (≥ 10 km/h im Schnitt) — ein
- * Tunnel auf der Autobahn bleibt Fahrzeit, ein Stopp am selben Fleck nicht.
+ * Earlier every gap of up to 120 min counted as driving time as soon as ONE
+ * of its two end points reported ≥ 5 km/h — but a parked router reports
+ * nothing, and the last report before and the first after the silence often
+ * still carry some speed (GPS noise, pulling away). A 65-minute stop counted
+ * fully as driving (seen 16 October 2026: totals 1589 min, while the drive list
+ * and a plain interval count both gave about 1295). Now normal intervals
+ * (≤ 2 min) count when an end point moves, as before; a longer gap only counts
+ * when the distance covered in it matches real driving (≥ 10 km/h on average)
+ * — a motorway tunnel stays driving time, a stop at the same spot does not.
  */
-function bewegungsMinuten(path) {
+function movingMinutes(path) {
   if (!path?.length) return 0;
-  let minuten = 0;
+  let minutes = 0;
   for (let i = 1; i < path.length; i++) {
-    const vorher = path[i - 1];
-    const punkt = path[i];
-    const von = Date.parse(vorher.time || "");
-    const bis = Date.parse(punkt.time || "");
-    if (!Number.isFinite(von) || !Number.isFinite(bis) || bis <= von) continue;
-    const delta = (bis - von) / 60000;
-    if (delta > MAX_BEWEGUNGSLUECKE_MINUTEN) continue;
-    if (delta <= NORMALES_INTERVALL_MINUTEN) {
-      const bewegt = Math.max(Number(vorher.spd) || 0, Number(punkt.spd) || 0) >= BEWEGUNG_MIN_KMH;
-      if (bewegt) minuten += delta;
+    const previous = path[i - 1];
+    const point = path[i];
+    const from = Date.parse(previous.time || "");
+    const to = Date.parse(point.time || "");
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+    const delta = (to - from) / 60000;
+    if (delta > MAX_MOVING_GAP_MINUTES) continue;
+    if (delta <= NORMAL_INTERVAL_MINUTES) {
+      const moved = Math.max(Number(previous.spd) || 0, Number(point.spd) || 0) >= MOVING_MIN_KMH;
+      if (moved) minutes += delta;
     } else {
-      const km = entfernungKm(vorher, punkt);
-      if (Number.isFinite(km) && km / (delta / 60) >= LUECKE_MIN_KMH) minuten += delta;
+      const km = distanceBetweenKm(previous, point);
+      if (Number.isFinite(km) && km / (delta / 60) >= GAP_MIN_KMH) minutes += delta;
     }
   }
-  return Math.round(minuten);
+  return Math.round(minutes);
 }
 
-function entfernungKm(a, b) {
+function distanceBetweenKm(a, b) {
   if (!a || !b) return Infinity;
   const lat1 = Number(a.lat), lon1 = Number(a.lon);
   const lat2 = Number(b.lat), lon2 = Number(b.lon);
@@ -101,28 +103,30 @@ function entfernungKm(a, b) {
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-function uebernachtungsplatzAnzahl(places) {
-  const gruppen = [];
+/** Number of distinct overnight places: stays within OVERNIGHT_PLACE_RADIUS_KM of each other count once. */
+function overnightPlaceCount(places) {
+  const groups = [];
   for (const place of places) {
     if (!Number.isFinite(Number(place.lat)) || !Number.isFinite(Number(place.lon))) {
-      gruppen.push(place);
+      groups.push(place);
       continue;
     }
-    const vorhanden = gruppen.some((gruppe) =>
-      Number.isFinite(Number(gruppe.lat)) &&
-      Number.isFinite(Number(gruppe.lon)) &&
-      entfernungKm(place, gruppe) <= UEBERNACHTUNGSPLATZ_RADIUS_KM
+    const known = groups.some((group) =>
+      Number.isFinite(Number(group.lat)) &&
+      Number.isFinite(Number(group.lon)) &&
+      distanceBetweenKm(place, group) <= OVERNIGHT_PLACE_RADIUS_KM
     );
-    if (!vorhanden) gruppen.push(place);
+    if (!known) groups.push(place);
   }
-  return gruppen.length;
+  return groups.length;
 }
 
-function hatReiseTagAktivitaet(summary) {
+/** A day is listed only when something happened: drives, driving time or a visible track. */
+function hasDayActivity(summary) {
   if (!summary) return false;
   return summary.drives.length > 0 ||
     summary.stats.driveMinutes > 0 ||
-    summary.stats.distanceKm >= SICHTBARER_TRACK_TAG_MIN_KM;
+    summary.stats.distanceKm >= VISIBLE_TRACK_DAY_MIN_KM;
 }
 
 function commonSummary({ type, id, title, parentId = null, hue = 28, live = false, path = [], from = null, to = null, drives = [], places = [], notes = [], fallbackKm = 0 }) {
@@ -131,7 +135,7 @@ function commonSummary({ type, id, title, parentId = null, hue = 28, live = fals
   const km = type === "fahrt" && drives[0]?.km != null
     ? drives[0].km
     : routeKm || (Number.isFinite(fallbackKm) ? fallbackKm : 0);
-  const pathDriveMinutes = bewegungsMinuten(routePath);
+  const pathDriveMinutes = movingMinutes(routePath);
   const driveMinutes = pathDriveMinutes || numberSum(drives, "minutes") || (type === "fahrt" ? minutesBetween(from, to) : 0);
   const avgKmh = driveMinutes > 0 ? km / (driveMinutes / 60) : 0;
   const pathMax = routePath.length ? Math.max(0, ...routePath.map((p) => p.spd || 0)) : 0;
@@ -162,7 +166,7 @@ function commonSummary({ type, id, title, parentId = null, hue = 28, live = fals
       maxKmh: Math.max(pathMax, driveMax),
       peakM: elev.max,
       minM: elev.min,
-      overnightPlaces: uebernachtungsplatzAnzahl(overnightPlaces),
+      overnightPlaces: overnightPlaceCount(overnightPlaces),
       nights,
       days: days.size || 0,
       drives: drives.length,
@@ -233,7 +237,7 @@ export function summarizeTripDays(trip, options = {}) {
     .filter(Number.isFinite);
   return days
     .map((day) => summarizeDay(trip, day, options))
-    .filter(hatReiseTagAktivitaet);
+    .filter(hasDayActivity);
 }
 
 export function summarizeDrive(drive, { path = [] } = {}) {
