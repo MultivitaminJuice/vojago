@@ -1595,6 +1595,23 @@ async function route(request, env) {
 
       /* ---- Benutzerverwaltung ---- alle Konten sehen dieselben Daten
        * (keine Trennung je Nutzer), nur Admins dürfen hier etwas ändern. */
+      // Full backup (database + photos) as one download — admins only.
+      if (seg[1] === "backup" && request.method === "GET") {
+        await ensureUserAdmin(env);
+        if (!(await istAdmin(env, sitzung.userId))) {
+          return reply(request, env, { error: "nur für Admins" }, 403);
+        }
+        if (typeof env.BACKUP !== "function") return reply(request, env, { error: "Backup ist hier nicht eingerichtet" }, 501);
+        const { data, filename } = await env.BACKUP();
+        return new Response(data, {
+          headers: {
+            "content-type": "application/gzip",
+            "content-disposition": `attachment; filename="${filename}"`,
+            "cache-control": "no-store",
+          },
+        });
+      }
+
       if (seg[1] === "users") {
         await ensureUserAdmin(env);
         if (!(await istAdmin(env, sitzung.userId))) {

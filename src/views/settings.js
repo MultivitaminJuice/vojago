@@ -75,7 +75,7 @@ export function refreshAccountState() {
   // dieselben Reisen/Orte, aber nur Admins sollen an der gemeinsamen
   // Konfiguration schrauben können.
   const istAdmin = Boolean(state.account?.isAdmin);
-  for (const id of ["vehicles-group", "categories-group", "connection-group", "ingest-group", "local-data-group", "users-group"]) {
+  for (const id of ["vehicles-group", "categories-group", "connection-group", "ingest-group", "backup-group", "local-data-group", "users-group"]) {
     const gruppe = $(`#${id}`);
     if (gruppe) gruppe.hidden = !istAdmin;
   }

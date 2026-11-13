@@ -1258,3 +1258,26 @@ test("/api/route?stand=1 returns only the count and the newest point of the rang
   assert.equal(kompakt.data.total, 12);
   assert.equal(kompakt.data.lastAt, start + 11_000);
 });
+
+test("/api/backup: admins get the archive, others 403, without a backup function 501", async (t) => {
+  const env = makeEnv({ BACKUP: async () => ({ data: Buffer.from("gz"), filename: "vojago-backup-2026-11-13.tar.gz" }) });
+  t.after(() => env.DB.close());
+  const ip = { "cf-connecting-ip": "203.0.113.73" };
+  const admin = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const ok = await api(env, "GET", "/api/backup", { cookie: admin.cookie, headers: ip });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.response.headers.get("content-type"), "application/gzip");
+  assert.match(ok.response.headers.get("content-disposition"), /vojago-backup-2026-11-13\.tar\.gz/);
+
+  await api(env, "POST", "/api/users", { cookie: admin.cookie, headers: ip, body: { username: "gast", password: "langgenug2", isAdmin: false } });
+  const gast = await api(env, "POST", "/api/auth/login", { headers: ip, body: { username: "gast", password: "langgenug2" } });
+  assert.equal((await api(env, "GET", "/api/backup", { cookie: gast.cookie, headers: ip })).status, 403);
+
+  const ohne = makeEnv();
+  t.after(() => ohne.DB.close());
+  const a2 = await api(ohne, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  assert.equal((await api(ohne, "GET", "/api/backup", { cookie: a2.cookie, headers: ip })).status, 501);
+
+  const anonym = await api(env, "GET", "/api/backup", { headers: ip });
+  assert.equal(anonym.status, 401);
+});
