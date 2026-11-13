@@ -1,6 +1,6 @@
-// Notiz erfassen und bearbeiten. Der Text steht im Mittelpunkt; Standort und
-// Zeitpunkt werden beim Erfassen automatisch festgehalten, die Zuordnung zu
-// einem Ort kann jederzeit nachgeholt werden.
+// Entering and editing a note. The text is central; location and time are
+// recorded automatically when entering, linking to a place can follow any time.
+// UI texts stay German.
 import { el, render, toast, $ } from "../dom.js";
 import { state, newId, tripPlaces, notePhotos } from "../state.js";
 import { storeNote, dropNote, weatherLine } from "../store.js";
@@ -47,14 +47,14 @@ export function initNoteEditor({ onChange, onUndoOffer, onOpen }) {
   });
 }
 
-/** Neue Notiz am aktuellen Gerätestandort beginnen. */
+/** Start a new note at the current device location. */
 export function captureNote({ fallbackCenter }) {
-  const begin = (lon, lat, hinweis) => {
+  const begin = (lon, lat, hint) => {
     openNoteEditor({
       id: newId("note"), tripId: state.activeTripId, besuchId: null,
       title: "", text: "", at: new Date().toISOString(), lon, lat, source: "handy", isNew: true,
     });
-    if (hinweis) toast(hinweis);
+    if (hint) toast(hint);
   };
 
   if (navigator.geolocation) {
@@ -112,7 +112,7 @@ export const isDirty = () => Boolean(current) && (
 
 export function save() {
   if (!current) return;
-  const neu = Boolean(current.isNew);
+  const isNew = Boolean(current.isNew);
   const note = {
     ...current,
     title: $("#note-title").value.trim(),
@@ -122,19 +122,18 @@ export function save() {
   delete note.isNew;
   if (!note.title) { toast("Titel fehlt"); return; }
   if (!note.text) { toast("Notiz ist leer – nicht gespeichert"); current = null; afterChange(); return; }
-  // Erst sichern, dann schließen (siehe place-editor.js).
-  // Das Wetter zum Zeitpunkt wird danach nachgetragen (siehe store.js).
-  const gesichert = storeNote(note, { isNew: neu });
+  // Save first, then close (see place-editor.js). The weather at the time is
+  // added afterwards (see store.js).
+  const saved = storeNote(note, { isNew });
   current = null;
   afterChange();
-  gesichert.then((ok) => {
+  saved.then((ok) => {
     if (!ok) return;
     toast("Notiz gespeichert");
-    // Erst jetzt existiert die Notiz wirklich serverseitig — vorher beim
-    // Anlegen ausgewählte Fotos (siehe photo-gallery.js) werden erst hier
-    // tatsächlich hochgeladen. Ohne echten Server (Demo/nicht angemeldet)
-    // gäbe es ohnehin keinen Fotospeicher dafür.
-    if (neu && isConfigured()) photoGallery?.commitPending({ noteId: note.id });
+    // Only now does the note exist on the server — photos chosen while creating
+    // it (see photo-gallery.js) are uploaded here. Without a server (demo, not
+    // signed in) there is no photo store anyway.
+    if (isNew && isConfigured()) photoGallery?.commitPending({ noteId: note.id });
   });
 }
 

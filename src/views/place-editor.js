@@ -1,5 +1,5 @@
-// Bearbeiten eines Ortes (auch Übernachtungen). Änderungen gelten erst
-// nach „Speichern"; beim Zurückgehen mit offenen Änderungen wird gefragt.
+// Editing a place (overnight stays too). Changes apply only after "Speichern";
+// going back with open changes asks first. UI texts stay German.
 import { el, render, icon, toast, $ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, trip, placePhotos } from "../state.js";
@@ -10,26 +10,25 @@ import { isConfigured } from "../api.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
 
-/** Wie weit war dieser Besuch in die Reiseroute hinein? Nimmt den
- * zeitlich nächsten Punkt der geladenen Route (falls schon geladen — die
- * Route wird sonst nur lazy nachgeladen, siehe ensureTripPath()) und
- * liest dessen bereits berechnete Kilometerstand. */
-function kmAbStart(place) {
+/** How far into the trip's route was this visit? Takes the route point nearest
+ * in time (if the route is loaded — otherwise it is loaded lazily, see
+ * ensureTripPath()) and reads its distance. */
+function kmFromStart(place) {
   const t = place.tripId ? trip(place.tripId) : null;
   const path = t?.path;
-  const zielMs = Date.parse(place.at || "");
-  if (!path?.length || !Number.isFinite(zielMs)) return null;
-  let bester = null, besterAbstand = Infinity;
+  const targetMs = Date.parse(place.at || "");
+  if (!path?.length || !Number.isFinite(targetMs)) return null;
+  let best = null, bestGap = Infinity;
   for (const p of path) {
     const pMs = Date.parse(p.time || "");
     if (!Number.isFinite(pMs)) continue;
-    const d = Math.abs(pMs - zielMs);
-    if (d < besterAbstand) { besterAbstand = d; bester = p; }
+    const d = Math.abs(pMs - targetMs);
+    if (d < bestGap) { bestGap = d; best = p; }
   }
-  return bester ? Math.round(bester.cum) : null;
+  return best ? Math.round(best.cum) : null;
 }
 
-const datumUhrzeit = (iso) => {
+const dateTime = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ""
@@ -70,7 +69,7 @@ export function initPlaceEditor({ onChange, onUndoOffer, onShowOnMap: showOnMap 
     current = null;
     if (!removed.isNew) await dropPlace(removed.id);
     afterChange({ closed: true });
-    if (removed.isNew) return; // nie gespeichert — nichts zum Zurückholen
+    if (removed.isNew) return; // never saved — nothing to bring back
     if (offerUndo) {
       offerUndo(`„${removed.title || "Ort"}" gelöscht`, async () => {
         await storePlace(removed, { isNew: true });
@@ -82,9 +81,9 @@ export function initPlaceEditor({ onChange, onUndoOffer, onShowOnMap: showOnMap 
 
 export function openPlaceEditor(place) {
   current = place;
-  const naechte = Number.isInteger(place.nights) && place.nights > 0 ? place.nights : 1;
-  draft = { catId: place.catId, stars: place.stars, nights: naechte };
-  snapshot = { title: place.title, note: place.note, stars: place.stars, catId: place.catId, nights: naechte };
+  const nights = Number.isInteger(place.nights) && place.nights > 0 ? place.nights : 1;
+  draft = { catId: place.catId, stars: place.stars, nights };
+  snapshot = { title: place.title, note: place.note, stars: place.stars, catId: place.catId, nights };
 
   $("#ef-title").value = place.title;
   $("#ef-note").value = place.note;
@@ -92,66 +91,58 @@ export function openPlaceEditor(place) {
   drawStars();
   drawNights();
 
-  // Oberste Zeile: nur noch der Titel (Nutzerwunsch, 6. September 2026 —
-  // die vorherige Mischung aus links- und rechtsbündigen Feldern wirkte
-  // unruhig). Quelle/Reise/km/Zeitpunkt stehen jetzt gesammelt, alle
-  // linksbündig, in der eigenen Zeile darunter (#ef-meta).
+  // Top line: only the title (requested 6 September 2026 — the earlier mix of
+  // left and right aligned fields looked restless). Trip and km follow in their
+  // own left-aligned line below (#ef-meta).
   render($("#ef-src"), [el("b", { text: place.title })]);
 
-  // Nur noch Reise + km — das Fahrzeug (SOURCE_LABEL) störte hier ohne
-  // erkennbaren Nutzen (Nutzerwunsch, 6. September 2026); wird bei Bedarf
-  // später an passenderer Stelle ergänzt. Datum/Uhrzeit steht in der
-  // Wetter/Position-Zeile unten.
+  // Only trip and km — the vehicle (SOURCE_LABEL) got in the way here without a
+  // clear use (requested 6 September 2026). Date and time are in the
+  // weather/position line below.
   const tripName = place.tripId && trip(place.tripId) ? trip(place.tripId).name : "Alltag";
-  const km = kmAbStart(place);
+  const km = kmFromStart(place);
   render($("#ef-meta"), [
     el("span", { text: (place.isNew ? "neu · " : "") + tripName }),
     km != null ? el("span", { text: `${km} km ab Start`, style: { color: "var(--ink-faint)" } }) : null,
   ]);
 
-  // Wie oft war ich schon hier — über alle Reisen hinweg, echte Identität
-  // über ortId (nicht nur an diesem einen Besuch abzulesen).
-  const besuchsInfo = place.ortId ? placesWithVisitCount().get(place.ortId) : null;
-  const mehrfach = besuchsInfo && besuchsInfo.visits > 1;
-  // Nächte nur erwähnen, wenn dort tatsächlich schon mal übernachtet wurde
-  // — bei einem Ort, der nur als kurzer Stopp bekannt ist, wäre "insgesamt
-  // 0 Nächte" irreführend (Nutzer-Fund, 6. September 2026).
-  const naechteZusatz = besuchsInfo?.totalNights
-    ? `, insgesamt ${besuchsInfo.totalNights} ${besuchsInfo.totalNights === 1 ? "Nacht" : "Nächte"}`
+  // How often was I here — across all trips, real identity through ortId.
+  const visitInfo = place.ortId ? placesWithVisitCount().get(place.ortId) : null;
+  const repeated = visitInfo && visitInfo.visits > 1;
+  // Only mention nights when someone actually slept there — for a place known
+  // only as a short stop, "0 nights in total" would mislead (6 September 2026).
+  const nightsNote = visitInfo?.totalNights
+    ? `, insgesamt ${visitInfo.totalNights} ${visitInfo.totalNights === 1 ? "Nacht" : "Nächte"}`
     : "";
-  render($("#ef-visits"), mehrfach ? [el("span", {
-    text: `📍 schon ${besuchsInfo.visits}× hier${naechteZusatz}`,
+  render($("#ef-visits"), repeated ? [el("span", {
+    text: `📍 schon ${visitInfo.visits}× hier${nightsNote}`,
   })] : []);
-  $("#ef-visits").hidden = !mehrfach;
+  $("#ef-visits").hidden = !repeated;
 
-  // Datum+Uhrzeit, Position und Wetter in einer Zeile, in dieser
-  // Reihenfolge (Nutzerwunsch, 6. September 2026) — jedes mit eigenem
-  // kleinen "Icon" wie beim Wetter (☀️/🌤️/…). Kein "automatisch
-  // erkannt"-Symbol mehr hier — das steht stattdessen im Logbuch selbst
-  // (journal.js), konsistent mit Übernachtungen dort, statt hier ein
-  // zweites Mal. Die Zeile umbricht (flex-wrap, siehe .ef-src in
-  // styles.css), bleibt also auch mit langer Adresse lesbar, und ist
-  // immer sichtbar (nicht nur bei vorhandenem Wetter).
-  const wetter = weatherLine(place.weather);
+  // Date and time, position and weather in one line, in this order (requested
+  // 6 September 2026), each with its own small icon. The "detected
+  // automatically" symbol is shown in the logbook (journal.js) instead. The line
+  // wraps (flex-wrap, see .ef-src in styles.css), so it stays readable with a
+  // long address, and it is always visible.
+  const weather = weatherLine(place.weather);
   render($("#ef-weather"), [
-    place.at ? el("span", { text: `📅 ${datumUhrzeit(place.at)}` }) : null,
-    // Die rohen Koordinaten stehen nicht mehr offen da — antippen kopiert
-    // sie in die Zwischenablage, das reicht für den seltenen Bedarf, sie
-    // woanders einzufügen.
+    place.at ? el("span", { text: `📅 ${dateTime(place.at)}` }) : null,
+    // The raw coordinates are not shown — tapping copies them to the clipboard,
+    // enough for the rare need to paste them elsewhere.
     el("span", {
       text: `📍 ${place.address || "Position"}`,
       style: { color: "var(--ink-soft)", cursor: "pointer", textDecoration: "underline dotted" },
       title: "Antippen, um die Koordinaten zu kopieren",
-      on: { click: () => kopiereKoordinaten(place) },
+      on: { click: () => copyCoordinates(place) },
     }),
-    wetter ? el("span", { text: wetter }) : null,
+    weather ? el("span", { text: weather }) : null,
   ]);
   $("#ef-weather").hidden = false;
 
   photoGallery?.update(place.isNew ? null : { besuchId: place.id }, place.isNew ? [] : placePhotos(place.id));
 }
 
-async function kopiereKoordinaten(place) {
+async function copyCoordinates(place) {
   const text = `${place.lat.toFixed(6)}, ${place.lon.toFixed(6)}`;
   try {
     await navigator.clipboard.writeText(text);
@@ -178,10 +169,10 @@ export function renderCategoryPicker() {
 
 const drawStars = () => { $("#ef-stars").textContent = "★".repeat(draft.stars) + "☆".repeat(5 - draft.stars); };
 
-/** Die Anzahl Nächte betrifft nur Übernachtungen — sonst bleibt das Feld verborgen. */
+/** The number of nights only applies to overnight stays — otherwise the field stays hidden. */
 function drawNights() {
-  const zeigen = draft.catId === "uebernachtung";
-  $("#ef-nights-wrap").hidden = !zeigen;
+  const show = draft.catId === "uebernachtung";
+  $("#ef-nights-wrap").hidden = !show;
   $("#ef-nights-val").textContent = String(draft.nights);
 }
 
@@ -197,7 +188,7 @@ export function isDirty() {
 
 export function save() {
   if (!current) return;
-  const neu = Boolean(current.isNew);
+  const isNew = Boolean(current.isNew);
   const place = {
     ...current,
     title: $("#ef-title").value.trim() || "(ohne Titel)",
@@ -208,17 +199,17 @@ export function save() {
     at: current.at || new Date().toISOString(),
   };
   delete place.isNew;
-  // Erst sichern, dann schließen: Der lokale Teil von storePlace läuft
-  // sofort, sonst zeichnete die Liste noch den alten Stand.
-  const gesichert = storePlace(place, { isNew: neu });
+  // Save first, then close: the local part of storePlace runs at once,
+  // otherwise the list would still draw the old state.
+  const saved = storePlace(place, { isNew });
   current = null;
   afterChange({ closed: true });
-  gesichert.then((ok) => {
+  saved.then((ok) => {
     if (!ok) return;
     toast("Ort gespeichert");
-    // Siehe note-editor.js: erst jetzt existiert der Ort wirklich
-    // serverseitig, vorher ausgewählte Fotos werden erst hier hochgeladen.
-    if (neu && isConfigured()) photoGallery?.commitPending({ besuchId: place.id });
+    // See note-editor.js: only now does the place exist on the server; photos
+    // chosen earlier are uploaded here.
+    if (isNew && isConfigured()) photoGallery?.commitPending({ besuchId: place.id });
   });
 }
 
