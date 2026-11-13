@@ -375,7 +375,7 @@ function selectedTrip() {
 // Trip and day values are computed once and kept until the data changes
 // (see memo.js); switching views or redrawing no longer recomputes them.
 const werte = createMemo();
-const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathGrob ? "grob" : "voll"}`;
+const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathCoarse ? "coarse" : "full"}`;
 const merkBedingung = (t) => ({ revision: dataRevision(), path: t?.path, running: Boolean(t?.live) || isRangeTrip(t) });
 
 function tripSummary(t) {
@@ -394,7 +394,7 @@ function tripForRouteFilter(t) {
   if (isRangeTrip(t)) return t;
   // Wie die Karte: bei laufender Reise bleibt das Ende nach der letzten bekannten Fahrt sichtbar,
   // ein grober Zwischenspeicher-Pfad wird nicht nach Fahrten gefiltert.
-  if (t.pathGrob) return t;
+  if (t.pathCoarse) return t;
   return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), { openEnd: Boolean(t.live) }) };
 }
 
@@ -1141,10 +1141,10 @@ async function erweitereReiseFallsNoetig(zielTrip, drive) {
 
 function zuordnungsWahl(drive) {
   const select = el("select.assign-sel", { title: "Fahrt einer Reise zuordnen" }, [
-    el("option", { value: "", disabled: true, selected: !drive.tripId && !drive.manuell, text: "→ Reise …" }),
+    el("option", { value: "", disabled: true, selected: !drive.tripId && !drive.manual, text: "→ Reise …" }),
     ...state.trips.map((t) => el("option", { value: t.id, selected: t.id === drive.tripId, text: t.name })),
-    el("option", { value: "__alltag", selected: drive.manuell && !drive.tripId, text: "Alltagsfahrt" }),
-    ...(drive.manuell ? [el("option", { value: "__auto", text: "automatisch (Zeitraum)" })] : []),
+    el("option", { value: "__alltag", selected: drive.manual && !drive.tripId, text: "Alltagsfahrt" }),
+    ...(drive.manual ? [el("option", { value: "__auto", text: "automatisch (Zeitraum)" })] : []),
   ]);
 
   select.addEventListener("change", async () => {

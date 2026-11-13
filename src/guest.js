@@ -1,14 +1,14 @@
 // Gast-Ansicht: Reisen über einen Freigabe-Link ansehen, ohne eigenes Konto.
 //
 // Bewusst KEINE eigene Kopie der Datenlogik — dieselben Baublöcke wie in
-// dataload.js (toTrip/toPlace/toNote, positionsToPath, tagesKilometer) und
+// dataload.js (toTrip/toPlace/toNote, positionsToPath, kmPerDay) und
 // geo.js/day-utils.js kommen hier zum Einsatz, nur aus einer anderen Quelle:
 // dem öffentlichen Freigabe-Endpunkt statt der angemeldeten API. Die eigent-
 // liche Sicherheitsgrenze liegt ohnehin serverseitig (siehe api/router.js
 // /api/share/...) — hier geht es nur darum, dieselben Render-Funktionen
 // (renderTrips, renderJournal, die Karte) unverändert weiterzuverwenden.
 import { state, emit } from "./state.js";
-import { toTrip, toPlace, toNote, toPhoto, toTagebuch, standardReise, positionsToPath, tagesKilometer } from "./dataload.js";
+import { toTrip, toPlace, toNote, toPhoto, toDiaryEntry, defaultTrip, positionsToPath, kmPerDay } from "./dataload.js";
 import { pathLengthKm, elevationRange } from "./geo.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { fetchShare, fetchShareRoute, fetchSharePositions, fetchShareDrives } from "./api.js";
@@ -24,11 +24,11 @@ export async function starteGastAnsicht(token) {
   state.places = (antwort.places || []).map(toPlace);
   state.notes = (antwort.notes || []).map(toNote);
   state.photos = (antwort.photos || []).map(toPhoto);
-  state.diary = (antwort.tagebuch || []).map(toTagebuch);
+  state.diary = (antwort.tagebuch || []).map(toDiaryEntry);
   if (antwort.categories?.length) {
     state.categories = Object.fromEntries(antwort.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
   }
-  const standard = standardReise(state.trips);
+  const standard = defaultTrip(state.trips);
   state.activeTripId = standard?.live ? standard.id : null;
   state.mapTripId = standard?.id || null;
   emit("trips");
@@ -76,7 +76,7 @@ export async function ladeGastRoute(trip) {
     if (trip.path.length) {
       trip.km = Math.round(pathLengthKm(trip.path));
       trip.peak = Math.round(elevationRange(trip.path).max);
-      const tage = tagesKilometer(trip.path);
+      const tage = kmPerDay(trip.path);
       trip.bars = tage.bars;
       trip.barLabels = tage.labels;
     }

@@ -224,7 +224,7 @@ function visibleRouteForMap(t) {
   // Ein aus dem Zwischenspeicher wiederhergestellter, ausgedünnter Pfad ("grob")
   // passt nicht zu den Zeitspannen der Fahrten (kurze Fahrten hätten gar keine
   // Punkte mehr) — bis ein echter Abruf gelang, ohne Fahrtenfilter zeigen.
-  const segments = realTrip && !t.pathGrob
+  const segments = realTrip && !t.pathCoarse
     ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { openEnd: Boolean(t.live) })
     : visibleRouteSegments(t.path || [], [], t?.id, "alle");
   return { segments, path: segments.flat() };

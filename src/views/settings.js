@@ -13,7 +13,7 @@ import { health, isConfigured, logout, changePassword, setEmail,
   createShare, listShares, revokeShare, devices as fetchDevices,
   ingestStatus, setIngestLearning,
   listUsers, createUser, updateUser, deleteUser } from "../api.js";
-import { status as dataStatus, forgetSnapshot, routenAbruf } from "../dataload.js";
+import { status as dataStatus, forgetSnapshot, routeLoadLog } from "../dataload.js";
 import { clearRoutes } from "../route-store.js";
 import { clearDebugLog, debugCount, debugEnabled, exportDebugLog, preciseDebugDataEnabled, setDebugEnabled, setPreciseDebugDataEnabled } from "../debug.js";
 
@@ -507,7 +507,7 @@ async function emailSpeichern() {
 export function renderRouteInfo() {
   const box = $("#route-info");
   if (!box) return;
-  render(box, routeInfoRows(routenAbruf).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
+  render(box, routeInfoRows(routeLoadLog).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
 }
 
 function renderDebugControls() {

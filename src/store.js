@@ -7,7 +7,7 @@
 // Bildschirm stehen, was nirgends gespeichert ist.
 import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertDiaryEntry, removeDiaryEntry, emit } from "./state.js";
 import { toast } from "./dom.js";
-import { findeVorhandenenOrt, AUTO_ORT_PLATZHALTER_TITEL } from "./dataload.js";
+import { findExistingPlace, AUTO_PLACE_PLACEHOLDER_TITLES } from "./dataload.js";
 import {
   isConfigured, createPlace, updatePlace, deletePlace,
   createNote, updateNote, deleteNote, saveDiaryEntry, deleteDiaryEntry, weather as fetchWeather, geocode as fetchGeocode,
@@ -63,7 +63,7 @@ export async function speichereOrt(place, { neu = false } = {}) {
       // dann den Besuch dort anhängen statt einen unverknüpften zweiten
       // Ort anzulegen (damit "wie oft war ich hier" auch bei manuell
       // erfassten Orten stimmt, nicht nur bei automatisch erkannten).
-      const ortId = findeVorhandenenOrt({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
+      const ortId = findExistingPlace({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
       const antwort = await createPlace({ ...ortZuRoh(place), ...(ortId ? { ort_id: ortId } : {}) });
       if (antwort?.ort_id) upsertPlace({ ...place, ortId: antwort.ort_id });
     } else {
@@ -211,7 +211,7 @@ export async function ergaenzeWetter(art, eintrag) {
  *
  * Die ermittelte Adresse wird IMMER festgehalten (eigenes `address`-Feld,
  * getrennt vom Titel) — der Titel selbst nur ersetzt, solange dort noch
- * einer der generischen Platzhalter aus AUTO_ORT_PLATZHALTER_TITEL steht.
+ * einer der generischen Platzhalter aus AUTO_PLACE_PLACEHOLDER_TITLES steht.
  * Hat die Person zwischenzeitlich selbst umbenannt, bleibt der Titel
  * unangetastet, aber die Adresse bleibt trotzdem als Referenz erhalten
  * (Nutzerwunsch, 6. September 2026 — vorher ging die Original-Adresse
@@ -231,7 +231,7 @@ export async function ergaenzeOrtsname({ id, lat, lon }) {
     const aktuell = state.places.find((p) => p.id === id);
     if (!aktuell) return null;
     const patch = { address: name };
-    if (AUTO_ORT_PLATZHALTER_TITEL.includes(aktuell.title)) patch.title = name;
+    if (AUTO_PLACE_PLACEHOLDER_TITLES.includes(aktuell.title)) patch.title = name;
     await updatePlace(id, patch);
     Object.assign(aktuell, patch);
     emit("places");

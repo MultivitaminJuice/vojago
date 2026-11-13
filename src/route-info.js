@@ -1,23 +1,23 @@
 // Rows for More → Status → Route: when and how the route was last updated.
-// Display only; gets the log from dataload.js (routenAbruf). Labels are UI and stay German.
+// Display only; gets the log from dataload.js (routeLoadLog). Labels are UI and stay German.
 const clockTime = (ms) => new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-export function routeInfoRows({ erfolg, fehler, zwischenspeicher } = {}, clock = clockTime) {
+export function routeInfoRows({ success, failure, fromCache } = {}, clock = clockTime) {
   const rows = [];
-  if (erfolg) {
-    rows.push(["Zuletzt aktualisiert", clock(erfolg.zeit)]);
-    rows.push(["Art", erfolg.art === "nur Neues"
-      ? `nur Neues (+${erfolg.neuePunkte} Punkte)`
-      : erfolg.art === "unverändert"
+  if (success) {
+    rows.push(["Zuletzt aktualisiert", clock(success.time)]);
+    rows.push(["Art", success.kind === "new"
+      ? `nur Neues (+${success.newPoints} Punkte)`
+      : success.kind === "unchanged"
         ? "geprüft, unverändert"
-        : `komplett (${erfolg.empfangen} Punkte)`]);
-    rows.push(["Punkte insgesamt", String(erfolg.gesamt)]);
-    rows.push(["Dauer", `${(erfolg.dauerMs / 1000).toFixed(1)} s${erfolg.hintergrund ? " (im Hintergrund)" : ""}`]);
+        : `komplett (${success.received} Punkte)`]);
+    rows.push(["Punkte insgesamt", String(success.total)]);
+    rows.push(["Dauer", `${(success.durationMs / 1000).toFixed(1)} s${success.background ? " (im Hintergrund)" : ""}`]);
   } else {
-    rows.push(["Zuletzt aktualisiert", zwischenspeicher ? "noch nicht — Zwischenspeicher" : "—"]);
+    rows.push(["Zuletzt aktualisiert", fromCache ? "noch nicht — Zwischenspeicher" : "—"]);
   }
-  if (fehler && (!erfolg || fehler.zeit > erfolg.zeit)) {
-    rows.push(["Letzter Fehlversuch", `${clock(fehler.zeit)} — ${fehler.fehler}${fehler.inFolge > 1 ? ` (${fehler.inFolge}× in Folge)` : ""}`]);
+  if (failure && (!success || failure.time > success.time)) {
+    rows.push(["Letzter Fehlversuch", `${clock(failure.time)} — ${failure.error}${failure.inARow > 1 ? ` (${failure.inARow}× in Folge)` : ""}`]);
   }
   return rows;
 }

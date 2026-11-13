@@ -3,7 +3,7 @@
 import { el, render, icon, toast, $ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, trip, placePhotos } from "../state.js";
-import { orteMitBesuchszahl } from "../dataload.js";
+import { placesWithVisitCount } from "../dataload.js";
 import { speichereOrt, loescheOrt, wetterZeile } from "../store.js";
 import { wirePhotoGallery } from "../ui/photo-gallery.js";
 import { isConfigured } from "../api.js";
@@ -111,16 +111,16 @@ export function openPlaceEditor(place) {
 
   // Wie oft war ich schon hier — über alle Reisen hinweg, echte Identität
   // über ortId (nicht nur an diesem einen Besuch abzulesen).
-  const besuchsInfo = place.ortId ? orteMitBesuchszahl().get(place.ortId) : null;
-  const mehrfach = besuchsInfo && besuchsInfo.besuche > 1;
+  const besuchsInfo = place.ortId ? placesWithVisitCount().get(place.ortId) : null;
+  const mehrfach = besuchsInfo && besuchsInfo.visits > 1;
   // Nächte nur erwähnen, wenn dort tatsächlich schon mal übernachtet wurde
   // — bei einem Ort, der nur als kurzer Stopp bekannt ist, wäre "insgesamt
   // 0 Nächte" irreführend (Nutzer-Fund, 6. September 2026).
-  const naechteZusatz = besuchsInfo?.naechteGesamt
-    ? `, insgesamt ${besuchsInfo.naechteGesamt} ${besuchsInfo.naechteGesamt === 1 ? "Nacht" : "Nächte"}`
+  const naechteZusatz = besuchsInfo?.totalNights
+    ? `, insgesamt ${besuchsInfo.totalNights} ${besuchsInfo.totalNights === 1 ? "Nacht" : "Nächte"}`
     : "";
   render($("#ef-visits"), mehrfach ? [el("span", {
-    text: `📍 schon ${besuchsInfo.besuche}× hier${naechteZusatz}`,
+    text: `📍 schon ${besuchsInfo.visits}× hier${naechteZusatz}`,
   })] : []);
   $("#ef-visits").hidden = !mehrfach;
 
