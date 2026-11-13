@@ -6,13 +6,13 @@ import { ICON } from "./icons.js";
 import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
 import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot, restoreStoredRoutes } from "./dataload.js";
 import { authState, login as anmelden, setupAccount, setSignedIn, forgotPassword, resetPassword, verifyEmail } from "./api.js";
-import { starteGastAnsicht, zeigeGastReise, ladeGastLivePosition, ladeGastRoute } from "./guest.js";
-import { wetterZeile } from "./store.js";
+import { startGuestView, showGuestTrip, loadGuestLivePosition, loadGuestRoute } from "./guest.js";
+import { weatherLine } from "./store.js";
 import { distanceKm } from "./geo.js";
-import { duerfteWeg } from "./ui/dirty-guard.js";
+import { mayLeave } from "./ui/dirty-guard.js";
 import * as mapview from "./mapview.js";
 import { createSheet, wireEscape } from "./ui/sheets.js";
-import { teileOrt, teileReise } from "./ui/share.js";
+import { sharePlace, shareTrip } from "./ui/share.js";
 import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTripFromContext, stelleKartenRueckkehrWieder, resetReiseAnsicht, kartenNavigation, kartenSchritt } from "./views/trips.js";
 import { initPlaces, renderPlaces, renderCategoryChips, buildFilterOptions, photoGradient, resetPlaceFilters } from "./views/places.js";
 import { initPlaceEditor, openPlaceEditor, renderCategoryPicker, isDirty as editorDirty, save as saveEditor, clearEditor } from "./views/place-editor.js";
@@ -115,7 +115,7 @@ const tabsGesperrt = new Set();
 function aktualisiereKarteJetzt() {
   if (state.guest) {
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) { ladeGastLivePosition(t); ladeGastRoute(t); }
+    if (t) { loadGuestLivePosition(t); loadGuestRoute(t); }
     return;
   }
   if (state.config.demo) return;
@@ -128,7 +128,7 @@ function aktualisiereKarteJetzt() {
 function go(name) {
   if (tabsGesperrt.has(name)) return;
   const aktuell = tabs.find((t) => t.getAttribute("aria-selected") === "true")?.dataset.view;
-  if (aktuell !== name && !duerfteWeg()) return;
+  if (aktuell !== name && !mayLeave()) return;
   // Erneuter Klick auf den bereits aktiven Tab setzt ihn auf seine
   // Standardansicht zurück, statt einfach nichts zu tun (Nutzerwunsch,
   // 18. August 2026) — z. B. um von einer einzelnen Fahrt auf der Karte
@@ -263,14 +263,14 @@ $("#tag-back").addEventListener("click", tagSheet.requestClose);
 $$("[data-share]").forEach((b) => b.addEventListener("click", () => {
   const t = currentTripId ? trip(currentTripId) : null;
   if (!t) return;
-  teileReise(t, { naechte: nightsOf(t.id).length, orte: tripPlaces(t.id).length });
+  shareTrip(t, { nights: nightsOf(t.id).length, places: tripPlaces(t.id).length });
 }));
 
 function openTripDetail(id) {
   // Gast-Ansicht: keine bearbeitbare Detail-Ansicht, nur auf der Karte
   // zeigen — das ist bei "alle Reisen" der einzige Weg, zwischen Reisen zu
   // wechseln (siehe Tabbar-Aufbau weiter unten).
-  if (state.guest) { zeigeGastReise(id); go("map"); return; }
+  if (state.guest) { showGuestTrip(id); go("map"); return; }
   if (!schliesseAndere(tripSheet)) return;
   currentTripId = id;
   tripDetailEdit = renderTripDetail(id, {
@@ -415,7 +415,7 @@ const moreTabs = $$("#more-tabs [data-more-panel]");
 const morePanels = $$("#view-mehr .more-panel");
 function showMorePanel(name) {
   const aktuell = moreTabs.find((b) => b.getAttribute("aria-pressed") === "true")?.dataset.morePanel;
-  if (aktuell && aktuell !== name && !duerfteWeg()) return;
+  if (aktuell && aktuell !== name && !mayLeave()) return;
   moreTabs.forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.morePanel === name)));
   morePanels.forEach((panel) => { panel.hidden = panel.dataset.morePanel !== name; });
   // Zonen/Protokoll frisch laden, sobald die Wache geöffnet wird — sonst
@@ -850,7 +850,7 @@ function showNotePopover(note) {
   popover.classList.add("is-note");
   $("#pop-swatch").style.background = "var(--ink-faint)";
   $("#pop-title").textContent = note.title || "Notiz";
-  $("#pop-cat").textContent = note.weather ? wetterZeile(note.weather) : "";
+  $("#pop-cat").textContent = note.weather ? weatherLine(note.weather) : "";
   $("#pop-note").textContent = note.text;
   $("#pop-coords").textContent = note.lat != null && note.lon != null
     ? `◎ ${Number(note.lat).toFixed(4)}, ${Number(note.lon).toFixed(4)}` : "";
@@ -859,7 +859,7 @@ function showNotePopover(note) {
 }
 
 $("#pop-close").addEventListener("click", () => popover.classList.remove("show"));
-$("#pop-share").addEventListener("click", () => { if (popoverPlace) teileOrt(popoverPlace); });
+$("#pop-share").addEventListener("click", () => { if (popoverPlace) sharePlace(popoverPlace); });
 $("#pop-edit").addEventListener("click", () => {
   popover.classList.remove("show");
   if (popoverNote) openNote(popoverNote);
@@ -1221,7 +1221,7 @@ if (gastToken) {
   const vehline = $("#vehline");
   vehline.textContent = "Gast-Ansicht";
   vehline.classList.remove("hidden");
-  starteGastAnsicht(gastToken)
+  startGuestView(gastToken)
     .then((antwort) => {
       // "Mehr" bietet Gästen nichts (keine Einstellungen, kein Bearbeiten) —
       // Platz in der Leiste bleibt, wirkt aber inaktiv, ohne Beschriftung.
@@ -1246,12 +1246,12 @@ if (gastToken) {
   setInterval(() => {
     if (document.hidden) return;
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) ladeGastLivePosition(t);
+    if (t) loadGuestLivePosition(t);
   }, 30000);
   setInterval(() => {
     if (document.hidden) return;
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) ladeGastRoute(t);
+    if (t) loadGuestRoute(t);
   }, 5 * 60 * 1000);
 } else {
   /* Beim Start klären: Konto vorhanden? Angemeldet? */

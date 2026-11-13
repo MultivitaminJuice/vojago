@@ -1,4 +1,4 @@
-// Farbskalen für die Routen-Einfärbung.
+// Colour scales for colouring the route.
 
 const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
@@ -28,10 +28,9 @@ function dayProgress(point, ctx) {
   return ((Number(point.day) || 1) - 1) / (days - 1);
 }
 
-/** Farbe eines Routenpunkts für die gewählte Kenngröße. "none" = einfarbige
- * Route in der Reise-eigenen Farbe (ctx.hue), keine Einfärbung nach Wert —
- * das ursprüngliche, schlichte Aussehen als bewusste Option, nicht nur
- * Standard vor der ersten Kenngröße. */
+/** Colour of a route point for the chosen metric. "none" = a single-colour
+ * route in the trip's own colour (ctx.hue), not coloured by value — the
+ * original plain look as a deliberate option. */
 export function colorFor(point, metric, ctx) {
   switch (metric) {
     case "none": return `hsl(${ctx.hue ?? 28},70%,52%)`;
@@ -45,8 +44,8 @@ export function colorFor(point, metric, ctx) {
   }
 }
 
-/** Beschreibung für die Legende: entweder Farbverlauf mit Skala, Kategorien
- * oder `null` (keine Legende — "none" hat ja keine Skala zu erklären). */
+/** Description for the legend: a gradient with a scale, categories, or `null`
+ * (no legend — "none" has no scale to explain). Labels are UI and stay German. */
 export function legendFor(metric, ctx) {
   switch (metric) {
     case "none": return null;
@@ -67,9 +66,8 @@ export function legendFor(metric, ctx) {
       return { title: "km ab Start", gradient: "linear-gradient(90deg,#5b57c9,#c24b86,#e8802b)",
                scale: [0, Math.round(ctx.totalKm / 2), Math.round(ctx.totalKm)] };
     case "day":
-      // Bei genau 2 Tagen zeigte die Mitte denselben Wert wie der Anfang
-      // (Math.ceil(2/2) = 1) — "1 / 1 / 2" statt einer sinnvollen dritten
-      // Marke. Bei zwei Tagen reichen zwei Beschriftungen.
+      // With exactly 2 days the middle showed the same value as the start
+      // (Math.ceil(2/2) = 1) — "1 / 1 / 2". Two labels are enough for two days.
       return { title: "Reisetag", gradient: "linear-gradient(90deg,#e8802b,#d6487e,#5b57c9)",
                scale: ctx.days > 2 ? [1, Math.ceil(ctx.days / 2), ctx.days] : ctx.days === 2 ? [1, 2] : [1] };
     default:

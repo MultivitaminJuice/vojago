@@ -1,4 +1,4 @@
-// Kleine SVG-Darstellungen: Routen-Vorschau, Höhenprofil, Geschwindigkeit.
+// Small SVG charts: route preview, elevation profile, speed.
 import { bounds } from "../geo.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -8,7 +8,7 @@ const svgEl = (name, attrs = {}) => {
   return node;
 };
 
-/** Vorschau einer Route, eingepasst in w × h. */
+/** Preview of a route, fitted into w × h. */
 export function miniRoute(trip, w, h) {
   const svg = svgEl("svg", { viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: "xMidYMid meet" });
   svg.appendChild(svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "var(--map-terrain)" }));
@@ -24,7 +24,7 @@ export function miniRoute(trip, w, h) {
   const ox = pad + ((w - 2 * pad) - spanLon * scale) / 2;
   const oy = pad + ((h - 2 * pad) - spanLat * scale) / 2;
   const X = (lon) => ox + (lon - b.minLon) * scale;
-  const Y = (lat) => oy + (b.maxLat - lat) * scale; // Norden oben
+  const Y = (lat) => oy + (b.maxLat - lat) * scale; // north up
 
   const d = "M" + path.map((p) => `${X(p.lon).toFixed(1)},${Y(p.lat).toFixed(1)}`).join(" L");
   svg.appendChild(svgEl("path", {
@@ -40,116 +40,108 @@ export function miniRoute(trip, w, h) {
 }
 
 /**
- * Gemeinsamer Aufbau für Höhenprofil/Geschwindigkeit: gefüllte Kurve +
- * Spannweiten-Beschriftung oben links (z. B. "412–798 m", wie die
- * Höhenmeter-Marke beim Vorbild-Konkurrenten) + Antippen/Ziehen zeigt den
- * genauen Wert an der berührten Stelle (Fadenkreuz-Linie, Punkt,
- * Wert-Chip) — dieselbe Idee wie die Klick-auf-die-Karte-Werte des
- * Vorbilds, nur auf die Kurve selbst bezogen statt auf die farbige Route.
- * `rangeMode: "zero"` (Geschwindigkeit) skaliert immer ab 0, nicht ab dem
- * Minimum — 0 km/h ist ein echter, aussagekräftiger Wert, anders als bei
- * der Höhe, wo der niedrigste gemessene Punkt keine besondere Bedeutung hat.
+ * Shared layout for the elevation and speed profiles: a filled curve, the range
+ * label at the top left (e.g. "412–798 m"), and tapping or dragging shows the
+ * exact value at the touched spot (guide line, dot, value chip).
+ * `rangeMode: "zero"` (speed) always scales from 0, not from the minimum —
+ * 0 km/h is a real, telling value, unlike elevation, where the lowest measured
+ * point has no special meaning.
  */
-const MAX_PUNKTE = 400;
+const MAX_POINTS = 400;
 
 /**
- * Skala für ein Balkendiagramm: der höchste Wert wird auf einen "runden" Schritt
- * (1, 2 oder 5 mal Zehnerpotenz) aufgerundet, damit die Achse z. B. 0 · 200 · 400 · 600
- * zeigt und der höchste Balken nicht an der Oberkante klebt.
+ * Scale for a bar chart: the highest value is rounded up to a "round" step
+ * (1, 2 or 5 times a power of ten), so the axis shows e.g. 0 · 200 · 400 · 600
+ * and the highest bar does not stick to the top.
  */
-export function skala(max, ziele = 3) {
-  if (!(max > 0) || !Number.isFinite(max)) return { max: 1, schritt: 1, ticks: [0, 1] };
-  const roh = max / ziele;
-  const potenz = 10 ** Math.floor(Math.log10(roh));
-  const f = roh / potenz;
-  const schritt = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * potenz;
-  const oben = Math.ceil(max / schritt - 1e-9) * schritt;
+export function niceScale(max, targetTicks = 3) {
+  if (!(max > 0) || !Number.isFinite(max)) return { max: 1, step: 1, ticks: [0, 1] };
+  const raw = max / targetTicks;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / power;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * power;
+  const top = Math.ceil(max / step - 1e-9) * step;
   const ticks = [];
-  for (let v = 0; v <= oben + schritt / 2; v += schritt) ticks.push(Math.round(v * 1e6) / 1e6);
-  return { max: oben, schritt, ticks };
+  for (let v = 0; v <= top + step / 2; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return { max: top, step, ticks };
 }
 
-/** Auf höchstens `n` Punkte verkleinern: Mittelwert je gleich großem Abschnitt. */
-export function zusammenfassen(werte, n) {
-  if (werte.length <= n) return werte;
+/** Reduce to at most `n` points: the mean of each equally sized section. */
+export function downsample(values, n) {
+  if (values.length <= n) return values;
   const out = [];
   for (let i = 0; i < n; i++) {
-    const von = Math.floor((i * werte.length) / n);
-    const bis = Math.max(von + 1, Math.floor(((i + 1) * werte.length) / n));
-    let summe = 0;
-    for (let j = von; j < bis; j++) summe += werte[j];
-    out.push(summe / (bis - von));
+    const from = Math.floor((i * values.length) / n);
+    const to = Math.max(from + 1, Math.floor(((i + 1) * values.length) / n));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += values[j];
+    out.push(sum / (to - from));
   }
   return out;
 }
 
 function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format }) {
-  // Die Kurve wird auf die Kartenbreite gedehnt (preserveAspectRatio "none"),
-  // alles mit Schrift oder runder Form liegt deshalb als normales HTML DARÜBER
-  // — im gedehnten SVG wurden Beschriftung, Punkt und Wert-Chip mitverzerrt
-  // (Nutzerfund, 15. Oktober 2026).
+  // The curve is stretched to the card width (preserveAspectRatio "none"), so
+  // everything with text or a round shape lies on top as plain HTML — inside the
+  // stretched SVG, label, dot and value chip were distorted (seen 15 October 2026).
   const wrap = document.createElement("div");
   wrap.className = "profile-wrap";
   const svg = svgEl("svg", { class: "profile", viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: "none" });
   wrap.appendChild(svg);
   if (!path?.length) return wrap;
   const pad = 4;
-  // Oben Platz für die Spannen-Beschriftung, damit die Kurve nie hineinragt.
-  const obenFrei = 18;
+  // Room at the top for the range label, so the curve never reaches into it.
+  const topSpace = 18;
 
-  // Skala und Beschriftung kommen aus den ECHTEN Werten (Höchst-/Tiefstwert
-  // bleiben wahr), gezeichnet wird eine zusammengefasste Reihe.
-  const werte = path.map(valueOf);
+  // Scale and label come from the REAL values (highest and lowest stay true);
+  // a downsampled series is drawn.
+  const values = path.map(valueOf);
   let min, max;
   if (rangeMode === "zero") {
     min = 0;
     max = 1;
-    for (const v of werte) if (v > max) max = v; // Schleife statt Math.max(...werte): bei sehr langen Reisen sprengt das Spread das Argument-Limit
+    for (const v of values) if (v > max) max = v; // a loop instead of Math.max(...values): on very long trips the spread exceeds the argument limit
   } else {
     min = Infinity; max = -Infinity;
-    for (const v of werte) {
+    for (const v of values) {
       if (v < min) min = v;
       if (v > max) max = v;
     }
     if (max - min < 1) max = min + 1;
   }
 
-  // Eine Fahrt hat zigtausend Messpunkte (echte Reise: ~60 000), die Karte nur
-  // einige hundert Pixel Breite — jeder Ausschlag wurde als eigener Strich
-  // gezeichnet, die Kurve wirkte wie ein unruhiger Block (Nutzerwunsch,
-  // 15. Oktober 2026). Mittelwert je Abschnitt: ruhig, wahrheitsgetreu im
-  // Verlauf; kurze Spitzen werden geglättet, der Chip beim Antippen zeigt
-  // entsprechend den Mittelwert der berührten Stelle.
-  const reihe = zusammenfassen(werte, MAX_PUNKTE);
+  // A trip has tens of thousands of points, the card only a few hundred pixels —
+  // every swing was drawn as its own stroke and the curve looked like a restless
+  // block (15 October 2026). The mean per section is calm and true to the course;
+  // short peaks are smoothed, and the chip shows the mean at the touched spot.
+  const series = downsample(values, MAX_POINTS);
 
-  const pts = reihe.map((v, i) => ({
-    x: pad + (i / Math.max(1, reihe.length - 1)) * (w - 2 * pad),
-    y: h - pad - ((v - min) / (max - min)) * (h - pad - obenFrei),
+  const pts = series.map((v, i) => ({
+    x: pad + (i / Math.max(1, series.length - 1)) * (w - 2 * pad),
+    y: h - pad - ((v - min) / (max - min)) * (h - pad - topSpace),
     v,
   }));
 
   const d = "M" + pts.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" L");
   svg.appendChild(svgEl("path", { d: `${d} L${w - pad},${h - pad} L${pad},${h - pad} Z`, fill: color, opacity: ".14" }));
-  // non-scaling-stroke: gleichmäßig dünne Linie, unabhängig von der Dehnung.
+  // non-scaling-stroke: an evenly thin line, whatever the stretch.
   svg.appendChild(svgEl("path", {
     d, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linejoin": "round",
     "vector-effect": "non-scaling-stroke",
   }));
 
-  const spanne = document.createElement("div");
-  spanne.className = "profile-range";
-  spanne.style.color = color;
-  spanne.textContent = rangeMode === "zero" ? format(max) : `${format(min)}–${format(max)}`;
-  wrap.appendChild(spanne);
+  const range = document.createElement("div");
+  range.className = "profile-range";
+  range.style.color = color;
+  range.textContent = rangeMode === "zero" ? format(max) : `${format(min)}–${format(max)}`;
+  wrap.appendChild(range);
 
-  // Antippen/Ziehen: nächsten Punkt zur berührten Stelle finden, Marker
-  // + Wert-Chip zeigen. pointerdown/-move deckt Maus UND Touch gleich mit
-  // ab (Touch löst dieselben Pointer-Events aus); bleibt nach Loslassen
-  // stehen, bis anderswo getippt wird — bei Touch wäre "verschwindet
-  // sofort beim Loslassen" nutzlos, das ist ja schon fast dasselbe wie der
-  // Tipp selbst.
+  // Tap or drag: find the point nearest to the touched spot, show the marker and
+  // the value chip. pointerdown/-move covers mouse AND touch; it stays after
+  // releasing until a tap elsewhere — on touch, "disappears on release" would be
+  // useless.
   const guide = svgEl("line", {
-    y1: obenFrei, y2: h - pad, stroke: color, "stroke-width": 1, "stroke-dasharray": "2,2", opacity: 0,
+    y1: topSpace, y2: h - pad, stroke: color, "stroke-width": 1, "stroke-dasharray": "2,2", opacity: 0,
     "vector-effect": "non-scaling-stroke",
   });
   const dot = document.createElement("div");
@@ -162,7 +154,7 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
   svg.append(guide, overlay);
   wrap.append(dot, chip);
 
-  const zeige = (clientX) => {
+  const show = (clientX) => {
     const rect = svg.getBoundingClientRect();
     if (!rect.width) return;
     const relX = ((clientX - rect.left) / rect.width) * w;
@@ -179,33 +171,32 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
 
     chip.textContent = format(nearest.v);
     chip.style.opacity = "1";
-    // Breite erst nach dem Setzen des Textes messbar; am Rand einklemmen.
+    // The width can only be measured after setting the text; clamp at the edges.
     const chipW = chip.offsetWidth;
     chip.style.left = `${Math.min(Math.max(px - chipW / 2, 0), Math.max(0, rect.width - chipW))}px`;
     chip.style.top = `${Math.max(py - 26, 0)}px`;
   };
-  const verbergen = () => {
+  const hide = () => {
     guide.setAttribute("opacity", "0"); dot.style.opacity = "0"; chip.style.opacity = "0";
   };
 
-  overlay.addEventListener("pointerdown", (e) => zeige(e.clientX));
-  overlay.addEventListener("pointermove", (e) => { if (e.buttons === 1) zeige(e.clientX); });
-  overlay.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") verbergen(); });
+  overlay.addEventListener("pointerdown", (e) => show(e.clientX));
+  overlay.addEventListener("pointermove", (e) => { if (e.buttons === 1) show(e.clientX); });
+  overlay.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hide(); });
 
   return wrap;
 }
 
-const formatHoehe = (v) => `${Math.round(v)} m`;
-const formatTempo = (v) => `${Math.round(v)} km/h`;
+const formatElevation = (v) => `${Math.round(v)} m`;
+const formatSpeed = (v) => `${Math.round(v)} km/h`;
 
-/** Höhenprofil einer Route. */
+/** Elevation profile of a route. */
 export function elevationProfile(path, w = 320, h = 84) {
-  return profileChart(path, w, h, { valueOf: (p) => p.elev, rangeMode: "minmax", color: "var(--accent)", format: formatHoehe });
+  return profileChart(path, w, h, { valueOf: (p) => p.elev, rangeMode: "minmax", color: "var(--accent)", format: formatElevation });
 }
 
-/** Geschwindigkeitsverlauf einer Route (km/h über die Positionen hinweg).
- * Eigene Akzentfarbe (--indigo), damit beide Kurven im selben Kartenstapel
- * klar auseinanderzuhalten sind. */
+/** Speed profile of a route (km/h along the positions). Its own accent colour
+ * (--indigo), so both curves are easy to tell apart in the same card stack. */
 export function speedProfile(path, w = 320, h = 84) {
-  return profileChart(path, w, h, { valueOf: (p) => p.spd || 0, rangeMode: "zero", color: "var(--indigo)", format: formatTempo });
+  return profileChart(path, w, h, { valueOf: (p) => p.spd || 0, rangeMode: "zero", color: "var(--indigo)", format: formatSpeed });
 }

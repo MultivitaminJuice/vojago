@@ -1,5 +1,5 @@
-// Seitliche Detail-Ansichten mit Schutz vor ungewolltem Verwerfen.
-// Wer mit ungespeicherten Änderungen zurückgeht, wird gefragt.
+// Side detail views with protection against discarding by accident. Whoever
+// goes back with unsaved changes is asked.
 import { $ } from "../dom.js";
 
 export function createSheet({ id, confirmId, isDirty = () => false, onSave, onClose }) {
@@ -30,7 +30,7 @@ export function createSheet({ id, confirmId, isDirty = () => false, onSave, onCl
   };
 }
 
-/** Escape schließt die oberste offene Ansicht. */
+/** Escape closes the topmost open view. */
 export function wireEscape(sheets) {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;

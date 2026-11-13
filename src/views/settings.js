@@ -1,6 +1,6 @@
 // Ansicht „Einstellungen": Fahrzeuge, Kategorien, Backend-Verbindung.
 import { el, render, icon, toast, $, $$ } from "../dom.js";
-import { applyTheme, gueltigesTheme } from "../theme.js";
+import { applyTheme, validTheme } from "../theme.js";
 import { routeInfoRows } from "../route-info.js";
 import { validMapStyle } from "../map-style.js";
 import * as mapview from "../mapview.js";
@@ -29,13 +29,13 @@ let onSourceChanged = () => {};
 let bekannteGeraete = [];
 let ingestInfo = null;
 async function ladeBekannteGeraete() {
-  if (!zentral()) { bekannteGeraete = []; return; }
+  if (!isCentral()) { bekannteGeraete = []; return; }
   try { bekannteGeraete = (await fetchDevices()) || []; }
   catch { bekannteGeraete = []; } // z. B. noch kein Gerät je gesehen — kein Fehler wert
 }
 
 async function ladeIngestInfo() {
-  if (!zentral() || !state.account?.isAdmin) { ingestInfo = null; return; }
+  if (!isCentral() || !state.account?.isAdmin) { ingestInfo = null; return; }
   try { ingestInfo = await ingestStatus(); }
   catch { ingestInfo = null; }
 }
@@ -45,11 +45,11 @@ async function ladeIngestInfo() {
  * sonst sähe jedes Gerät etwas anderes. Nur mit Beispieldaten (oder wenn die
  * API gerade nicht erreichbar ist) wird lokal gesichert.
  */
-const zentral = () => !state.config.demo && isConfigured();
+const isCentral = () => !state.config.demo && isConfigured();
 
 async function sichern(aufgabe) {
   saveLocalData(); // immer auch lokal, damit offline nichts verloren geht
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
   try {
     await aufgabe();
     await storeSettings(collectPreferences()).catch(() => {});
@@ -111,7 +111,7 @@ function renderEmailStatus() {
 async function renderSharesList() {
   const box = $("#shares-list");
   if (!box) return;
-  if (!zentral()) { render(box, [el("p.sub", { text: "Anmelden, um Reisen zu teilen." })]); return; }
+  if (!isCentral()) { render(box, [el("p.sub", { text: "Anmelden, um Reisen zu teilen." })]); return; }
   let shares = [];
   try { shares = await listShares(); } catch { render(box, [el("p.sub", { text: "Freigaben konnten nicht geladen werden." })]); return; }
   // Widerrufene Links bleiben in der Datenbank (Nachvollziehbarkeit), aber
@@ -270,10 +270,10 @@ async function userErstellen() {
   }
 }
 
-/** Vorlieben ohne eigenen Datensatz (Anzeige, Ebenen) zentral ablegen. */
+/** Vorlieben ohne eigenen Datensatz (Anzeige, Ebenen) isCentral ablegen. */
 export function syncPreferences() {
   saveLocalData();
-  if (zentral()) storeSettings(collectPreferences()).catch(() => {});
+  if (isCentral()) storeSettings(collectPreferences()).catch(() => {});
 }
 
 export function initSettings({ onCategoriesChange, onSourceChange }) {
@@ -370,11 +370,11 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   });
 
   const zeigeTheme = () => {
-    const aktuell = gueltigesTheme(state.config.theme);
+    const aktuell = validTheme(state.config.theme);
     $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeWahl === aktuell)));
   };
   $$("#theme-tabs [data-theme-wahl]").forEach((b) => b.addEventListener("click", () => {
-    state.config.theme = gueltigesTheme(b.dataset.themeWahl);
+    state.config.theme = validTheme(b.dataset.themeWahl);
     applyTheme(state.config.theme);
     saveConfig();
     zeigeTheme();
@@ -541,7 +541,7 @@ function sicherFahrzeug(vehicle, lokal) {
     sichern(() => updateVehicle(vehicle.id, serverPatch));
     return;
   }
-  if (!zentral()) { saveLocalData(); return; }
+  if (!isCentral()) { saveLocalData(); return; }
   vehicle.id = `veh_${Date.now().toString(36)}`;
   // vehicle.active gibt es im Client-Zustand sonst nicht (aktiv ist immer
   // state.activeVehicle als Index) — hier fürs Anlegen aus dem Index ableiten,

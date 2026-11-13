@@ -1,9 +1,9 @@
-// Ansicht „Orte": Suche, Filter (Reise, Quelle, Umkreis), Liste, Erfassen.
+// The "places" view: search, filters (trip, source, radius), list, adding places. UI texts stay German.
 import { el, render, icon, toast, $ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, category, placeCounts, newId, trip } from "../state.js";
-import { wetterZeile } from "../store.js";
-import { teileOrt } from "../ui/share.js";
+import { weatherLine } from "../store.js";
+import { sharePlace } from "../ui/share.js";
 import { distanceKm } from "../geo.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
@@ -32,9 +32,9 @@ export function initPlaces({ onEdit, getMapCenter }) {
   renderPlaces();
 }
 
-/** Auch von main.js genutzt: erneuter Klick auf den "Logbuch"-Tab, während
- * man schon dort ist, setzt die Orte-Filter auf die Standardansicht zurück
- * (wie der "Filter zurücksetzen"-Knopf) statt einfach nichts zu tun. */
+/** Also used by main.js: tapping the "Logbuch" tab again while already there
+ * resets the place filters to the default view (like the "reset filters"
+ * button) instead of doing nothing. */
 export function resetPlaceFilters() {
   state.filters = { text: "", cats: {}, trip: "", source: "", ref: "none", radius: 0 };
   const search = $("#place-search");
@@ -77,7 +77,7 @@ export function buildFilterOptions() {
   if (refSelect.value === "none") state.filters.ref = "none";
 }
 
-/** Bezugspunkt für die Umkreissuche. */
+/** Reference point for the radius search. */
 function referencePoint() {
   const { ref } = state.filters;
   if (ref === "none") return null;
@@ -148,7 +148,7 @@ export function renderPlaces() {
         el("div.meta2", {}, [
           el("span.mbadge", { text: SOURCE_LABEL[p.source] || SOURCE_LABEL.camper }),
           el("span.mbadge", { text: tripName }),
-          p.weather ? el("span.mbadge", { text: wetterZeile(p.weather) }) : null,
+          p.weather ? el("span.mbadge", { text: weatherLine(p.weather) }) : null,
           dist != null ? el("span.mbadge.dist", { text: `${dist < 10 ? dist.toFixed(1) : Math.round(dist)} km` }) : null,
         ]),
         el("p", { text: p.note }),
@@ -157,7 +157,7 @@ export function renderPlaces() {
           el("span.coords", { text: p.date || "" }),
           el("span.mini-acts", {}, [
             el("button", { title: "Bearbeiten", on: { click: () => openEditor(p) } }, icon(ICON.edit, 14)),
-            el("button", { title: "Teilen", on: { click: () => teileOrt(p) } }, icon(ICON.share, 14)),
+            el("button", { title: "Teilen", on: { click: () => sharePlace(p) } }, icon(ICON.share, 14)),
           ]),
         ]),
       ]),
@@ -169,7 +169,7 @@ export const photoGradient = (hue) =>
   `radial-gradient(circle at 74% 30%, rgba(255,244,214,.95), rgba(255,244,214,0) 20%),` +
   `linear-gradient(180deg, hsl(${hue},68%,68%) 0%, hsl(${hue + 18},55%,82%) 52%, hsl(120,34%,52%) 52%, hsl(122,38%,38%) 100%)`;
 
-/** Neuen Ort erfassen — per Gerätestandort oder über die Kartenmitte. */
+/** Add a new place — at the device location or the map centre. */
 function addPlace(source) {
   const finish = (lon, lat, note) => {
     openEditor({

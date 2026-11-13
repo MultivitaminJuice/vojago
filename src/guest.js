@@ -1,48 +1,48 @@
-// Gast-Ansicht: Reisen über einen Freigabe-Link ansehen, ohne eigenes Konto.
+// Guest view: looking at trips through a sharing link, without an account.
 //
-// Bewusst KEINE eigene Kopie der Datenlogik — dieselben Baublöcke wie in
-// dataload.js (toTrip/toPlace/toNote, positionsToPath, kmPerDay) und
-// geo.js/day-utils.js kommen hier zum Einsatz, nur aus einer anderen Quelle:
-// dem öffentlichen Freigabe-Endpunkt statt der angemeldeten API. Die eigent-
-// liche Sicherheitsgrenze liegt ohnehin serverseitig (siehe api/router.js
-// /api/share/...) — hier geht es nur darum, dieselben Render-Funktionen
-// (renderTrips, renderJournal, die Karte) unverändert weiterzuverwenden.
+// Deliberately NO copy of the data logic — the same building blocks as in
+// dataload.js (toTrip/toPlace/toNote, positionsToPath, kmPerDay) and
+// geo.js/day-utils.js are used, only from another source: the public sharing
+// endpoint instead of the signed-in API. The actual security boundary is on the
+// server anyway (see api/router.js /api/share/...) — this is only about reusing
+// the same render functions (renderTrips, renderJournal, the map) unchanged.
+// Response fields (e.g. alleReisen, tagebuch) follow the API.
 import { state, emit } from "./state.js";
 import { toTrip, toPlace, toNote, toPhoto, toDiaryEntry, defaultTrip, positionsToPath, kmPerDay } from "./dataload.js";
 import { pathLengthKm, elevationRange } from "./geo.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { fetchShare, fetchShareRoute, fetchSharePositions, fetchShareDrives } from "./api.js";
 
-let aktiverToken = null;
+let activeToken = null;
 
-/** Lädt die Übersicht (Reise(n) + je nach Umfang Logbuch) für einen Freigabe-Link. */
-export async function starteGastAnsicht(token) {
-  aktiverToken = token;
-  const antwort = await fetchShare(token);
-  state.guest = { scope: antwort.scope, allTrips: antwort.alleReisen, label: antwort.label || "", token };
-  state.trips = (antwort.trips || []).map(toTrip);
-  state.places = (antwort.places || []).map(toPlace);
-  state.notes = (antwort.notes || []).map(toNote);
-  state.photos = (antwort.photos || []).map(toPhoto);
-  state.diary = (antwort.tagebuch || []).map(toDiaryEntry);
-  if (antwort.categories?.length) {
-    state.categories = Object.fromEntries(antwort.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
+/** Loads the overview (trip(s) and, depending on the scope, the logbook) for a sharing link. */
+export async function startGuestView(token) {
+  activeToken = token;
+  const answer = await fetchShare(token);
+  state.guest = { scope: answer.scope, allTrips: answer.alleReisen, label: answer.label || "", token };
+  state.trips = (answer.trips || []).map(toTrip);
+  state.places = (answer.places || []).map(toPlace);
+  state.notes = (answer.notes || []).map(toNote);
+  state.photos = (answer.photos || []).map(toPhoto);
+  state.diary = (answer.tagebuch || []).map(toDiaryEntry);
+  if (answer.categories?.length) {
+    state.categories = Object.fromEntries(answer.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
   }
-  const standard = defaultTrip(state.trips);
-  state.activeTripId = standard?.live ? standard.id : null;
-  state.mapTripId = standard?.id || null;
+  const fallback = defaultTrip(state.trips);
+  state.activeTripId = fallback?.live ? fallback.id : null;
+  state.mapTripId = fallback?.id || null;
   emit("trips");
-  if (standard) await ladeGastRoute(standard);
-  return antwort;
+  if (fallback) await loadGuestRoute(fallback);
+  return answer;
 }
 
-/** Nur die aktuelle Position — leichtgewichtig, fürs häufige Nachfragen
- * (Gegenstück zu loadLivePosition()). Nur sinnvoll bei laufender Reise. */
-export async function ladeGastLivePosition(trip) {
-  if (!trip?.live || !aktiverToken) return;
+/** Only the current position — lightweight, for frequent polling (counterpart
+ * of loadLivePosition()). Only useful for a running trip. */
+export async function loadGuestLivePosition(trip) {
+  if (!trip?.live || !activeToken) return;
   try {
-    const liste = await fetchSharePositions(aktiverToken, trip.id);
-    const p = Array.isArray(liste) ? liste[0] : null;
+    const list = await fetchSharePositions(activeToken, trip.id);
+    const p = Array.isArray(list) ? list[0] : null;
     if (!p || !Number.isFinite(p.longitude) || !Number.isFinite(p.latitude)) return;
     state.livePosition = {
       lon: p.longitude, lat: p.latitude,
@@ -51,47 +51,45 @@ export async function ladeGastLivePosition(trip) {
     };
     emit("livePosition");
   } catch {
-    /* stiller Fehlschlag — die Karte bleibt einfach, wie sie ist */
+    /* silent failure — the map simply stays as it is */
   }
 }
 
-/** Route + Fahrten-Einordnung (+ einmalig Live-Position) einer einzelnen
- * Reise — Gegenstück zu ensureTripPath()/loadDrives() im angemeldeten
- * Betrieb, nur über den öffentlichen Endpunkt. Die Fahrten-Einordnung
- * (Etappe/Abstecher) muss VOR dem Zeichnen feststehen — sonst zeigt die
- * Karte mangels Filterkriterium kurz die volle, ungefilterte Strecke
- * (inklusive Versorgungsfahrten & Co.) statt nur der Etappen. Stiller
- * Fehlschlag: die Karte bleibt ohne Route stehen. */
-export async function ladeGastRoute(trip) {
-  if (!trip || !aktiverToken) return;
+/** Route and drive kinds (and once the live position) of a single trip —
+ * counterpart of ensureTripPath()/loadDrives() for signed-in users, through the
+ * public endpoint. The drive kinds (stage/detour) must be known BEFORE drawing —
+ * otherwise the map briefly shows the full, unfiltered route (supply drives
+ * included) instead of only the stages. Silent failure: the map stays without route. */
+export async function loadGuestRoute(trip) {
+  if (!trip || !activeToken) return;
   try {
-    const [positionen, fahrten] = await Promise.all([
-      fetchShareRoute(aktiverToken, trip.id),
-      fetchShareDrives(aktiverToken, trip.id).catch(() => []),
+    const [positions, drives] = await Promise.all([
+      fetchShareRoute(activeToken, trip.id),
+      fetchShareDrives(activeToken, trip.id).catch(() => []),
     ]);
-    // Fahrten anderer Reisen (bei "alle Reisen" nacheinander geladen) bleiben
-    // erhalten — nur die dieser Reise werden ersetzt.
-    state.drives = state.drives.filter((d) => d.tripId !== trip.id).concat(fahrten || []);
-    trip.path = renumberPathByTripStart(positionsToPath(positionen), trip);
+    // Drives of other trips (loaded one after another with "all trips") stay —
+    // only those of this trip are replaced.
+    state.drives = state.drives.filter((d) => d.tripId !== trip.id).concat(drives || []);
+    trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
     if (trip.path.length) {
       trip.km = Math.round(pathLengthKm(trip.path));
       trip.peak = Math.round(elevationRange(trip.path).max);
-      const tage = kmPerDay(trip.path);
-      trip.bars = tage.bars;
-      trip.barLabels = tage.labels;
+      const days = kmPerDay(trip.path);
+      trip.bars = days.bars;
+      trip.barLabels = days.labels;
     }
     emit("tripPath");
-    await ladeGastLivePosition(trip);
+    await loadGuestLivePosition(trip);
   } catch {
-    /* Karte bleibt ohne Route stehen — kein Absturz. */
+    /* the map stays without route — no crash */
   }
 }
 
-/** Wechselt in der "alle Reisen"-Gast-Ansicht auf eine andere Reise. */
-export async function zeigeGastReise(tripId) {
+/** Switches to another trip in the "all trips" guest view. */
+export async function showGuestTrip(tripId) {
   const trip = state.trips.find((t) => t.id === tripId);
   if (!trip) return;
   state.mapTripId = trip.id;
   emit("trips");
-  if (!trip.path.length) await ladeGastRoute(trip);
+  if (!trip.path.length) await loadGuestRoute(trip);
 }

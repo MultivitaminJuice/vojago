@@ -1,4 +1,4 @@
-// Konstante Icon-Pfade (Feather-Stil). Nie mit Nutzerdaten kombiniert.
+// Constant icon paths (Feather style). Never combined with user data.
 export const ICON = {
   map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
   route: '<path d="M3 12h4l2-5 4 12 2-5h6"/>',

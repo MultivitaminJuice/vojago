@@ -1,19 +1,16 @@
-// Ansicht „Wache": Scharf/unscharf, Überwachungsradius, Alarm-Protokoll.
+// The "Wache" (guard) view: armed/disarmed, watched radius, alarm log.
 //
-// Bewusst KEINE vorher anzulegenden, benannten Zonen (frühere Fassung
-// hatte eine Zonen-Liste mit CRUD): für den Diebstahlschutz-Anwendungsfall
-// braucht es nur EINEN Ankerpunkt — die aktuelle Position beim
-// Scharfschalten selbst. Das ersetzt Name/Liste/Verwaltung durch
-// einen einzigen Radius-Wert..
+// Deliberately NO named zones to create beforehand (an earlier version had a
+// zone list with CRUD): for theft protection ONE anchor is enough — the position
+// when arming. That replaces name, list and management with a single radius.
 //
-// Bordspannung/Stromausfall bewusst nicht gebaut (RUTX50 meldet keine
-// Bordspannung).
+// On-board voltage and power loss are deliberately not built (the RUTX50 does
+// not report on-board voltage).
 //
-// Im Demo-Modus (nicht angemeldet) bleiben state.alarmTypes/alarmLog die
-// Beispielwerte aus demo.js — rein lokal, keine API-Aufrufe. Im echten
-// Betrieb lädt loadGuard() den tatsächlichen Scharf-Zustand, den zuletzt
-// gemerkten Ankerpunkt (nur fürs Radius-Vorausfüllen) und das Protokoll;
-// tracker-backend/src/alarms.js wertet den Ankerpunkt live aus.
+// In demo mode (not signed in) state.alarmTypes/alarmLog keep the example values
+// from demo.js — local only, no API calls. In real use loadGuard() loads the
+// actual armed state, the last anchor (only to prefill the radius) and the log;
+// tracker-backend/src/alarms.js evaluates the anchor live. UI texts stay German.
 import { el, render, toast, $ } from "../dom.js";
 import { state, saveLocalData, emit } from "../state.js";
 import {
@@ -23,32 +20,31 @@ import {
 import { distanceKm } from "../geo.js";
 import { liveAgeText } from "../live-age.js";
 
-// Fester Datensatz-Kennung des Wache-Ankers (api/router.js, WACHE_ZONE_ID) —
-// in der Tabelle liegen aus der früheren Zonen-Verwaltung noch ältere
-// Einträge, die hier nichts zu suchen haben.
-const WACHE_ZONE_ID = "wache-aktuell";
-// Ab so alt gilt die letzte GPS-Meldung beim Scharfschalten als "nicht mehr
-// dort, wo das Fahrzeug jetzt steht" und es wird nachgefragt.
-const MAX_POSITIONSALTER_SCHARF_MS = 10 * 60_000;
+// Fixed record id of the guard anchor (api/router.js) — the table still holds
+// older entries from the earlier zone management that do not belong here.
+const GUARD_ZONE_ID = "wache-aktuell";
+// From this age on, the last GPS report counts as "maybe no longer where the
+// vehicle is now" when arming, and the user is asked.
+const MAX_POSITION_AGE_ARMING_MS = 10 * 60_000;
 
-const anzeigeZeit = (sqliteDatum) => {
-  if (!sqliteDatum) return "";
-  const d = new Date(sqliteDatum.replace(" ", "T") + "Z");
-  if (Number.isNaN(d.getTime())) return sqliteDatum;
+const displayTime = (sqliteDate) => {
+  if (!sqliteDate) return "";
+  const d = new Date(sqliteDate.replace(" ", "T") + "Z");
+  if (Number.isNaN(d.getTime())) return sqliteDate;
   return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 };
 
 function mapAlarmLogEntry(row) {
-  const verlassen = /verlassen/.test(row.message || "");
-  const symbol = row.severity === "crit" ? "🔴" : row.severity === "ok" ? "✓" : verlassen ? "↗" : "⚡";
-  return { sev: row.severity, icon: symbol, title: row.message || row.type, info: "", time: anzeigeZeit(row.occurred_at) };
+  const left = /verlassen/.test(row.message || "");
+  const symbol = row.severity === "crit" ? "🔴" : row.severity === "ok" ? "✓" : left ? "↗" : "⚡";
+  return { sev: row.severity, icon: symbol, title: row.message || row.type, info: "", time: displayTime(row.occurred_at) };
 }
 
-/** Zentraler Fehlschlag-Toast, wie sichern() in settings.js. */
-async function sichern(aufgabe, nachher) {
+/** Central failure toast, like save() in settings.js. */
+async function save(task, after) {
   try {
-    await aufgabe();
-    await nachher?.();
+    await task();
+    await after?.();
     return true;
   } catch (err) {
     toast(`Nicht gespeichert: ${err.message}`);
@@ -67,7 +63,7 @@ function toggleSwitch(checked, onChange) {
   });
 }
 
-const istAdmin = () => Boolean(state.account?.isAdmin);
+const isAdmin = () => Boolean(state.account?.isAdmin);
 
 function renderAlarmLog() {
   render($("#alarm-log"), state.alarmLog.length
@@ -79,85 +75,80 @@ function renderAlarmLog() {
     : [el("div.sub", { text: "Noch keine Ereignisse." })]);
 }
 
-/* ---------- Push-Benachrichtigung: eine persönliche Geräte-Einstellung,
- * unabhängig davon, ob die Wache gerade scharf ist — wer sein Gerät einmal
- * anmeldet, bekommt jeden künftigen Zonen-Wechsel, egal wann er/sie das
- * nächste Mal scharf schaltet. Kein Admin-Erfordernis (anders als
- * scharf/unscharf): das betrifft nur das eigene Gerät, keine gemeinsame
- * Konfiguration. ---------- */
+/* ---------- Push notifications: a personal device setting, independent of
+ * whether the guard is armed — whoever registers a device once gets every future
+ * zone change, whenever they arm next. No admin needed (unlike arming): it only
+ * concerns the own device, no shared configuration. ---------- */
 const PUSH_SUB_ID_KEY = "vojago.push.subscriptionId";
 
-const pushUnterstuetzt = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
-function urlBase64ZuUint8Array(base64) {
+function urlBase64ToUint8Array(base64) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const normalisiert = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const roh = atob(normalisiert);
-  return Uint8Array.from(roh, (c) => c.charCodeAt(0));
+  const normalised = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(normalised);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-async function pushAktivieren() {
+async function enablePush() {
   if (Notification.permission === "denied") {
     toast("Benachrichtigungen sind für diese Seite blockiert — in den Browser-/System-Einstellungen erlauben.");
     return false;
   }
-  const erlaubnis = await Notification.requestPermission();
-  if (erlaubnis !== "granted") { toast("Ohne Erlaubnis keine Benachrichtigungen"); return false; }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") { toast("Ohne Erlaubnis keine Benachrichtigungen"); return false; }
   const { key } = await pushPublicKey();
   const reg = await navigator.serviceWorker.ready;
-  const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ZuUint8Array(key) });
+  const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
   const { id } = await subscribePush(subscription.toJSON());
-  try { localStorage.setItem(PUSH_SUB_ID_KEY, id); } catch { /* Speicher voll/blockiert — Abo besteht serverseitig trotzdem */ }
+  try { localStorage.setItem(PUSH_SUB_ID_KEY, id); } catch { /* storage full or blocked — the subscription exists on the server anyway */ }
   return true;
 }
 
-async function pushDeaktivieren() {
+async function disablePush() {
   const reg = await navigator.serviceWorker.ready;
   const subscription = await reg.pushManager.getSubscription();
   if (subscription) await subscription.unsubscribe().catch(() => {});
   let id;
-  try { id = localStorage.getItem(PUSH_SUB_ID_KEY); } catch { /* egal */ }
+  try { id = localStorage.getItem(PUSH_SUB_ID_KEY); } catch { /* ignore */ }
   if (id) {
     await unsubscribePush(id).catch(() => {});
-    try { localStorage.removeItem(PUSH_SUB_ID_KEY); } catch { /* egal */ }
+    try { localStorage.removeItem(PUSH_SUB_ID_KEY); } catch { /* ignore */ }
   }
 }
 
 async function renderPushStatus() {
-  const schalter = $("#push-switch"), statusText = $("#push-status"), statusSub = $("#push-status-sub");
-  if (!schalter) return;
+  const toggle = $("#push-switch"), statusText = $("#push-status"), statusSub = $("#push-status-sub");
+  if (!toggle) return;
   if (state.config.demo) {
-    schalter.disabled = true;
-    schalter.title = "Erst nach Anmeldung verfügbar";
+    toggle.disabled = true;
+    toggle.title = "Erst nach Anmeldung verfügbar";
     statusText.textContent = "Aus";
     statusSub.textContent = "Erst nach Anmeldung verfügbar";
     return;
   }
-  if (!pushUnterstuetzt()) {
-    schalter.disabled = true;
-    schalter.title = "Dieser Browser unterstützt keine Push-Benachrichtigungen";
+  if (!pushSupported()) {
+    toggle.disabled = true;
+    toggle.title = "Dieser Browser unterstützt keine Push-Benachrichtigungen";
     statusText.textContent = "Nicht verfügbar";
     statusSub.textContent = "Dieser Browser/dieses Gerät unterstützt das nicht";
     return;
   }
-  schalter.disabled = false;
-  schalter.title = "";
+  toggle.disabled = false;
+  toggle.title = "";
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   const subscription = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
-  const aktiv = Boolean(subscription);
-  schalter.setAttribute("aria-checked", String(aktiv));
-  statusText.textContent = aktiv ? "An" : "Aus";
-  statusSub.textContent = aktiv ? "Aktiv auf diesem Gerät" : "Auf diesem Gerät nicht aktiviert";
+  const active = Boolean(subscription);
+  toggle.setAttribute("aria-checked", String(active));
+  statusText.textContent = active ? "An" : "Aus";
+  statusSub.textContent = active ? "Aktiv auf diesem Gerät" : "Auf diesem Gerät nicht aktiviert";
 }
 
-/** Alarm-Typen zeigten in der Attrappe fünf Schalter, obwohl nur die
- * Geofence-Prüfung wirklich existiert (Bewegung/Unterspannung/Strom-
- * unterbrechung/Übergeschwindigkeit sind nicht gebaut, siehe U7). Push gibt
- * es jetzt (siehe Push-Benachrichtigung-Karte oben) — hier deshalb nur noch
- * ein Hinweis, dass ausschließlich Geofence wirklich auslöst, statt fünf
- * Schaltern vorzutäuschen, es gäbe eine Wahl (Regel 1). Demo-Modus zeigt
- * weiterhin die alte Attrappe, als Vorschau für einen noch nicht
- * angemeldeten Besuch. */
+/** The alarm types used to show five switches although only the geofence check
+ * exists (movement, low voltage, power loss and speeding are not built). So
+ * only a note that only the geofence really triggers, instead of pretending a
+ * choice. Demo mode still shows the old switches as a preview for a visitor
+ * who is not signed in. */
 function renderAlarmTypes() {
   const box = $("#alarm-types");
   if (state.config.demo) {
@@ -174,105 +165,104 @@ function renderAlarmTypes() {
 function renderGuardHero() {
   const hero = $("#guard-hero");
   const guardSwitch = $("#guard-switch");
-  const admin = istAdmin();
-  const echtesSetting = !state.config.demo;
-  const kannÄndern = echtesSetting ? admin : true;
+  const admin = isAdmin();
+  const realSetting = !state.config.demo;
+  const canChange = realSetting ? admin : true;
   guardSwitch.setAttribute("aria-checked", String(state.guardArmed));
-  guardSwitch.disabled = !kannÄndern;
-  guardSwitch.title = echtesSetting && !admin ? "Nur Admins können die Wache scharf/unscharf schalten" : "";
+  guardSwitch.disabled = !canChange;
+  guardSwitch.title = realSetting && !admin ? "Nur Admins können die Wache scharf/unscharf schalten" : "";
   hero.classList.toggle("armed", state.guardArmed);
   $("#guard-title").textContent = state.guardArmed ? "Wache scharf" : "Wache aus";
   $("#guard-sub").textContent = state.guardArmed
-    ? (echtesSetting ? `Radius ${state.guardZoneRadius ?? state.guardRadius} m um die Position beim Scharfschalten` : "Fahrzeug gesichert · Stellplatz Reutte")
+    ? (realSetting ? `Radius ${state.guardZoneRadius ?? state.guardRadius} m um die Position beim Scharfschalten` : "Fahrzeug gesichert · Stellplatz Reutte")
     : "Überwachung pausiert";
   hero.querySelector(".shield").style.color = state.guardArmed ? "var(--good)" : "var(--ink-faint)";
 
   const radiusInput = $("#guard-radius");
   if (radiusInput) {
     radiusInput.value = state.guardRadius;
-    radiusInput.disabled = !kannÄndern;
+    radiusInput.disabled = !canChange;
   }
 }
 
 const meterText = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`);
 
-function infoZeile(bezeichnung, wert, farbe) {
+function infoRow(label, value, colour) {
   return el("div.set-row", {}, [el("div.si", {}, [
-    el("b", { text: bezeichnung }),
-    el("div", { text: wert, style: farbe ? { color: farbe } : {} }),
+    el("b", { text: label }),
+    el("div", { text: value, style: colour ? { color: colour } : {} }),
   ])]);
 }
 
-/** Zeigt, WOMIT die Wache gerade überwacht: Mittelpunkt, Radius, seit wann,
- * wo das Fahrzeug im Verhältnis dazu steht und wie aktuell diese Angabe ist.
- * Wird auch bei jeder neuen Positionsmeldung neu gezeichnet (main.js). */
+/** Shows WHAT the guard is watching: centre, radius, since when, where the
+ * vehicle stands relative to it and how current that is. Redrawn on every new
+ * position report too (main.js). */
 export function renderGuardInfo() {
   const body = $("#guard-info-body");
-  const kartenKnopf = $("#guard-show-map");
+  const mapButton = $("#guard-show-map");
   if (!body) return;
   const pos = state.livePosition;
-  const anker = state.guardAnchor;
+  const anchor = state.guardAnchor;
 
   if (state.config.demo) {
-    // Beispielwerte, passend zur Demo-Reise (Stellplatz Reutte) — keine echte Überwachung.
+    // Example values matching the demo trip — no real watching.
     render(body, [
-      infoZeile("Status", "Innerhalb — 42 m vom Mittelpunkt", "var(--good)"),
-      infoZeile("Mittelpunkt", "Stellplatz Reutte"),
-      infoZeile("Radius", `${state.guardRadius} m`),
-      infoZeile("Scharf seit", "gestern, 17:30"),
-      infoZeile("Letzte GPS-Meldung", "gerade eben"),
+      infoRow("Status", "Innerhalb — 42 m vom Mittelpunkt", "var(--good)"),
+      infoRow("Mittelpunkt", "Stellplatz Reutte"),
+      infoRow("Radius", `${state.guardRadius} m`),
+      infoRow("Scharf seit", "gestern, 17:30"),
+      infoRow("Letzte GPS-Meldung", "gerade eben"),
     ]);
-    if (kartenKnopf) kartenKnopf.style.display = "none";
+    if (mapButton) mapButton.style.display = "none";
     return;
   }
-  if (!state.guardArmed || !anker) {
+  if (!state.guardArmed || !anchor) {
     render(body, [
       el("div.sub", { text: state.guardArmed
         ? "Kein Ankerpunkt bekannt."
         : "Die Wache ist aus. Beim Scharfschalten wird die letzte gemeldete Position des Fahrzeugs zum Mittelpunkt des überwachten Bereichs." }),
       pos ? el("div.sub", { text: `Letzte GPS-Meldung: ${liveAgeText(pos.at)}` }) : null,
     ]);
-    if (kartenKnopf) kartenKnopf.style.display = "none";
+    if (mapButton) mapButton.style.display = "none";
     return;
   }
 
   const radius = state.guardZoneRadius;
-  const abstandM = pos ? Math.round(distanceKm(anker.lon, anker.lat, pos.lon, pos.lat) * 1000) : null;
-  const draussen = abstandM != null && radius != null && abstandM > radius;
-  const alterMs = pos ? Date.now() - Date.parse(pos.at || "") : NaN;
-  const veraltet = !Number.isFinite(alterMs) || alterMs > 30 * 60_000;
+  const distanceM = pos ? Math.round(distanceKm(anchor.lon, anchor.lat, pos.lon, pos.lat) * 1000) : null;
+  const outside = distanceM != null && radius != null && distanceM > radius;
+  const ageMs = pos ? Date.now() - Date.parse(pos.at || "") : NaN;
+  const stale = !Number.isFinite(ageMs) || ageMs > 30 * 60_000;
 
-  let statusText, statusFarbe;
-  if (abstandM == null) { statusText = "Keine Position bekannt"; statusFarbe = "var(--warn)"; }
-  else if (draussen) { statusText = `Außerhalb — ${meterText(abstandM)} vom Mittelpunkt`; statusFarbe = "var(--bad, #d84a4a)"; }
-  else { statusText = `Innerhalb — ${meterText(abstandM)} vom Mittelpunkt`; statusFarbe = "var(--good)"; }
-  if (veraltet && pos) statusText += ` (Stand ${liveAgeText(pos.at)})`;
+  let statusText, statusColour;
+  if (distanceM == null) { statusText = "Keine Position bekannt"; statusColour = "var(--warn)"; }
+  else if (outside) { statusText = `Außerhalb — ${meterText(distanceM)} vom Mittelpunkt`; statusColour = "var(--bad, #d84a4a)"; }
+  else { statusText = `Innerhalb — ${meterText(distanceM)} vom Mittelpunkt`; statusColour = "var(--good)"; }
+  if (stale && pos) statusText += ` (Stand ${liveAgeText(pos.at)})`;
 
   render(body, [
-    infoZeile("Status", statusText, statusFarbe),
-    infoZeile("Mittelpunkt", state.guardAnchorName || `${anker.lat.toFixed(5)}, ${anker.lon.toFixed(5)}`),
-    infoZeile("Radius", radius != null ? `${radius} m` : "unbekannt"),
-    infoZeile("Scharf seit", state.guardSince ? anzeigeZeit(state.guardSince) : "unbekannt (vor Einführung des Protokolls)"),
-    infoZeile("Letzte GPS-Meldung", pos ? liveAgeText(pos.at) : "keine",
-      veraltet ? "var(--warn)" : undefined),
+    infoRow("Status", statusText, statusColour),
+    infoRow("Mittelpunkt", state.guardAnchorName || `${anchor.lat.toFixed(5)}, ${anchor.lon.toFixed(5)}`),
+    infoRow("Radius", radius != null ? `${radius} m` : "unbekannt"),
+    infoRow("Scharf seit", state.guardSince ? displayTime(state.guardSince) : "unbekannt (vor Einführung des Protokolls)"),
+    infoRow("Letzte GPS-Meldung", pos ? liveAgeText(pos.at) : "keine",
+      stale ? "var(--warn)" : undefined),
   ]);
-  if (kartenKnopf) kartenKnopf.style.display = "";
+  if (mapButton) mapButton.style.display = "";
 }
 
-let ankerNameFuer = null;
-/** Adresse des Ankerpunkts nachladen (nur zur Anzeige, ein Fehlschlag lässt
- * einfach die Koordinaten stehen). */
-async function ladeAnkerName() {
+let anchorNameFor = null;
+/** Load the anchor's address (display only; a failure simply leaves the coordinates). */
+async function loadAnchorName() {
   const a = state.guardAnchor;
   if (!a) return;
-  const schluessel = `${a.lat},${a.lon}`;
-  if (ankerNameFuer === schluessel) return;
-  ankerNameFuer = schluessel;
+  const key = `${a.lat},${a.lon}`;
+  if (anchorNameFor === key) return;
+  anchorNameFor = key;
   state.guardAnchorName = null;
   try {
     const { name } = await geocode(a.lat, a.lon);
-    if (ankerNameFuer === schluessel && name) { state.guardAnchorName = name; renderGuardInfo(); }
-  } catch { /* Koordinaten genügen */ }
+    if (anchorNameFor === key && name) { state.guardAnchorName = name; renderGuardInfo(); }
+  } catch { /* the coordinates are enough */ }
 }
 
 function renderGuard() {
@@ -281,39 +271,36 @@ function renderGuard() {
   renderAlarmTypes();
   renderAlarmLog();
   renderPushStatus();
-  // main.js lässt darüber die grüne Live-LED der Reise zusätzlich rot
-  // blinken, solange scharf (siehe dort).
+  // Through this, main.js makes the trip's green live LED also blink red while armed.
   emit("guard");
 }
 
-/** Lädt den echten Scharf-Zustand/Protokoll, sobald angemeldet — im Demo-
- * Modus bleiben die von demo.js gesetzten Beispielwerte unangetastet.
- * Aufgerufen beim Start und jedes Mal, wenn die "Wache"-Unteransicht
- * geöffnet wird (main.js), damit neue Ereignisse sichtbar werden. */
+/** Loads the real armed state and log once signed in — in demo mode the example
+ * values from demo.js stay untouched. Called on start and every time the "Wache"
+ * sub-view opens (main.js), so new events show up. */
 export async function loadGuard() {
   if (state.config.demo || !isConfigured()) { renderGuard(); return; }
   try {
-    const [zonen, settings, log] = await Promise.all([listGeofences(), listAlarmSettings(), listAlarmLog()]);
+    const [zones, settings, log] = await Promise.all([listGeofences(), listAlarmSettings(), listAlarmLog()]);
     state.alarmLog = (log || []).map(mapAlarmLogEntry);
     const geofence = (settings || []).find((s) => s.key === "geofence");
     state.guardArmed = geofence ? Boolean(geofence.enabled) : state.guardArmed;
-    // Radius/Position des zuletzt gemerkten Ankerpunkts übernehmen — es
-    // gibt höchstens noch einen, vom letzten Scharfschalten. Der Radius
-    // füllt das Eingabefeld vor, die Position braucht main.js für die
-    // Dauerlicht-Prüfung der Live-LED (Zone verlassen?).
-    const zone = (zonen || []).find((z) => z.id === WACHE_ZONE_ID);
+    // Take radius and position of the last anchor — there is at most one, from
+    // the last arming. The radius prefills the input, main.js needs the position
+    // for the steady-light check of the live LED (zone left?).
+    const zone = (zones || []).find((z) => z.id === GUARD_ZONE_ID);
     if (zone) {
-      // Das Eingabefeld füllt sich mit dem letzten Radius — aber nicht mit
-      // einem unbrauchbar kleinen (GPS-Rauschen reicht dann für Fehlalarme).
+      // The input gets the last radius — but not a uselessly small one (GPS
+      // noise alone would then cause false alarms).
       state.guardRadius = zone.radius_m >= 25 ? zone.radius_m : 50;
       state.guardZoneRadius = zone.radius_m;
       state.guardAnchor = { lat: zone.lat, lon: zone.lon };
     }
-    // Das Protokoll kommt neueste zuerst — der erste Scharf-Eintrag ist der aktuelle.
+    // The log comes newest first — the first arming entry is the current one.
     state.guardSince = (log || []).find((e) => /^Wache scharf geschaltet/.test(e.message || ""))?.occurred_at || null;
-    ladeAnkerName();
+    loadAnchorName();
   } catch {
-    /* stiller Fehlschlag, wie loadLivePosition() — Ansicht bleibt beim letzten Stand */
+    /* silent failure, like loadLivePosition() — the view keeps its last state */
   }
   renderGuard();
 }
@@ -332,7 +319,7 @@ export function initGuard({ onShowOnMap } = {}) {
 
   const guardSwitch = $("#guard-switch");
   guardSwitch.addEventListener("click", () => {
-    if (!state.config.demo && !istAdmin()) return; // Schalter ist für Nicht-Admins deaktiviert (renderGuardHero)
+    if (!state.config.demo && !isAdmin()) return; // the switch is disabled for non-admins (renderGuardHero)
     const armed = guardSwitch.getAttribute("aria-checked") !== "true";
     if (state.config.demo) {
       state.guardArmed = armed;
@@ -342,25 +329,25 @@ export function initGuard({ onShowOnMap } = {}) {
     }
     if (armed && !state.livePosition) {
       toast("Keine aktuelle Position bekannt — Wache kann nicht scharf geschaltet werden");
-      return; // aria-checked bleibt unverändert (noch "false") — nichts wurde umgeschaltet
+      return; // aria-checked stays unchanged (still "false") — nothing was switched
     }
-    // Die Wache wird auf der LETZTEN GEMELDETEN Position scharf — ist die alt,
-    // steht das Fahrzeug womöglich längst woanders (Nutzerfund, 28. September
-    // 2026: Anker auf einer über 10 Stunden alten Position, ohne Warnung).
+    // The guard arms on the LAST REPORTED position — if that is old, the vehicle
+    // may stand somewhere else by now (seen 28 September 2026: an anchor on a
+    // position more than 10 hours old, without a warning).
     if (armed) {
-      const alterMs = Date.now() - Date.parse(state.livePosition.at || "");
-      if (!(alterMs <= MAX_POSITIONSALTER_SCHARF_MS)
+      const ageMs = Date.now() - Date.parse(state.livePosition.at || "");
+      if (!(ageMs <= MAX_POSITION_AGE_ARMING_MS)
         && !window.confirm(`Die letzte GPS-Meldung ist ${liveAgeText(state.livePosition.at)}. Die Wache würde auf DIESER Position scharf geschaltet, nicht unbedingt dort, wo das Fahrzeug jetzt steht.\n\nTrotzdem scharf schalten?`)) {
         return;
       }
     }
-    guardSwitch.setAttribute("aria-checked", String(armed)); // optimistisch, renderGuardHero() korrigiert bei Fehlschlag
+    guardSwitch.setAttribute("aria-checked", String(armed)); // optimistic, renderGuardHero() corrects on failure
     const patch = armed
       ? { enabled: true, lat: state.livePosition.lat, lon: state.livePosition.lon, radius_m: state.guardRadius }
       : { enabled: false };
-    sichern(() => updateAlarmSetting("geofence", patch), async () => {
+    save(() => updateAlarmSetting("geofence", patch), async () => {
       state.guardArmed = armed;
-      await loadGuard(); // neuen Anker, Radius und "scharf seit" vom Server holen
+      await loadGuard(); // load the new anchor, radius and "armed since" from the server
     })
       .then(() => renderGuardHero());
   });
@@ -368,12 +355,12 @@ export function initGuard({ onShowOnMap } = {}) {
   const pushSwitch = $("#push-switch");
   pushSwitch?.addEventListener("click", async () => {
     if (pushSwitch.disabled) return;
-    const warAktiv = pushSwitch.getAttribute("aria-checked") === "true";
+    const wasActive = pushSwitch.getAttribute("aria-checked") === "true";
     pushSwitch.disabled = true;
     try {
-      if (warAktiv) await pushDeaktivieren();
-      else if (!(await pushAktivieren())) return;
-      toast(warAktiv ? "Benachrichtigungen deaktiviert" : "Benachrichtigungen aktiviert");
+      if (wasActive) await disablePush();
+      else if (!(await enablePush())) return;
+      toast(wasActive ? "Benachrichtigungen deaktiviert" : "Benachrichtigungen aktiviert");
     } catch (err) {
       toast(err.message || "Das hat nicht geklappt");
     } finally {

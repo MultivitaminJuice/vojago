@@ -4,11 +4,11 @@
 // auf dem Gerät gesichert, Fotos werden gleich beim Auswählen hochgeladen.
 import { el, render, toast, $ } from "../dom.js";
 import { state, trip, diaryEntryFor, diaryPhotos, upsertPhoto, removePhoto } from "../state.js";
-import { speichereTagebuch, loescheTagebuch, zentral } from "../store.js";
+import { storeDiaryEntry, dropDiaryEntry, isCentral } from "../store.js";
 import { photoUrl, uploadPhoto, deletePhoto } from "../api.js";
-import { komprimiereFoto } from "../ui/photo.js";
+import { compressPhoto } from "../ui/photo.js";
 import { localDayKey } from "../day-utils.js";
-import { ziehbar } from "../drag.js";
+import { draggable } from "../drag.js";
 import {
   cleanBlocks, hasContent, allPhotoIds, daysForEditor, defaultDay, photoDayHint,
   trayPhotos, normalizeBlocks, removePhotoFromBlocks, placePhoto,
@@ -65,7 +65,7 @@ export function initTagEditor({ onChange, onOpen }) {
     const { tripId, dayKey, id } = current;
     schreibe(entwurfKey(tripId, dayKey), null);
     current = null;
-    await loescheTagebuch(id);
+    await dropDiaryEntry(id);
     afterChange();
     toast("Eintrag gelöscht");
   });
@@ -245,11 +245,11 @@ function setzeAnCursor(id) {
 /* ---------- Ziehen: Fotos an eine Stelle im Text setzen oder zurück in die Ablage ---------- */
 
 function fotoZiehbar(knoten, id, herkunft) {
-  ziehbar(knoten, {
+  draggable(knoten, {
     start: (pos) => zugStart(knoten, id, herkunft, pos),
-    bewegung: (pos) => { if (zug) { zug.pos = pos; zugAnzeige(); } },
-    ende: (pos) => zugEnde(pos),
-    abbruch: () => zugAbbruch(),
+    move: (pos) => { if (zug) { zug.pos = pos; zugAnzeige(); } },
+    end: (pos) => zugEnde(pos),
+    cancel: () => zugAbbruch(),
   });
 }
 
@@ -443,14 +443,14 @@ const zeichneWennRuhig = () => { if (!zug) zeichne(); };
 
 function waehleFotos() {
   if (!current) return;
-  if (!zentral()) { toast("Fotos brauchen eine Verbindung zum Konto"); return; }
+  if (!isCentral()) { toast("Fotos brauchen eine Verbindung zum Konto"); return; }
   $("#tag-photo-input").click();
 }
 
 /** Der Eintrag muss serverseitig existieren, bevor Fotos daran hängen können. */
 async function sichereEintrag() {
   if (current.id) return current.id;
-  const ergebnis = await speichereTagebuch({ tripId: current.tripId, dayKey: current.dayKey, blocks: cleanBlocks(blocks) });
+  const ergebnis = await storeDiaryEntry({ tripId: current.tripId, dayKey: current.dayKey, blocks: cleanBlocks(blocks) });
   if (ergebnis.ok) { current.id = ergebnis.id; $("#tag-delete").hidden = false; }
   return ergebnis.ok ? ergebnis.id : null;
 }
@@ -471,7 +471,7 @@ async function fotosGewaehlt(e) {
   setzeStatus(`Fotos werden hochgeladen … (${ladeVorgaenge})`);
   for (const datei of dateien) {
     try {
-      const { blob, width, height } = await komprimiereFoto(datei);
+      const { blob, width, height } = await compressPhoto(datei);
       const takenAt = datei.lastModified ? new Date(datei.lastModified).toISOString() : new Date().toISOString();
       const { id: fotoId } = await uploadPhoto(blob, { tagebuchId: id, takenAt, width, height });
       upsertPhoto({ id: fotoId, besuchId: null, noteId: null, tagebuchId: id, takenAt, width, height, lat: null, lon: null });
@@ -509,7 +509,7 @@ export async function save() {
     return;
   }
   const { tripId, dayKey } = current;
-  const ergebnis = await speichereTagebuch({ tripId, dayKey, blocks: bereinigt });
+  const ergebnis = await storeDiaryEntry({ tripId, dayKey, blocks: bereinigt });
   if (!ergebnis.ok) return;   // der Entwurf bleibt auf dem Gerät
   schreibe(entwurfKey(tripId, dayKey), null);
   snapshot = JSON.stringify(bereinigt);

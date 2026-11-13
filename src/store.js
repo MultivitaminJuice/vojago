@@ -1,10 +1,8 @@
-// Änderungen an Orten und Notizen dauerhaft machen.
+// Making changes to places, notes and diary entries permanent.
 //
-// Bisher fehlte genau diese Schicht: Die Oberfläche änderte nur den Speicher
-// im Browser, beim nächsten Start war alles weg. Hier gilt jetzt:
-// erst lokal zeigen (die App bleibt flott), dann zentral sichern — und wenn
-// das Sichern scheitert, wird die Anzeige zurückgenommen. Nichts soll auf dem
-// Bildschirm stehen, was nirgends gespeichert ist.
+// Show locally first (the app stays quick), then save centrally — and if saving
+// fails, the display is taken back. Nothing should be on screen that is not
+// stored anywhere. Messages are UI text and stay German.
 import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertDiaryEntry, removeDiaryEntry, emit } from "./state.js";
 import { toast } from "./dom.js";
 import { findExistingPlace, AUTO_PLACE_PLACEHOLDER_TITLES } from "./dataload.js";
@@ -13,16 +11,14 @@ import {
   createNote, updateNote, deleteNote, saveDiaryEntry, deleteDiaryEntry, weather as fetchWeather, geocode as fetchGeocode,
 } from "./api.js";
 
-/** Nur im verbundenen Betrieb gibt es eine zentrale Ablage. */
-export const zentral = () => !state.config.demo && isConfigured();
+/** Only when connected is there a central store. */
+export const isCentral = () => !state.config.demo && isConfigured();
 
-/* ---------- Übersetzung in die Form der Datenbank ---------- */
+/* ---------- Translation into the database shape ---------- */
 
-// tripId wird nicht mehr mitgeschickt — Reise-Zugehörigkeit wird wie bei
-// Fahrten live aus occurred_at berechnet (siehe api/router.js, src/dataload.js
-// zugehoerigeReise). `night` war schon vorher ungenutzt (siehe altes
-// Schema-Kommentar) und ist beim Orte/Besuche-Umbau ganz entfallen.
-const ortZuRoh = (p) => ({
+// tripId is not sent — like for drives, the trip is computed from occurred_at
+// (see api/router.js and tripAt() in src/dataload.js).
+const placeToRow = (p) => ({
   id: p.id,
   title: p.title || "(ohne Titel)",
   note: p.note || "",
@@ -38,7 +34,7 @@ const ortZuRoh = (p) => ({
   stop_key: p.stopKey || null,
 });
 
-const notizZuRoh = (n) => ({
+const noteToRow = (n) => ({
   id: n.id,
   besuch_id: n.besuchId || null,
   title: n.title,
@@ -50,200 +46,193 @@ const notizZuRoh = (n) => ({
   weather: n.weather ? JSON.stringify(n.weather) : null,
 });
 
-/* ---------- Orte ---------- */
+/* ---------- Places ---------- */
 
-export async function speichereOrt(place, { neu = false } = {}) {
-  const vorher = state.places.find((p) => p.id === place.id) || null;
+export async function storePlace(place, { isNew = false } = {}) {
+  const previous = state.places.find((p) => p.id === place.id) || null;
   upsertPlace(place);
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
 
   try {
-    if (neu) {
-      // Über alle Reisen hinweg nachsehen, ob es diesen Ort schon gibt —
-      // dann den Besuch dort anhängen statt einen unverknüpften zweiten
-      // Ort anzulegen (damit "wie oft war ich hier" auch bei manuell
-      // erfassten Orten stimmt, nicht nur bei automatisch erkannten).
+    if (isNew) {
+      // Look across all trips whether this place exists already — then attach
+      // the visit there instead of creating a second, unlinked place (so "how
+      // often was I here" is right for places entered by hand too).
       const ortId = findExistingPlace({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
-      const antwort = await createPlace({ ...ortZuRoh(place), ...(ortId ? { ort_id: ortId } : {}) });
-      if (antwort?.ort_id) upsertPlace({ ...place, ortId: antwort.ort_id });
+      const answer = await createPlace({ ...placeToRow(place), ...(ortId ? { ort_id: ortId } : {}) });
+      if (answer?.ort_id) upsertPlace({ ...place, ortId: answer.ort_id });
     } else {
-      await updatePlace(place.id, ortZuRoh(place));
+      await updatePlace(place.id, placeToRow(place));
     }
-    if (neu) ergaenzeWetter("ort", place);
+    if (isNew) addWeather("place", place);
     return true;
   } catch (err) {
-    if (vorher) upsertPlace(vorher); else removePlace(place.id);
+    if (previous) upsertPlace(previous); else removePlace(place.id);
     toast(`Nicht gespeichert: ${err.message}`);
     return false;
   }
 }
 
-export async function loescheOrt(id) {
-  const vorher = state.places.find((p) => p.id === id) || null;
+export async function dropPlace(id) {
+  const previous = state.places.find((p) => p.id === id) || null;
   removePlace(id);
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
   try {
     await deletePlace(id);
     return true;
   } catch (err) {
-    if (vorher) upsertPlace(vorher);
+    if (previous) upsertPlace(previous);
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }
 }
 
-/* ---------- Notizen ---------- */
+/* ---------- Notes ---------- */
 
-export async function speichereNotiz(note, { neu = false } = {}) {
-  const vorher = state.notes.find((n) => n.id === note.id) || null;
+export async function storeNote(note, { isNew = false } = {}) {
+  const previous = state.notes.find((n) => n.id === note.id) || null;
   upsertNote(note);
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
 
   try {
-    if (neu) await createNote(notizZuRoh(note));
-    else await updateNote(note.id, notizZuRoh(note));
-    if (neu) ergaenzeWetter("notiz", note);
+    if (isNew) await createNote(noteToRow(note));
+    else await updateNote(note.id, noteToRow(note));
+    if (isNew) addWeather("note", note);
     return true;
   } catch (err) {
-    if (vorher) upsertNote(vorher); else removeNote(note.id);
+    if (previous) upsertNote(previous); else removeNote(note.id);
     toast(`Nicht gespeichert: ${err.message}`);
     return false;
   }
 }
 
-export async function loescheNotiz(id) {
-  const vorher = state.notes.find((n) => n.id === id) || null;
+export async function dropNote(id) {
+  const previous = state.notes.find((n) => n.id === id) || null;
   removeNote(id);
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
   try {
     await deleteNote(id);
     return true;
   } catch (err) {
-    if (vorher) upsertNote(vorher);
+    if (previous) upsertNote(previous);
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }
 }
 
-/* ---------- Tagebuch ---------- */
+/* ---------- Diary ---------- */
 
 /**
- * Tagebucheintrag sichern (anlegen oder überschreiben — je Reise und Tag gibt es
- * genau einen). Der lokale Stand ändert sich sofort; schlägt das Speichern
- * fehl, kommt der vorherige zurück. Liefert { ok, id }.
+ * Save a diary entry (create or overwrite — there is exactly one per trip and
+ * day). Returns { ok, id }.
  */
-export async function speichereTagebuch(eintrag) {
-  const vorher = state.diary.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
-  if (!zentral()) {
-    const id = vorher?.id || eintrag.id || newId("tag");
-    upsertDiaryEntry({ ...eintrag, id });
+export async function storeDiaryEntry(entry) {
+  const previous = state.diary.find((e) => e.tripId === entry.tripId && e.dayKey === entry.dayKey) || null;
+  if (!isCentral()) {
+    const id = previous?.id || entry.id || newId("tag");
+    upsertDiaryEntry({ ...entry, id });
     return { ok: true, id };
   }
   try {
-    const antwort = await saveDiaryEntry({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
-    const jetzt = new Date().toISOString();
+    const answer = await saveDiaryEntry({ trip_id: entry.tripId, day_key: entry.dayKey, blocks: entry.blocks });
+    const now = new Date().toISOString();
     upsertDiaryEntry({
-      ...eintrag, id: antwort.id,
-      author: vorher?.author || state.account?.username || eintrag.author || "",
-      createdAt: vorher?.createdAt || jetzt, updatedAt: jetzt,
+      ...entry, id: answer.id,
+      author: previous?.author || state.account?.username || entry.author || "",
+      createdAt: previous?.createdAt || now, updatedAt: now,
     });
-    return { ok: true, id: antwort.id };
+    return { ok: true, id: answer.id };
   } catch (err) {
     toast(`Nicht gespeichert: ${err.message}`);
     return { ok: false, id: null };
   }
 }
 
-export async function loescheTagebuch(id) {
-  const vorher = state.diary.find((e) => e.id === id) || null;
-  const fotos = state.photos.filter((p) => p.tagebuchId === id);
+export async function dropDiaryEntry(id) {
+  const previous = state.diary.find((e) => e.id === id) || null;
+  const photos = state.photos.filter((p) => p.tagebuchId === id);
   removeDiaryEntry(id);
-  if (!zentral()) return true;
+  if (!isCentral()) return true;
   try {
     await deleteDiaryEntry(id);
     return true;
   } catch (err) {
-    if (vorher) { upsertDiaryEntry(vorher); state.photos.push(...fotos); emit("photos"); }
+    if (previous) { upsertDiaryEntry(previous); state.photos.push(...photos); emit("photos"); }
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }
 }
 
-/* ---------- Wetter ---------- */
+/* ---------- Weather ---------- */
 
 /**
- * Holt das Wetter zu Ort und Zeitpunkt und hängt es an den Eintrag. Bewusst
- * nachgelagert: Das Speichern soll nicht davon abhängen, ob ein Wetterdienst
- * gerade antwortet. Klappt es nicht, bleibt der Eintrag einfach ohne Wetter.
+ * Loads the weather for a place and time and attaches it to the entry. Done
+ * afterwards on purpose: saving must not depend on a weather service answering.
+ * If it fails, the entry simply stays without weather. `kind`: "place" | "note".
  */
-export async function ergaenzeWetter(art, eintrag) {
-  if (!zentral()) return null;
-  const lat = Number(eintrag.lat);
-  const lon = Number(eintrag.lon);
+export async function addWeather(kind, entry) {
+  if (!isCentral()) return null;
+  const lat = Number(entry.lat);
+  const lon = Number(entry.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
   try {
-    const wetter = await fetchWeather(lat, lon, eintrag.at);
-    const roh = JSON.stringify(wetter);
-    if (art === "ort") {
-      await updatePlace(eintrag.id, { weather: roh });
-      const p = state.places.find((x) => x.id === eintrag.id);
-      if (p) { p.weather = wetter; emit("places"); }
+    const weather = await fetchWeather(lat, lon, entry.at);
+    const raw = JSON.stringify(weather);
+    if (kind === "place") {
+      await updatePlace(entry.id, { weather: raw });
+      const p = state.places.find((x) => x.id === entry.id);
+      if (p) { p.weather = weather; emit("places"); }
     } else {
-      await updateNote(eintrag.id, { weather: roh });
-      const n = state.notes.find((x) => x.id === eintrag.id);
-      if (n) { n.weather = wetter; emit("notes"); }
+      await updateNote(entry.id, { weather: raw });
+      const n = state.notes.find((x) => x.id === entry.id);
+      if (n) { n.weather = weather; emit("notes"); }
     }
-    return wetter;
+    return weather;
   } catch {
-    return null; // ohne Wetter ist der Eintrag trotzdem vollständig
+    return null; // without weather the entry is still complete
   }
 }
 
-/* ---------- Namensvorschlag (Reverse-Geocoding) ---------- */
+/* ---------- Name suggestion (reverse geocoding) ---------- */
 
 /**
- * Ergänzt nachträglich einen Namensvorschlag für einen automatisch
- * angelegten Ort (Übernachtung/Stopp ohne bekannte Adresse) — wie
- * ergaenzeWetter() bewusst NACH dem Anlegen und ohne das Anlegen selbst
- * davon abhängig zu machen: klappt der Namensdienst nicht, bleibt der
- * Platzhaltertitel einfach stehen, änderbar wie eh und je im Editor.
+ * Adds a name suggestion to an automatically created place (overnight stay or
+ * stop without a known address) afterwards — like addWeather(), deliberately
+ * AFTER creating it and without making creation depend on it: if the naming
+ * service fails, the placeholder title stays, editable as always.
  *
- * Die ermittelte Adresse wird IMMER festgehalten (eigenes `address`-Feld,
- * getrennt vom Titel) — der Titel selbst nur ersetzt, solange dort noch
- * einer der generischen Platzhalter aus AUTO_PLACE_PLACEHOLDER_TITLES steht.
- * Hat die Person zwischenzeitlich selbst umbenannt, bleibt der Titel
- * unangetastet, aber die Adresse bleibt trotzdem als Referenz erhalten
- * (Nutzerwunsch, 6. September 2026 — vorher ging die Original-Adresse
- * beim Umbenennen komplett verloren). Geprüft wird der AKTUELLE Stand in
- * state.places (nicht der bei Aufruf übergebene), damit eine schnelle
- * manuelle Umbenennung nicht durch die erst später eintreffende
- * Namensvorschlag-Antwort überschrieben wird.
+ * The address is ALWAYS kept (its own `address` field, apart from the title) —
+ * the title itself is only replaced while it is still one of the generic
+ * placeholders in AUTO_PLACE_PLACEHOLDER_TITLES. If the person renamed it in the
+ * meantime, the title stays but the address is kept as a reference (requested
+ * 6 September 2026). The CURRENT state in state.places is checked (not the one
+ * passed in), so a quick manual rename is not overwritten by a late answer.
  */
-export async function ergaenzeOrtsname({ id, lat, lon }) {
-  if (!zentral()) return null;
+export async function addPlaceName({ id, lat, lon }) {
+  if (!isCentral()) return null;
   const la = Number(lat), lo = Number(lon);
   if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
 
   try {
     const { name } = await fetchGeocode(la, lo);
     if (!name) return null;
-    const aktuell = state.places.find((p) => p.id === id);
-    if (!aktuell) return null;
+    const current = state.places.find((p) => p.id === id);
+    if (!current) return null;
     const patch = { address: name };
-    if (AUTO_PLACE_PLACEHOLDER_TITLES.includes(aktuell.title)) patch.title = name;
+    if (AUTO_PLACE_PLACEHOLDER_TITLES.includes(current.title)) patch.title = name;
     await updatePlace(id, patch);
-    Object.assign(aktuell, patch);
+    Object.assign(current, patch);
     emit("places");
     return name;
   } catch {
-    return null; // ohne Namensvorschlag bleibt der Platzhaltertitel stehen
+    return null; // without a suggestion the placeholder title stays
   }
 }
 
-/** Kurzform fürs Anzeigen: „🌤️ 21 °C · wechselnd bewölkt". */
-export function wetterZeile(wetter) {
-  if (!wetter || wetter.temp == null) return "";
-  const temp = `${String(wetter.temp).replace(".", ",")} °C`;
-  return `${wetter.symbol || "🌡️"} ${temp}${wetter.text ? ` · ${wetter.text}` : ""}`;
+/** Short form for display: "🌤️ 21 °C · wechselnd bewölkt". */
+export function weatherLine(weather) {
+  if (!weather || weather.temp == null) return "";
+  const temp = `${String(weather.temp).replace(".", ",")} °C`;
+  return `${weather.symbol || "🌡️"} ${temp}${weather.text ? ` · ${weather.text}` : ""}`;
 }

@@ -4,9 +4,9 @@ const LOG_KEY = "vojago.debug.entries";
 const MAX_ENTRIES = 500;
 const REDACTED = "[redacted]";
 
-let entries = ladeEintraege();
+let entries = loadEntries();
 
-function ladeEintraege() {
+function loadEntries() {
   try {
     const raw = JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
     return Array.isArray(raw) ? raw.slice(-MAX_ENTRIES) : [];
@@ -15,11 +15,11 @@ function ladeEintraege() {
   }
 }
 
-function speichereEintraege() {
+function saveEntries() {
   try { localStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES))); } catch { /* ignorieren */ }
 }
 
-function klone(data) {
+function cloneData(data) {
   try { return JSON.parse(JSON.stringify(data)); } catch { return String(data); }
 }
 
@@ -43,21 +43,21 @@ export function setPreciseDebugDataEnabled(on) {
 
 export function debugLog(event, data = {}, { force = false } = {}) {
   if (!force && !debugEnabled()) return;
-  const entry = { ts: new Date().toISOString(), event, data: klone(data) };
+  const entry = { ts: new Date().toISOString(), event, data: cloneData(data) };
   entries.push(entry);
   entries = entries.slice(-MAX_ENTRIES);
-  speichereEintraege();
+  saveEntries();
   console.info("[VOJAGO DEBUG]", event, data);
 }
 
 export function clearDebugLog() {
   entries = [];
-  speichereEintraege();
+  saveEntries();
 }
 
 export const debugCount = () => entries.length;
 
-function istPrivatesFeld(key) {
+function isPrivateField(key) {
   const k = String(key || "").toLowerCase();
   return k === "path" || k === "positions" || k === "position" || k === "coords" || k === "coordinates" ||
     k === "lat" || k === "lon" || k === "lng" || k === "latitude" || k === "longitude" ||
@@ -65,11 +65,11 @@ function istPrivatesFeld(key) {
     k.includes("address") || k.includes("adresse") || k === "title" || k === "note";
 }
 
-function ohnePrivateDaten(value, key = "") {
-  if (istPrivatesFeld(key)) return REDACTED;
-  if (Array.isArray(value)) return value.map((v) => ohnePrivateDaten(v));
+function withoutPrivateData(value, key = "") {
+  if (isPrivateField(key)) return REDACTED;
+  if (Array.isArray(value)) return value.map((v) => withoutPrivateData(v));
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, ohnePrivateDaten(v, k)]));
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, withoutPrivateData(v, k)]));
   }
   return value;
 }
@@ -115,7 +115,7 @@ export function exportDebugLog(state, status) {
         : "Exakte GPS-Pfade, Koordinaten, Ortsnamen, Notizen und Adressen wurden entfernt.",
     },
     viewport: viewportInfo(),
-    status: precise ? klone(status) : ohnePrivateDaten(status),
+    status: precise ? cloneData(status) : withoutPrivateData(status),
     config: { demo: state.config.demo, device: state.config.device || null },
     activeTripId: state.activeTripId,
     mapTripId: state.mapTripId,
@@ -129,7 +129,7 @@ export function exportDebugLog(state, status) {
       startLat: precise ? d.startLat : REDACTED,
       startLon: precise ? d.startLon : REDACTED,
     })),
-    driveAssignments: klone(state.driveAssignments),
+    driveAssignments: cloneData(state.driveAssignments),
     driveWeatherKeys: Object.keys(state.driveWeather || {}),
     overnightPlaces: state.places
       .filter((p) => p.catId === "uebernachtung" || p.stopKey)
@@ -138,7 +138,7 @@ export function exportDebugLog(state, status) {
         lat: precise ? p.lat : REDACTED, lon: precise ? p.lon : REDACTED,
         nights: p.nights, stopKey: p.stopKey, source: p.source,
       })),
-    logs: precise ? entries : entries.map((entry) => ({ ...entry, data: ohnePrivateDaten(entry.data) })),
+    logs: precise ? entries : entries.map((entry) => ({ ...entry, data: withoutPrivateData(entry.data) })),
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
