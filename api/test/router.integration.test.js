@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handle } from "../router.js";
 import { D1Memory } from "./helpers/d1-memory.js";
+import { readFileSync } from "node:fs";
+import { migrate } from "../../db/migrate.js";
 
 function makeEnv(extra = {}) {
   return { DB: new D1Memory(), ...extra };
@@ -1191,7 +1193,7 @@ test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur
   assert.equal(nurKarteFoto.status, 403);
 });
 
-test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id wird einmalig nachgerüstet", async (t) => {
+test("API-Integration: Tagebuch — an existing database without photos.tagebuch_id is upgraded on start", async (t) => {
   const env = makeEnv({ PHOTOS: fotoSpeicher() });
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.43" };
@@ -1210,7 +1212,12 @@ test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id
   env.DB.db.exec("INSERT INTO photos (id, besuch_id, r2_key) VALUES ('altes-foto', 'besuch-alt', 'fotos/altes-foto.jpg')");
   env.DB.db.exec("PRAGMA foreign_keys = ON");
 
-  // Der erste Zugriff auf das Tagebuch rüstet nach — das alte Foto bleibt erhalten.
+  // Container restart on the old database: schema, then migrations. The old photo stays.
+  env.DB.db.exec("PRAGMA user_version = 0");
+  const schemaSql = readFileSync(new URL("../../db/schema.sql", import.meta.url), "utf8");
+  env.DB.db.exec(schemaSql);
+  assert.deepEqual(migrate(env.DB.db, { schemaSql }), [1]);
+  assert.deepEqual(migrate(env.DB.db, { schemaSql }), []); // a second start changes nothing
   const liste = await a("GET", "/api/tagebuch", { cookie });
   assert.equal(liste.status, 200);
   assert.deepEqual(liste.data, []);
@@ -1221,7 +1228,6 @@ test("API-Integration: Tagebuch — bestehende Datenbank ohne photos.tagebuch_id
 
   const eintrag = await a("PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-alt", day_key: "2026-07-13", blocks: [] } });
   assert.equal(eintrag.status, 201);
-  // Zweiter Aufruf der Nachrüstung ist harmlos (idempotent).
   assert.equal((await a("GET", "/api/tagebuch", { cookie })).data.length, 1);
 });
 

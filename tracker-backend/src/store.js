@@ -10,6 +10,7 @@ import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { migrate } from "../../db/migrate.js";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 const DB_PFAD = process.env.TRACKER_DB_PATH || join(hier, "..", "data", "tracker.db");
@@ -27,8 +28,11 @@ db.exec("PRAGMA journal_mode = WAL;"); // gleichzeitiges Lesen (z. B. spätere A
 // verschluckter Fehler in api/router.js (ensureUserAdmin()).
 db.exec("PRAGMA busy_timeout = 5000;");
 
-const schemaPfad = join(hier, "..", "schema.sql");
-db.exec(readFileSync(schemaPfad, "utf8"));
+// One schema for both containers (db/schema.sql) plus the versioned migrations.
+const schemaPfad = process.env.TRACKER_SCHEMA_PATH || join(hier, "..", "..", "db", "schema.sql");
+const schemaSql = readFileSync(schemaPfad, "utf8");
+db.exec(schemaSql);
+migrate(db, { schemaSql, log: (m) => console.log(`[tracker-backend] ${m}`) });
 
 const insertRawStmt = db.prepare(
   "INSERT INTO raw_packets (device_id, protocol, received_at, payload) VALUES (?, ?, ?, ?)"

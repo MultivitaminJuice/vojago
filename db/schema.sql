@@ -191,6 +191,13 @@ CREATE TABLE IF NOT EXISTS vehicles (
   active       INTEGER NOT NULL DEFAULT 0
 );
 
+-- Ingest (auto-import.js): visits created from a stop that was still open
+-- when the vehicle went quiet. Confirmed or removed once data comes in again.
+CREATE TABLE IF NOT EXISTS auto_vorlaeufig (
+  stop_key   TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS ingest_settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

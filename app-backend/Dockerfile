@@ -44,7 +44,7 @@ WORKDIR /app
 COPY app-backend/package.json ./app-backend/package.json
 RUN cd app-backend && npm install --omit=dev
 
-COPY db/schema.sql ./db/schema.sql
+COPY db ./db
 COPY api ./api
 COPY --from=site-builder /build/public ./public
 COPY app-backend/src ./app-backend/src

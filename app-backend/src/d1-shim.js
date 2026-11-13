@@ -13,6 +13,7 @@ import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { migrate } from "../../db/migrate.js";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 
@@ -46,7 +47,9 @@ export class D1Shim {
     this.db.pragma("busy_timeout = 5000");
     this.db.pragma("foreign_keys = ON");
     const schemaPfad = process.env.APP_SCHEMA_PATH || STANDARD_SCHEMA_PFAD;
-    this.db.exec(readFileSync(schemaPfad, "utf8"));
+    const schemaSql = readFileSync(schemaPfad, "utf8");
+    this.db.exec(schemaSql);
+    migrate(this.db, { schemaSql, log: (m) => console.log(`[app-backend] ${m}`) });
   }
 
   prepare(sql) {
