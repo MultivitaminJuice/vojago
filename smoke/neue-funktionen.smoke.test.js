@@ -26,16 +26,16 @@ test("Zeitraum wählen: eigener Kalender statt Browser-Datumsfelder", async ({ p
   await expect(dialog).toBeVisible();
 
   // Ein Monatskalender mit sechs Wochen, keine nativen Datumsfelder.
-  await expect(dialog.locator(".kal-tag")).toHaveCount(42);
+  await expect(dialog.locator(".cal-day")).toHaveCount(42);
   await expect(dialog.locator('input[type="datetime-local"], input[type="date"]')).toHaveCount(0);
 
   // Erst Anfang, dann Ende tippen: der Bereich dazwischen wird markiert.
-  const tage = dialog.locator(".kal-tag:not(.aussen)");
+  const tage = dialog.locator(".cal-day:not(.outside)");
   await tage.nth(9).click();
   await expect(page.locator("#range-summe")).toContainText("ein Tag");
   await tage.nth(12).click();
   await expect(page.locator("#range-summe")).toContainText("–");
-  await expect(dialog.locator(".kal-tag.rolle-mitte")).toHaveCount(2);
+  await expect(dialog.locator(".cal-day.role-middle")).toHaveCount(2);
 
   await dialog.getByRole("button", { name: "Schließen" }).click();
   await expect(dialog).toBeHidden();

@@ -24,8 +24,8 @@ import { liveAgeText } from "./live-age.js";
 import { applyTheme } from "./theme.js";
 import { initSettings, renderVehicles, renderCategories, syncPreferences, refreshAccountState, renderRouteInfo } from "./views/settings.js";
 import { debugLog } from "./debug.js";
-import { kalender } from "./ui/kalender.js";
-import { bereichVoreinstellung, bereichZuIso, bereichAusDaten, datumText } from "./kalender.js";
+import { calendar } from "./ui/calendar.js";
+import { rangePreset, rangeToIso, rangeFromDates, dateText } from "./calendar.js";
 
 /* ---------- Start ---------- */
 loadConfig();
@@ -436,39 +436,39 @@ const datumKurz = (iso) => {
 };
 const kmKurz = (n) => `${Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} km`;
 const RANGE_LABEL = { today: "Heute", yesterday: "Gestern", last7: "letzte 7 Tage", month: "dieser Monat", all: "Alles" };
-let rangeKal = null;   // Kalender im Dialog "Zeitraum wählen" (wird beim ersten Öffnen gebaut)
+let rangeCal = null;   // calendar in the "Zeitraum wählen" dialog (built on first open)
 
-/** Voreinstellung als Auswahl aus ganzen Tagen; "Alles" reicht über alle Reisen. */
-function rangePreset(preset) {
+/** A preset as a selection of whole days; "all" spans every trip. */
+function presetSelection(preset) {
   const starts = state.trips.map((t) => Date.parse(t.range?.from || t.start || "")).filter(Number.isFinite);
   const ends = state.trips.map((t) => Date.parse(t.range?.to || t.end || new Date().toISOString())).filter(Number.isFinite);
-  const alles = starts.length ? { von: Math.min(...starts), bis: ends.length ? Math.max(...ends) : Date.now() } : null;
-  return { ...bereichVoreinstellung(preset, new Date(), alles), vonZeit: "00:00", bisZeit: "23:59", label: RANGE_LABEL[preset] || "Zeitraum" };
+  const all = starts.length ? { from: Math.min(...starts), to: ends.length ? Math.max(...ends) : Date.now() } : null;
+  return { ...rangePreset(preset, new Date(), all), fromTime: "00:00", toTime: "23:59", label: RANGE_LABEL[preset] || "Zeitraum" };
 }
 
-/** Auswahl in Kalender, Zusammenfassung und Uhrzeitfeldern zeigen. */
-function setRangeAuswahl({ von, bis, vonZeit = "00:00", bisZeit = "23:59" }) {
-  rangeKal?.setze({ von, bis });
+/** Show a selection in the calendar, the summary and the time fields. */
+function setRangeSelection({ from, to, fromTime = "00:00", toTime = "23:59" }) {
+  rangeCal?.set({ from, to });
   const vz = $("#range-von-zeit");
   const bz = $("#range-bis-zeit");
-  if (vz) vz.value = vonZeit;
-  if (bz) bz.value = bisZeit;
-  const eigeneZeit = vonZeit !== "00:00" || bisZeit !== "23:59";
+  if (vz) vz.value = fromTime;
+  if (bz) bz.value = toTime;
+  const ownTime = fromTime !== "00:00" || toTime !== "23:59";
   const details = $("#range-zeit");
-  if (details) details.open = eigeneZeit;
-  renderRangeSumme();
+  if (details) details.open = ownTime;
+  renderRangeSummary();
 }
 
-function renderRangeSumme() {
-  const { von, bis } = rangeKal?.auswahl() || {};
+function renderRangeSummary() {
+  const { from, to } = rangeCal?.selection() || {};
   const feld = $("#range-summe");
   const knopf = $("#range-apply");
   if (feld) {
-    feld.textContent = !von ? "Tippe zuerst den ersten Tag, dann den letzten."
-      : !bis || bis === von ? `${datumText(von)} · ein Tag (tippe einen späteren Tag für mehrere)`
-        : `${datumText(von)} – ${datumText(bis)}`;
+    feld.textContent = !from ? "Tippe zuerst den ersten Tag, dann den letzten."
+      : !to || to === from ? `${dateText(from)} · ein Tag (tippe einen späteren Tag für mehrere)`
+        : `${dateText(from)} – ${dateText(to)}`;
   }
-  if (knopf) knopf.disabled = !von;
+  if (knopf) knopf.disabled = !from;
 }
 
 async function switchTripContext(value, control) {
@@ -544,14 +544,14 @@ function closeTripPicker() {
 
 function openRangePicker() {
   if (state.gast) return;
-  if (!rangeKal) {
-    rangeKal = kalender({ modus: "bereich", onChange: renderRangeSumme });
-    $("#range-kalender")?.appendChild(rangeKal.knoten);
+  if (!rangeCal) {
+    rangeCal = calendar({ mode: "range", onChange: renderRangeSummary });
+    $("#range-calendar")?.appendChild(rangeCal.node);
   }
   const preset = state.rangeTrip?.range
-    ? bereichAusDaten(new Date(state.rangeTrip.range.from), new Date(state.rangeTrip.range.to || new Date()))
-    : rangePreset("last7");
-  setRangeAuswahl(preset);
+    ? rangeFromDates(new Date(state.rangeTrip.range.from), new Date(state.rangeTrip.range.to || new Date()))
+    : presetSelection("last7");
+  setRangeSelection(preset);
   if (rangePicker) rangePicker.hidden = false;
 }
 
@@ -560,7 +560,7 @@ function closeRangePicker() {
 }
 
 async function applyRangeContext(label = null) {
-  const bereich = bereichZuIso(rangeKal?.auswahl() || {}, { vonZeit: $("#range-von-zeit")?.value, bisZeit: $("#range-bis-zeit")?.value });
+  const bereich = rangeToIso(rangeCal?.selection() || {}, { fromTime: $("#range-von-zeit")?.value, toTime: $("#range-bis-zeit")?.value });
   if (!bereich) {
     toast("Bitte einen gültigen Zeitraum wählen");
     return;
@@ -684,8 +684,8 @@ $("#range-picker-close")?.addEventListener("click", closeRangePicker);
 rangePicker?.addEventListener("click", (e) => { if (e.target === rangePicker) closeRangePicker(); });
 $$("#range-picker [data-range-preset]").forEach((button) => {
   button.addEventListener("click", () => {
-    const preset = rangePreset(button.dataset.rangePreset);
-    setRangeAuswahl(preset);
+    const preset = presetSelection(button.dataset.rangePreset);
+    setRangeSelection(preset);
     applyRangeContext(preset.label);
   });
 });

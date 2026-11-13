@@ -9,7 +9,7 @@ import {
 } from "./api.js";
 import { pathLengthKm, elevationRange, glaetteStandRauschen } from "./geo.js";
 import { debugLog } from "./debug.js";
-import { parseBlocks } from "./tagebuch.js";
+import { parseBlocks } from "./diary.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { appendNewPoints } from "./path-merge.js";
 import { routeKey, readRoute, writeRoute, clearRoutes, packPath, unpackPath } from "./route-store.js";

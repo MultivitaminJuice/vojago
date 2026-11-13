@@ -12,7 +12,7 @@ import { isConfigured, createTrip, updateTrip, deleteTrip as apiDeleteTrip, assi
 import { wetterZeile } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
-import { datumFeld } from "../ui/kalender.js";
+import { dateField } from "../ui/calendar.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
 import { createMemo } from "../memo.js";
 import { neighbour, dayNavigation } from "../day-nav.js";
@@ -1259,8 +1259,8 @@ export function renderTripDetail(id, handlers) {
   const nameSave = el("button.name-save#trip-name-save", { text: "✓ Speichern" });
 
   // Zeitraum bearbeiten (N13) — nur wo eine Datenbank die Reise führt.
-  const startInput = datumFeld({ id: "trip-start", wert: t.start ? t.start.slice(0, 10) : "", titel: "Start der Reise" });
-  const endInput = datumFeld({ id: "trip-end", wert: t.end ? t.end.slice(0, 10) : "", titel: "Ende der Reise", leerText: "Läuft weiter" });
+  const startInput = dateField({ id: "trip-start", value: t.start ? t.start.slice(0, 10) : "", title: "Start der Reise" });
+  const endInput = dateField({ id: "trip-end", value: t.end ? t.end.slice(0, 10) : "", title: "Ende der Reise", emptyText: "Läuft weiter" });
   const rangeSave = el("button.name-save#trip-range-save", { text: "✓ Speichern" });
 
   const isActive = id === state.activeTripId;
