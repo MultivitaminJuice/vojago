@@ -15,7 +15,7 @@ import { miniRoute, elevationProfile, speedProfile, skala } from "./charts.js";
 import { datumFeld } from "../ui/kalender.js";
 import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
 import { createMemo } from "../memo.js";
-import { tagNachbar, tagNavigation } from "../day-nav.js";
+import { neighbour, dayNavigation } from "../day-nav.js";
 import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
 import { filteredRouteDrives, itemMatchesRouteFilter, visibleRoutePath } from "../route-visibility.js";
 
@@ -376,7 +376,7 @@ function selectedTrip() {
 // (see memo.js); switching views or redrawing no longer recomputes them.
 const werte = createMemo();
 const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathGrob ? "grob" : "voll"}`;
-const merkBedingung = (t) => ({ stand: aktuellerDatenStand(), path: t?.path, laufend: Boolean(t?.live) || isRangeTrip(t) });
+const merkBedingung = (t) => ({ revision: aktuellerDatenStand(), path: t?.path, running: Boolean(t?.live) || isRangeTrip(t) });
 
 function tripSummary(t) {
   return werte(merkSchluessel("reise", t), merkBedingung(t), () => {
@@ -547,9 +547,9 @@ function renderSegments() {
 /** Kopf der Tages-/Fahrtansicht: dieselbe Pille wie auf der Karte ("Zurück · Tag 3 · ‹ ›"). */
 function detailKopfLeiste(summaries) {
   const zurueck = () => { routeFocus = null; renderTrips(); };
-  const nav = tagNavigation(summaries, routeFocus.id);
+  const nav = dayNavigation(summaries, routeFocus.id);
   const schritt = (richtung) => {
-    const ziel = tagNachbar(summaries, routeFocus.id, richtung);
+    const ziel = neighbour(summaries, routeFocus.id, richtung);
     return el("button.map-focus-step", {
       type: "button",
       disabled: !ziel,
@@ -683,7 +683,7 @@ function kartenListe(adhoc) {
 export function kartenNavigation() {
   const adhoc = state.adhocTrip;
   const { summaries } = kartenListe(adhoc);
-  const nav = tagNavigation(summaries, adhoc?.id);
+  const nav = dayNavigation(summaries, adhoc?.id);
   if (!nav) return null;
   return { titel: summaries.find((x) => x.id === adhoc.id)?.title || adhoc.name, ...nav };
 }
@@ -693,7 +693,7 @@ export function kartenSchritt(richtung) {
   const adhoc = state.adhocTrip;
   const { t, summaries } = kartenListe(adhoc);
   if (!t) return;
-  const ziel = tagNachbar(summaries, adhoc.id, richtung);
+  const ziel = neighbour(summaries, adhoc.id, richtung);
   if (!ziel?.path?.length) return;
   // "Zurück" führt zu dem Eintrag, den man zuletzt auf der Karte gesehen hat.
   if (kartenRueckkehrKontext?.routeFocus) kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };

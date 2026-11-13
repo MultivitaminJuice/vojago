@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routenInfoZeilen } from "../route-info.js";
+import { routeInfoRows } from "../route-info.js";
 
-const uhr = (ms) => `t${ms}`;
+const clock = (ms) => `t${ms}`;
 
-test("routenInfoZeilen: noch nichts geladen", () => {
-  assert.deepEqual(routenInfoZeilen({}, uhr), [["Zuletzt aktualisiert", "—"]]);
-  assert.deepEqual(routenInfoZeilen({ zwischenspeicher: true }, uhr), [["Zuletzt aktualisiert", "noch nicht — Zwischenspeicher"]]);
+test("routeInfoRows: nothing loaded yet", () => {
+  assert.deepEqual(routeInfoRows({}, clock), [["Zuletzt aktualisiert", "—"]]);
+  assert.deepEqual(routeInfoRows({ zwischenspeicher: true }, clock), [["Zuletzt aktualisiert", "noch nicht — Zwischenspeicher"]]);
 });
 
-test("routenInfoZeilen: Nachladen zeigt die neuen Punkte, Dauer und Hintergrund", () => {
-  const z = routenInfoZeilen({ erfolg: { zeit: 5, art: "nur Neues", empfangen: 40, neuePunkte: 37, gesamt: 72500, dauerMs: 640, hintergrund: true } }, uhr);
+test("routeInfoRows: loading only new points shows them, the duration and background", () => {
+  const z = routeInfoRows({ erfolg: { zeit: 5, art: "nur Neues", empfangen: 40, neuePunkte: 37, gesamt: 72500, dauerMs: 640, hintergrund: true } }, clock);
   assert.deepEqual(z, [
     ["Zuletzt aktualisiert", "t5"],
     ["Art", "nur Neues (+37 Punkte)"],
@@ -19,23 +19,23 @@ test("routenInfoZeilen: Nachladen zeigt die neuen Punkte, Dauer und Hintergrund"
   ]);
 });
 
-test("routenInfoZeilen: komplettes Laden nennt die empfangenen Punkte", () => {
-  const z = routenInfoZeilen({ erfolg: { zeit: 5, art: "komplett", empfangen: 72474, neuePunkte: 72474, gesamt: 72474, dauerMs: 12300, hintergrund: false } }, uhr);
+test("routeInfoRows: a full load names the received points", () => {
+  const z = routeInfoRows({ erfolg: { zeit: 5, art: "komplett", empfangen: 72474, neuePunkte: 72474, gesamt: 72474, dauerMs: 12300, hintergrund: false } }, clock);
   assert.equal(z[1][1], "komplett (72474 Punkte)");
   assert.equal(z[3][1], "12.3 s");
 });
 
-test("routenInfoZeilen: ein Fehlversuch nach dem letzten Erfolg wird gezeigt, ein älterer nicht", () => {
+test("routeInfoRows: a failure after the last success is shown, an older one is not", () => {
   const erfolg = { zeit: 10, art: "nur Neues", empfangen: 1, neuePunkte: 1, gesamt: 5, dauerMs: 100, hintergrund: true };
-  const neuerFehler = routenInfoZeilen({ erfolg, fehler: { zeit: 20, fehler: "Zeitüberschreitung", inFolge: 3 } }, uhr);
-  assert.deepEqual(neuerFehler.at(-1), ["Letzter Fehlversuch", "t20 — Zeitüberschreitung (3× in Folge)"]);
-  const alterFehler = routenInfoZeilen({ erfolg, fehler: { zeit: 5, fehler: "alt", inFolge: 1 } }, uhr);
-  assert.equal(alterFehler.length, 4);
-  const nurFehler = routenInfoZeilen({ fehler: { zeit: 1, fehler: "x", inFolge: 1 } }, uhr);
-  assert.equal(nurFehler.at(-1)[1], "t1 — x");
+  const newerFailure = routeInfoRows({ erfolg, fehler: { zeit: 20, fehler: "Zeitüberschreitung", inFolge: 3 } }, clock);
+  assert.deepEqual(newerFailure.at(-1), ["Letzter Fehlversuch", "t20 — Zeitüberschreitung (3× in Folge)"]);
+  const olderFailure = routeInfoRows({ erfolg, fehler: { zeit: 5, fehler: "alt", inFolge: 1 } }, clock);
+  assert.equal(olderFailure.length, 4);
+  const onlyFailure = routeInfoRows({ fehler: { zeit: 1, fehler: "x", inFolge: 1 } }, clock);
+  assert.equal(onlyFailure.at(-1)[1], "t1 — x");
 });
 
-test("routenInfoZeilen: a finished trip that was only checked", () => {
-  const zeilen = routenInfoZeilen({ erfolg: { zeit: 0, art: "unverändert", empfangen: 0, neuePunkte: 0, gesamt: 18979, dauerMs: 11 } }, () => "10:00:00");
-  assert.deepEqual(zeilen[1], ["Art", "geprüft, unverändert"]);
+test("routeInfoRows: a finished trip that was only checked", () => {
+  const rows = routeInfoRows({ erfolg: { zeit: 0, art: "unverändert", empfangen: 0, neuePunkte: 0, gesamt: 18979, dauerMs: 11 } }, () => "10:00:00");
+  assert.deepEqual(rows[1], ["Art", "geprüft, unverändert"]);
 });

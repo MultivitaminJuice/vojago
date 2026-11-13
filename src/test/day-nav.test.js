@@ -1,21 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tagNachbar, tagNavigation } from "../day-nav.js";
+import { neighbour, dayNavigation } from "../day-nav.js";
 
-const tage = ["T:day:1", "T:day:2", "T:day:4"].map((id) => ({ id, title: id.split(":").pop() }));
+const days = ["T:day:1", "T:day:2", "T:day:4"].map((id) => ({ id, title: id.split(":").pop() }));
 
-test("tagNachbar: vorheriger und nächster Tag, an den Enden und bei unbekannter ID null", () => {
-  assert.equal(tagNachbar(tage, "T:day:2", -1).id, "T:day:1");
-  assert.equal(tagNachbar(tage, "T:day:2", 1).id, "T:day:4");
-  assert.equal(tagNachbar(tage, "T:day:1", -1), null);
-  assert.equal(tagNachbar(tage, "T:day:4", 1), null);
-  assert.equal(tagNachbar(tage, "T:day:9", 1), null);
-  assert.equal(tagNachbar(null, "T:day:1", 1), null);
+test("neighbour: previous and next day, null at the ends and for an unknown id", () => {
+  assert.equal(neighbour(days, "T:day:2", -1).id, "T:day:1");
+  assert.equal(neighbour(days, "T:day:2", 1).id, "T:day:4");
+  assert.equal(neighbour(days, "T:day:1", -1), null);
+  assert.equal(neighbour(days, "T:day:4", 1), null);
+  assert.equal(neighbour(days, "T:day:9", 1), null);
+  assert.equal(neighbour(null, "T:day:1", 1), null);
 });
 
-test("tagNavigation: Position und Verfügbarkeit, bei nur einem Tag oder unbekannter ID keine Navigation", () => {
-  assert.deepEqual(tagNavigation(tage, "T:day:1"), { hatVorher: false, hatNaechster: true, position: 1, anzahl: 3 });
-  assert.deepEqual(tagNavigation(tage, "T:day:4"), { hatVorher: true, hatNaechster: false, position: 3, anzahl: 3 });
-  assert.equal(tagNavigation([tage[0]], "T:day:1"), null);
-  assert.equal(tagNavigation(tage, "unbekannt"), null);
+test("dayNavigation: position and availability, no navigation for a single day or an unknown id", () => {
+  assert.deepEqual(dayNavigation(days, "T:day:1"), { hasPrevious: false, hasNext: true, position: 1, count: 3 });
+  assert.deepEqual(dayNavigation(days, "T:day:4"), { hasPrevious: true, hasNext: false, position: 3, count: 3 });
+  assert.equal(dayNavigation([days[0]], "T:day:1"), null);
+  assert.equal(dayNavigation(days, "unbekannt"), null);
 });

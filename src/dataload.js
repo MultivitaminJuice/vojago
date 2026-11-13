@@ -11,7 +11,7 @@ import { pathLengthKm, elevationRange, glaetteStandRauschen } from "./geo.js";
 import { debugLog } from "./debug.js";
 import { parseBlocks } from "./tagebuch.js";
 import { renumberPathByTripStart } from "./day-utils.js";
-import { haengeNeuePunkteAn } from "./path-merge.js";
+import { appendNewPoints } from "./path-merge.js";
 import { routeKey, readRoute, writeRoute, clearRoutes, packPath, unpackPath } from "./route-store.js";
 
 /** Zustand des Datenbezugs — die Oberfläche zeigt ihn im Statusband. */
@@ -446,7 +446,7 @@ async function ladePfad(trip, silent) {
       const positions = await fetchRoute(geraet, letzter.time, bis, { timeoutMs: 45_000 });
       empfangen = Array.isArray(positions) ? positions.length : 0;
       const neu = renumberPathByTripStart(positionsToPath(Array.isArray(positions) ? positions : []), trip);
-      const zusammen = haengeNeuePunkteAn(trip.path, neu);
+      const zusammen = appendNewPoints(trip.path, neu);
       if (zusammen === trip.path) {
         pfadGelungen();
         protokolliere({ ok: true, art, empfangen, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });

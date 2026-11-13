@@ -9,7 +9,7 @@ import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js"
 import { speichereOrt, wetterZeile } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
-import { kartenAnsicht, kachelAdresse, routenPfad } from "../mini-karte.js";
+import { mapView, tileUrl, routePath } from "../mini-map.js";
 import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
 import { ohneFoto, titelbildId, mitVerwaistenFotos } from "../tagebuch.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
@@ -235,16 +235,16 @@ const KARTE_B = 340, KARTE_H = 150;
 
 /** Mini-Karte des Tages: echte Kartenkacheln (Wasser, Wald, Straßen, Ortsnamen) mit der Route darüber. */
 function kartenbild(tag) {
-  const ansicht = kartenAnsicht(tag.punkte, KARTE_B, KARTE_H);
+  const ansicht = mapView(tag.punkte, KARTE_B, KARTE_H);
   if (!ansicht) return null;
   const vorlage = kachelUrl(gueltigerKartenstil(state.config.kartenstil), CARTO_KEY);
   const svg = svgEl("svg", { viewBox: `0 0 ${KARTE_B} ${KARTE_H}`, width: KARTE_B, height: KARTE_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
-  const d = routenPfad(tag.punkte, ansicht.projiziere);
+  const d = routePath(tag.punkte, ansicht.project);
   // Dunkler Rand unter der Linie, damit sie auf hellem wie dunklem Grund lesbar bleibt.
   svg.appendChild(svgEl("path", { d, fill: "none", stroke: "rgba(8,20,22,.55)", "stroke-width": 6, "stroke-linecap": "round", "stroke-linejoin": "round" }));
   svg.appendChild(svgEl("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 3.2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
   const punkt = (lon, lat, r, fuell) => {
-    const q = ansicht.projiziere(lon, lat);
+    const q = ansicht.project(lon, lat);
     svg.appendChild(svgEl("circle", { cx: q.x.toFixed(1), cy: q.y.toFixed(1), r, fill: fuell, stroke: "rgba(8,20,22,.7)", "stroke-width": 1.5 }));
   };
   for (const e of tag.eintraege) {
@@ -255,9 +255,9 @@ function kartenbild(tag) {
   punkt(letzter.lon, letzter.lat, 5, "var(--accent)");
 
   const buehne = el("div.jt-buehne", { style: { width: `${KARTE_B}px`, height: `${KARTE_H}px` } }, [
-    ...ansicht.kacheln.map((k) => el(`img.jt-kachel${gueltigerKartenstil(state.config.kartenstil) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
-      src: kachelAdresse(vorlage, k), alt: "", loading: "lazy", draggable: "false",
-      style: { left: `${k.links.toFixed(1)}px`, top: `${k.oben.toFixed(1)}px` },
+    ...ansicht.tiles.map((k) => el(`img.jt-kachel${gueltigerKartenstil(state.config.kartenstil) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
+      src: tileUrl(vorlage, k), alt: "", loading: "lazy", draggable: "false",
+      style: { left: `${k.left.toFixed(1)}px`, top: `${k.top.toFixed(1)}px` },
     })),
     svg,
   ]);

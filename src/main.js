@@ -20,7 +20,7 @@ import { initJournal, renderJournal } from "./views/journal.js";
 import { initTagEditor, openTagEditor, isDirty as tagDirty, save as saveTag, clearEditor as clearTag } from "./views/tag-editor.js";
 import { initNoteEditor, captureNote, openNoteEditor, isDirty as noteDirty, save as saveNote, clearEditor as clearNote } from "./views/note-editor.js";
 import { initGuard, loadGuard, renderGuardInfo } from "./views/guard.js";
-import { liveAlterText } from "./live-alter.js";
+import { liveAgeText } from "./live-age.js";
 import { applyTheme } from "./theme.js";
 import { initSettings, renderVehicles, renderCategories, syncPreferences, refreshAccountState, renderRouteInfo } from "./views/settings.js";
 import { debugLog } from "./debug.js";
@@ -636,7 +636,7 @@ function renderMapFocusBar() {
   const tagNav = placeRueckkehrKontext ? null : kartenNavigation();
   const label = $("#map-focus-label");
   if (label) label.textContent = placeRueckkehrKontext ? (placeRueckkehrKontext.place.title || "Ort") : (tagNav?.titel || focused.name || "Kartenausschnitt");
-  for (const [id, hat] of [["#map-focus-prev", tagNav?.hatVorher], ["#map-focus-next", tagNav?.hatNaechster]]) {
+  for (const [id, hat] of [["#map-focus-prev", tagNav?.hasPrevious], ["#map-focus-next", tagNav?.hasNext]]) {
     const knopf = $(id);
     if (!knopf) continue;
     knopf.hidden = !tagNav;
@@ -893,7 +893,7 @@ function liveZeitpunktText(iso) {
 function renderStatusPill() {
   const pill = $("#statuspill");
   if (!pill) return;
-  const liveText = state.config.demo ? "Demo" : `Live · ${liveAlterText(state.livePosition?.at)}`;
+  const liveText = state.config.demo ? "Demo" : `Live · ${liveAgeText(state.livePosition?.at)}`;
   render(pill, [el("span.dot"), liveText]);
   const gpsAlter = Date.now() - Date.parse(state.livePosition?.at || "");
   const frisch = Number.isFinite(gpsAlter) && gpsAlter <= 5 * 60 * 1000;
