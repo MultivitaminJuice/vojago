@@ -369,6 +369,8 @@ const ABRUFE_LAUFEN = new Map();
 // Zwischenspeicher) und die älter sind als der letzte bekannte — daher spätestens
 // alle 30 Minuten wieder die ganze Route holen.
 const VOLLABRUF_ALLE_MS = 30 * 60_000;
+// How long a finished trip counts as checked against the server.
+const PRUEFUNG_GILT_MS = 10 * 60_000;
 let pfadFehlerInFolge = 0;
 
 /**
@@ -392,7 +394,10 @@ export function ensureTripPath(trip, { force = false, silent = false } = {}) {
   // geladen wurden (echter Fund: 05.09.2026, zweites Fahrzeug aktiviert,
   // Karte zeigte weiter nichts).
   const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathGrob && trip.pathGeprueft;
-  if (!trip || (nochAktuell && !force) || status.mode !== "live") return Promise.resolve();
+  // A finished trip does not grow: a forced refresh (map tab, timer) only
+  // checks it again after PRUEFUNG_GILT_MS, not every time.
+  const kuerzlichGeprueft = nochAktuell && trip.range?.to && Date.now() - (trip.pathGeprueftUm || 0) < PRUEFUNG_GILT_MS;
+  if (!trip || (nochAktuell && (!force || kuerzlichGeprueft)) || status.mode !== "live") return Promise.resolve();
   if (!state.config.device || !trip.range?.from) return Promise.resolve();
   const schluessel = `${trip.id}|${state.config.device}`;
   if (ABRUFE_LAUFEN.has(schluessel)) return ABRUFE_LAUFEN.get(schluessel);
@@ -425,6 +430,7 @@ async function ladePfad(trip, silent) {
       const stand = await fetchRouteStand(geraet, trip.range.from, bis);
       if (stand && stand.total === trip.pathStand.total && stand.lastAt === trip.pathStand.lastAt) {
         trip.pathGeprueft = true;
+        trip.pathGeprueftUm = Date.now();
         pfadGelungen();
         protokolliere({ ok: true, art, empfangen: 0, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
         return;
@@ -458,6 +464,7 @@ async function ladePfad(trip, silent) {
     trip.pathDevice = geraet;
     trip.pathGrob = false;
     trip.pathGeprueft = true;
+    trip.pathGeprueftUm = Date.now();
     setzeKennzahlen(trip);
     writeRoute(schluessel, {
       device: geraet, rows: packPath(trip.path), stand: trip.pathStand, pfadVollUm: trip.pfadVollUm || 0, savedAt: Date.now(),
