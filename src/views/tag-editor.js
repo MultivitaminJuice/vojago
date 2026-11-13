@@ -3,7 +3,7 @@
 // iPhone, auch nachträglich: der Tag lässt sich wählen, der Entwurf wird laufend
 // auf dem Gerät gesichert, Fotos werden gleich beim Auswählen hochgeladen.
 import { el, render, toast, $ } from "../dom.js";
-import { state, trip, tagebuchFuer, tagebuchFotos, upsertPhoto, removePhoto } from "../state.js";
+import { state, trip, diaryEntryFor, diaryPhotos, upsertPhoto, removePhoto } from "../state.js";
 import { speichereTagebuch, loescheTagebuch, zentral } from "../store.js";
 import { photoUrl, uploadPhoto, deletePhoto } from "../api.js";
 import { komprimiereFoto } from "../ui/photo.js";
@@ -76,7 +76,7 @@ export function openTagEditor({ tripId, dayKey = null }) {
   const t = trip(tripId);
   if (!t) { toast("Für diese Ansicht gibt es kein Tagebuch"); return; }
   const jetzt = new Date();
-  const eintraege = state.tagebuch.filter((e) => e.tripId === tripId);
+  const eintraege = state.diary.filter((e) => e.tripId === tripId);
   tage = daysForEditor(t, { now: jetzt, extraKeys: eintraege.map((e) => e.dayKey) });
   const wahl = dayKey && tage.some((x) => x.key === dayKey)
     ? dayKey
@@ -88,7 +88,7 @@ export function openTagEditor({ tripId, dayKey = null }) {
 }
 
 function laden(tripId, dayKey) {
-  const eintrag = tagebuchFuer(tripId, dayKey);
+  const eintrag = diaryEntryFor(tripId, dayKey);
   current = { tripId, dayKey, id: eintrag?.id || null };
   loeschFrage = null;
   $("#tag-day").value = dayKey;
@@ -144,7 +144,7 @@ let zeilen = [];
 let zug = null;
 let loeschFrage = null;   // Foto der Ablage, bei dem gerade "Endgültig löschen?" gefragt wird
 
-const fotoIds = () => (current?.id ? tagebuchFotos(current.id).map((p) => p.id) : []);
+const fotoIds = () => (current?.id ? diaryPhotos(current.id).map((p) => p.id) : []);
 
 function zeichne() {
   const box = $("#tag-blocks");

@@ -1,30 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { kachelPaint, schummerungPaint, kachelUrl, gueltigerKartenstil } from "../map-style.js";
+import { tilePaint, hillshadePaint, tileUrl, validMapStyle } from "../map-style.js";
 
-test("kachelPaint: Dunkelmodus dunkelt die helle Kachel ab, Hellmodus lässt sie unverändert", () => {
-  for (const stil of ["farbig", "dezent"]) {
-    assert.ok(kachelPaint(true, stil)["raster-brightness-max"] < 0.7, `${stil} wird abgedunkelt`);
-    assert.equal(kachelPaint(false, stil)["raster-brightness-max"], 1);
+test("tilePaint: dark mode darkens the light tile, light mode leaves it unchanged", () => {
+  for (const style of ["farbig", "dezent"]) {
+    assert.ok(tilePaint(true, style)["raster-brightness-max"] < 0.7, `${style} is darkened`);
+    assert.equal(tilePaint(false, style)["raster-brightness-max"], 1);
   }
-  assert.equal(kachelPaint(false)["raster-saturation"], 0);
+  assert.equal(tilePaint(false)["raster-saturation"], 0);
 });
 
-test("schummerungPaint: beide Modi liefern alle vier Werte", () => {
+test("hillshadePaint: both modes give all four values", () => {
   for (const dark of [true, false]) {
-    const p = schummerungPaint(dark);
+    const p = hillshadePaint(dark);
     for (const k of ["hillshade-exaggeration", "hillshade-shadow-color", "hillshade-highlight-color", "hillshade-accent-color"]) assert.ok(k in p);
   }
 });
 
-test("kachelUrl: farbig = Voyager, dezent = Positron, Unbekanntes fällt auf farbig zurück", () => {
-  assert.match(kachelUrl("farbig", "K"), /\/rastertiles\/voyager\/\{z\}\/\{x\}\/\{y\}@2x\.png\?key=K$/);
-  assert.match(kachelUrl("dezent", "K"), /\/light_all\//);
-  assert.equal(gueltigerKartenstil("blau"), "farbig");
-  assert.equal(gueltigerKartenstil(undefined), "farbig");
+test("tileUrl: farbig = Voyager, dezent = Positron, anything unknown falls back to farbig", () => {
+  assert.match(tileUrl("farbig", "K"), /\/rastertiles\/voyager\/\{z\}\/\{x\}\/\{y\}@2x\.png\?key=K$/);
+  assert.match(tileUrl("dezent", "K"), /\/light_all\//);
+  assert.equal(validMapStyle("blau"), "farbig");
+  assert.equal(validMapStyle(undefined), "farbig");
 });
 
-test("kachelPaint: im Dunkelmodus bleibt beim farbigen Stil die Sättigung, beim dezenten sinkt sie", () => {
-  assert.ok(kachelPaint(true, "farbig")["raster-saturation"] > 0);
-  assert.ok(kachelPaint(true, "dezent")["raster-saturation"] < 0);
+test("tilePaint: in dark mode the colourful style keeps its saturation, the subtle one loses some", () => {
+  assert.ok(tilePaint(true, "farbig")["raster-saturation"] > 0);
+  assert.ok(tilePaint(true, "dezent")["raster-saturation"] < 0);
 });

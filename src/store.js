@@ -5,12 +5,12 @@
 // erst lokal zeigen (die App bleibt flott), dann zentral sichern — und wenn
 // das Sichern scheitert, wird die Anzeige zurückgenommen. Nichts soll auf dem
 // Bildschirm stehen, was nirgends gespeichert ist.
-import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertTagebuch, removeTagebuch, emit } from "./state.js";
+import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertDiaryEntry, removeDiaryEntry, emit } from "./state.js";
 import { toast } from "./dom.js";
-import { findeVorhandenenOrt, AUTO_ORT_PLATZHALTER_TITEL } from "./dataload.js";
+import { findExistingPlace, AUTO_PLACE_PLACEHOLDER_TITLES } from "./dataload.js";
 import {
   isConfigured, createPlace, updatePlace, deletePlace,
-  createNote, updateNote, deleteNote, saveTagebuch, deleteTagebuch, weather as fetchWeather, geocode as fetchGeocode,
+  createNote, updateNote, deleteNote, saveDiaryEntry, deleteDiaryEntry, weather as fetchWeather, geocode as fetchGeocode,
 } from "./api.js";
 
 /** Nur im verbundenen Betrieb gibt es eine zentrale Ablage. */
@@ -63,7 +63,7 @@ export async function speichereOrt(place, { neu = false } = {}) {
       // dann den Besuch dort anhängen statt einen unverknüpften zweiten
       // Ort anzulegen (damit "wie oft war ich hier" auch bei manuell
       // erfassten Orten stimmt, nicht nur bei automatisch erkannten).
-      const ortId = findeVorhandenenOrt({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
+      const ortId = findExistingPlace({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
       const antwort = await createPlace({ ...ortZuRoh(place), ...(ortId ? { ort_id: ortId } : {}) });
       if (antwort?.ort_id) upsertPlace({ ...place, ortId: antwort.ort_id });
     } else {
@@ -133,16 +133,16 @@ export async function loescheNotiz(id) {
  * fehl, kommt der vorherige zurück. Liefert { ok, id }.
  */
 export async function speichereTagebuch(eintrag) {
-  const vorher = state.tagebuch.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
+  const vorher = state.diary.find((e) => e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey) || null;
   if (!zentral()) {
     const id = vorher?.id || eintrag.id || newId("tag");
-    upsertTagebuch({ ...eintrag, id });
+    upsertDiaryEntry({ ...eintrag, id });
     return { ok: true, id };
   }
   try {
-    const antwort = await saveTagebuch({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
+    const antwort = await saveDiaryEntry({ trip_id: eintrag.tripId, day_key: eintrag.dayKey, blocks: eintrag.blocks });
     const jetzt = new Date().toISOString();
-    upsertTagebuch({
+    upsertDiaryEntry({
       ...eintrag, id: antwort.id,
       author: vorher?.author || state.account?.username || eintrag.author || "",
       createdAt: vorher?.createdAt || jetzt, updatedAt: jetzt,
@@ -155,15 +155,15 @@ export async function speichereTagebuch(eintrag) {
 }
 
 export async function loescheTagebuch(id) {
-  const vorher = state.tagebuch.find((e) => e.id === id) || null;
+  const vorher = state.diary.find((e) => e.id === id) || null;
   const fotos = state.photos.filter((p) => p.tagebuchId === id);
-  removeTagebuch(id);
+  removeDiaryEntry(id);
   if (!zentral()) return true;
   try {
-    await deleteTagebuch(id);
+    await deleteDiaryEntry(id);
     return true;
   } catch (err) {
-    if (vorher) { upsertTagebuch(vorher); state.photos.push(...fotos); emit("photos"); }
+    if (vorher) { upsertDiaryEntry(vorher); state.photos.push(...fotos); emit("photos"); }
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }
@@ -211,7 +211,7 @@ export async function ergaenzeWetter(art, eintrag) {
  *
  * Die ermittelte Adresse wird IMMER festgehalten (eigenes `address`-Feld,
  * getrennt vom Titel) — der Titel selbst nur ersetzt, solange dort noch
- * einer der generischen Platzhalter aus AUTO_ORT_PLATZHALTER_TITEL steht.
+ * einer der generischen Platzhalter aus AUTO_PLACE_PLACEHOLDER_TITLES steht.
  * Hat die Person zwischenzeitlich selbst umbenannt, bleibt der Titel
  * unangetastet, aber die Adresse bleibt trotzdem als Referenz erhalten
  * (Nutzerwunsch, 6. September 2026 — vorher ging die Original-Adresse
@@ -231,7 +231,7 @@ export async function ergaenzeOrtsname({ id, lat, lon }) {
     const aktuell = state.places.find((p) => p.id === id);
     if (!aktuell) return null;
     const patch = { address: name };
-    if (AUTO_ORT_PLATZHALTER_TITEL.includes(aktuell.title)) patch.title = name;
+    if (AUTO_PLACE_PLACEHOLDER_TITLES.includes(aktuell.title)) patch.title = name;
     await updatePlace(id, patch);
     Object.assign(aktuell, patch);
     emit("places");

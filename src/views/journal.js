@@ -4,13 +4,13 @@
 // Angaben stehen eine Ebene tiefer unter "Details".
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { ICON } from "../icons.js";
-import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip, tagebuchFotos } from "../state.js";
+import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip, diaryPhotos } from "../state.js";
 import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js";
 import { speichereOrt, wetterZeile } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
 import { tageDerReise } from "../journal-days.js";
 import { mapView, tileUrl, routePath } from "../mini-map.js";
-import { CARTO_KEY, kachelUrl, gueltigerKartenstil } from "../map-style.js";
+import { CARTO_KEY, tileUrl as tileTemplate, validMapStyle } from "../map-style.js";
 import { withoutPhoto, coverPhotoId, withUnplacedPhotos } from "../diary.js";
 import { photoUrl, sharePhotoUrl } from "../api.js";
 import { zeigeFoto } from "../ui/photo-lightbox.js";
@@ -19,7 +19,7 @@ const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "�
 
 /** Bild-URL, angemeldet oder als Gast — der Gast-Endpunkt braucht den
  * Freigabe-Token, der Eigentümer-Endpunkt die normale Sitzung. */
-const bildUrl = (id) => (state.gast ? sharePhotoUrl(state.gast.token, id) : photoUrl(id));
+const bildUrl = (id) => (state.guest ? sharePhotoUrl(state.guest.token, id) : photoUrl(id));
 
 // Eine Reihe pro renderJournal()-Aufruf: alle sichtbaren Fotos der Reise
 // (unter Berücksichtigung des aktuellen Filters), chronologisch — damit
@@ -75,7 +75,7 @@ const placeCaption = (place) => {
  * dort nichts zu bearbeiten (der Klick tat bisher schlicht nichts) — für sie
  * öffnet er stattdessen, falls vorhanden, gleich das erste Foto groß. */
 function kartenKlick(oeffneEditor, fotos) {
-  if (!state.gast) return oeffneEditor;
+  if (!state.guest) return oeffneEditor;
   if (!fotos.length) return () => {};
   return () => zeigeFoto(tripSlides, photoSlideIndex.get(fotos[0].id) ?? 0);
 }
@@ -237,7 +237,7 @@ const KARTE_B = 340, KARTE_H = 150;
 function kartenbild(tag) {
   const ansicht = mapView(tag.punkte, KARTE_B, KARTE_H);
   if (!ansicht) return null;
-  const vorlage = kachelUrl(gueltigerKartenstil(state.config.kartenstil), CARTO_KEY);
+  const vorlage = tileTemplate(validMapStyle(state.config.mapStyle), CARTO_KEY);
   const svg = svgEl("svg", { viewBox: `0 0 ${KARTE_B} ${KARTE_H}`, width: KARTE_B, height: KARTE_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
   const d = routePath(tag.punkte, ansicht.project);
   // Dunkler Rand unter der Linie, damit sie auf hellem wie dunklem Grund lesbar bleibt.
@@ -255,7 +255,7 @@ function kartenbild(tag) {
   punkt(letzter.lon, letzter.lat, 5, "var(--accent)");
 
   const buehne = el("div.jt-buehne", { style: { width: `${KARTE_B}px`, height: `${KARTE_H}px` } }, [
-    ...ansicht.tiles.map((k) => el(`img.jt-kachel${gueltigerKartenstil(state.config.kartenstil) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
+    ...ansicht.tiles.map((k) => el(`img.jt-kachel${validMapStyle(state.config.mapStyle) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
       src: tileUrl(vorlage, k), alt: "", loading: "lazy", draggable: "false",
       style: { left: `${k.left.toFixed(1)}px`, top: `${k.top.toFixed(1)}px` },
     })),
@@ -336,7 +336,7 @@ function anmerkung(place) {
       const lang = place.note.length > 140;
       if (lang) text.classList.add("jt-gekuerzt");
       render(wrap, [text, lang ? el("button.jt-mehrlink", { type: "button", text: "mehr", on: { click: (e) => { text.classList.remove("jt-gekuerzt"); e.currentTarget.remove(); } } }) : null]);
-    } else if (!state.gast) {
+    } else if (!state.guest) {
       render(wrap, el("button.jt-anm-leer", { type: "button", text: "Anmerkung zum Stellplatz …", on: { click: schreiben } }));
     } else render(wrap, []);
   };
@@ -370,7 +370,7 @@ function detailsBlock(place) {
     kv("Erfasst", place.stopKey ? "automatisch erkannt" : QUELLE[place.source]),
     kv("Adresse", place.address),
     kv("Koordinaten", Number.isFinite(place.lat) ? `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}` : ""),
-    state.gast ? null : el("button.jt-btn", { type: "button", text: "Bearbeiten", on: { click: () => openPlace(place) } }),
+    state.guest ? null : el("button.jt-btn", { type: "button", text: "Bearbeiten", on: { click: () => openPlace(place) } }),
   ]);
 }
 
@@ -474,7 +474,7 @@ function titelbild(foto, info) {
 
 /** Der erzählte Tag: Titelbild, dann Absätze und Fotos in der Reihenfolge des Textes, am Ende der Autor. */
 function tagebuchBlock(eintrag, tag) {
-  const fotos = new Map(tagebuchFotos(eintrag.id).map((f) => [f.id, f]));
+  const fotos = new Map(diaryPhotos(eintrag.id).map((f) => [f.id, f]));
   const info = tagebuchCaption(eintrag, tag);
   // Fotos, die noch in der Ablage des Editors liegen, erscheinen am Anfang des Tages (eines als Titelbild, mehrere als Collage), bis man sie platziert — nichts geht verloren.
   const bloecke = withUnplacedPhotos(eintrag.blocks, [...fotos.keys()]);
@@ -489,17 +489,17 @@ function tagebuchBlock(eintrag, tag) {
       if (b.t === "text") return el("p.jt-text", { text: b.text });
       return fotoCollage(b.ids.map((id) => fotos.get(id)).filter(Boolean), info);
     }),
-    autor || !state.gast ? el("div.jt-autor", {}, [
+    autor || !state.guest ? el("div.jt-autor", {}, [
       autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
       autor ? el("span", { text: autor }) : null,
-      state.gast ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
+      state.guest ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
     ]) : null,
   ]);
 }
 
 /** Einladung für einen Tag ohne Eintrag. */
 function einladung(tag, t) {
-  if (state.gast || isRangeTrip(t)) return null;
+  if (state.guest || isRangeTrip(t)) return null;
   const heute = localDayKey(new Date().toISOString());
   const gestern = localDayKey(new Date(Date.now() - 86400000).toISOString());
   const hinweis = tag.key === heute ? "Der heutige Tag wartet auf den Abend."
@@ -564,7 +564,7 @@ export function renderJournal() {
     ensureTripPath(t, { silent: true });
   }
   const fahrten = state.drives.filter((d) => d.tripId === t.id);
-  const tagebuch = new Map(state.tagebuch.filter((e) => e.tripId === t.id).map((e) => [e.dayKey, e]));
+  const tagebuch = new Map(state.diary.filter((e) => e.tripId === t.id).map((e) => [e.dayKey, e]));
   const tage = tageDerReise({ startIso: tripStartIso(t), eintraege: allEntries, fahrten, path: t.path || [], zusatzTage: [...tagebuch.keys()] });
 
   if (!tage.length) {

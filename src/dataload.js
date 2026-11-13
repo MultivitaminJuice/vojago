@@ -1,9 +1,9 @@
-// Woher die Daten kommen: eingebaute Beispiele oder die eigene API.
-// Der Schalter in den Einstellungen entscheidet — und wirkt wirklich.
+// Where the data comes from: built-in examples (demo) or the app's own API.
+// The switch in the settings decides — and really takes effect.
 import { state, emit, applyLocalData, applyPreferences, saveConfig, MAP_METRICS } from "./state.js";
 import { loadDemoData } from "./demo.js";
 import {
-  isConfigured, listTrips, listPlaces, listNotes, listTagebuch, listCategories, listPhotos, listVehicles, route as fetchRoute, routeStand as fetchRouteStand,
+  isConfigured, listTrips, listPlaces, listNotes, listDiary, listCategories, listPhotos, listVehicles, route as fetchRoute, routeStand as fetchRouteStand,
   positions as fetchPositions, drives as fetchDrives, loadSettings, listDriveAssignments,
   cacheDriveWeather, weather as fetchWeather,
 } from "./api.js";
@@ -14,7 +14,7 @@ import { renumberPathByTripStart } from "./day-utils.js";
 import { appendNewPoints } from "./path-merge.js";
 import { routeKey, readRoute, writeRoute, clearRoutes, packPath, unpackPath } from "./route-store.js";
 
-/** Zustand des Datenbezugs — die Oberfläche zeigt ihn im Statusband. */
+/** State of the data source — the UI shows it in the status band. */
 export const status = { mode: "demo", loading: false, error: null };
 const LIVE_POSITION_KEY = "vojago.live.last";
 const SNAPSHOT_KEY = "vojago.snapshot";
@@ -26,7 +26,7 @@ function setStatus(patch) {
 
 const HUES = [35, 205, 40, 150, 280, 15];
 
-/** Reise aus der Datenbank in die Form bringen, die die Oberfläche nutzt. */
+/** A trip from the database in the shape the UI uses. */
 export function toTrip(row, index) {
   const start = row.start_at ? new Date(row.start_at) : null;
   const end = row.end_at ? new Date(row.end_at) : null;
@@ -38,68 +38,70 @@ export function toTrip(row, index) {
     live: !row.end_at,
     hue: HUES[index % HUES.length],
     path: [],
-    // Für welches Gerät `path` zuletzt geladen wurde — ensureTripPath()
-    // vergleicht das gegen state.config.device, sonst bliebe nach einem
-    // Fahrzeugwechsel die Route des vorherigen Geräts (oder eine leere,
-    // von damals gecachte) auf der Karte stehen, obwohl Reise/Fahrten
-    // längst die Daten des neuen Geräts zeigen (echter Fund: 05.09.2026).
+    // The device `path` was last loaded for — ensureTripPath() compares it with
+    // state.config.device; otherwise after switching vehicles the previous
+    // device's route (or an empty cached one) would stay on the map although
+    // trips and drives already show the new device (seen 05.09.2026).
     pathDevice: null,
     km: 0, nights: 0, peak: 0,
     bars: [0], barLabels: ["—"],
     range: { from: row.start_at, to: row.end_at },
-    // Rohe Zeitpunkte fürs Bearbeiten (N13) — `dates` ist nur die Anzeige.
+    // Raw times for editing — `dates` is display only.
     start: row.start_at || null,
     end: row.end_at || null,
   };
 }
 
-export function standardReise(trips) {
-  const zeit = (t) => {
+/** The trip shown by default: the running one, otherwise the most recent. */
+export function defaultTrip(trips) {
+  const time = (t) => {
     const ms = Date.parse(t.range?.from || t.start || "");
     return Number.isFinite(ms) ? ms : 0;
   };
-  const sortiert = [...(trips || [])].sort((a, b) => {
+  const sorted = [...(trips || [])].sort((a, b) => {
     if (a.live !== b.live) return a.live ? -1 : 1;
-    return zeit(b) - zeit(a);
+    return time(b) - time(a);
   });
-  return sortiert[0] || null;
+  return sorted[0] || null;
 }
 
-function routeFuerSnapshot(path, max = 2500) {
+function routeForSnapshot(path, max = 2500) {
   if (!Array.isArray(path) || path.length <= max) return Array.isArray(path) ? path : [];
-  const schritt = Math.ceil(path.length / max);
-  const reduziert = path.filter((_, i) => i % schritt === 0);
-  const letzter = path[path.length - 1];
-  if (letzter && reduziert[reduziert.length - 1] !== letzter) reduziert.push(letzter);
-  return reduziert;
+  const step = Math.ceil(path.length / max);
+  const reduced = path.filter((_, i) => i % step === 0);
+  const last = path[path.length - 1];
+  if (last && reduced[reduced.length - 1] !== last) reduced.push(last);
+  return reduced;
 }
 
-function tripFuerSnapshot(t, routeIds) {
-  const behalten = routeIds.has(t.id);
+function tripForSnapshot(t, routeIds) {
+  const keep = routeIds.has(t.id);
   return {
     ...t,
-    path: behalten ? routeFuerSnapshot(t.path) : [],
-    pathDevice: behalten ? t.pathDevice ?? null : null,
-    pathGeprueft: false,
-    pathStand: null,
+    path: keep ? routeForSnapshot(t.path) : [],
+    pathDevice: keep ? t.pathDevice ?? null : null,
+    pathChecked: false,
+    pathCount: null,
   };
 }
 
-function tripMitLetztemStand(t, vorher) {
-  if (!vorher?.path?.length) return t;
+/** A freshly loaded trip keeps the route and values it already had in this session. */
+function tripWithLastState(t, previous) {
+  if (!previous?.path?.length) return t;
   return {
     ...t,
-    path: renumberPathByTripStart(vorher.path || [], t),
-    pathDevice: vorher.pathDevice ?? null,
-    pathGrob: vorher.pathGrob ?? false,
-    pfadVollUm: vorher.pfadVollUm ?? 0,
-    pathStand: vorher.pathStand ?? null,
-    pathGeprueft: vorher.pathGeprueft ?? false,
-    km: Number.isFinite(vorher.km) ? vorher.km : t.km,
-    nights: Number.isFinite(vorher.nights) ? vorher.nights : t.nights,
-    peak: Number.isFinite(vorher.peak) ? vorher.peak : t.peak,
-    bars: Array.isArray(vorher.bars) && vorher.bars.length ? vorher.bars : t.bars,
-    barLabels: Array.isArray(vorher.barLabels) && vorher.barLabels.length ? vorher.barLabels : t.barLabels,
+    path: renumberPathByTripStart(previous.path || [], t),
+    pathDevice: previous.pathDevice ?? null,
+    pathCoarse: previous.pathCoarse ?? false,
+    fullLoadAt: previous.fullLoadAt ?? 0,
+    pathCount: previous.pathCount ?? null,
+    pathChecked: previous.pathChecked ?? false,
+    pathCheckedAt: previous.pathCheckedAt ?? 0,
+    km: Number.isFinite(previous.km) ? previous.km : t.km,
+    nights: Number.isFinite(previous.nights) ? previous.nights : t.nights,
+    peak: Number.isFinite(previous.peak) ? previous.peak : t.peak,
+    bars: Array.isArray(previous.bars) && previous.bars.length ? previous.bars : t.bars,
+    barLabels: Array.isArray(previous.barLabels) && previous.barLabels.length ? previous.barLabels : t.barLabels,
   };
 }
 
@@ -108,10 +110,10 @@ export function saveSnapshot() {
   const routeIds = new Set([state.mapTripId, state.activeTripId].filter(Boolean));
   const snapshot = {
     savedAt: new Date().toISOString(),
-    trips: state.trips.map((t) => tripFuerSnapshot(t, routeIds)),
+    trips: state.trips.map((t) => tripForSnapshot(t, routeIds)),
     places: state.places,
     notes: state.notes,
-    tagebuch: state.tagebuch,
+    diary: state.diary,
     drives: state.drives,
     activeTripId: state.activeTripId,
     mapTripId: state.mapTripId,
@@ -136,14 +138,14 @@ export function restoreSnapshot() {
   try { snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null"); } catch { return false; }
   if (!snapshot || !Array.isArray(snapshot.trips) || !snapshot.trips.length) return false;
 
-  state.trips = snapshot.trips;
-  // Der Zwischenspeicher hält nur einen ausgedünnten Pfad (siehe routeFuerSnapshot) —
-  // als "grob" markieren, bis ein echter Abruf gelungen ist.
-  state.trips = state.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathGrob: Boolean(t.path?.length), pathGeprueft: false }));
-  routenAbruf.zwischenspeicher = state.trips.some((t) => t.path?.length);
+  // The snapshot only holds a thinned path (see routeForSnapshot) — mark it as
+  // coarse until a real download succeeded.
+  state.trips = snapshot.trips.map((t) => ({ ...t, path: renumberPathByTripStart(t.path || [], t), pathCoarse: Boolean(t.path?.length), pathChecked: false }));
+  routeLoadLog.fromCache = state.trips.some((t) => t.path?.length);
   state.places = Array.isArray(snapshot.places) ? snapshot.places : [];
   state.notes = Array.isArray(snapshot.notes) ? snapshot.notes : [];
-  state.tagebuch = Array.isArray(snapshot.tagebuch) ? snapshot.tagebuch : [];
+  // "tagebuch" is the key snapshots used before the code moved to English.
+  state.diary = Array.isArray(snapshot.diary) ? snapshot.diary : Array.isArray(snapshot.tagebuch) ? snapshot.tagebuch : [];
   state.drives = Array.isArray(snapshot.drives) ? snapshot.drives : [];
   state.adhocTrip = null;
   state.categories = snapshot.categories && typeof snapshot.categories === "object" ? snapshot.categories : state.categories;
@@ -156,38 +158,35 @@ export function restoreSnapshot() {
     state.livePosition = snapshot.livePosition;
   }
 
-  const hatReise = (id) => id && state.trips.some((t) => t.id === id);
-  const standard = standardReise(state.trips);
-  state.activeTripId = hatReise(snapshot.activeTripId) ? snapshot.activeTripId : (standard?.live ? standard.id : null);
-  state.mapTripId = hatReise(snapshot.mapTripId) ? snapshot.mapTripId : (standard?.id || null);
+  const hasTrip = (id) => id && state.trips.some((t) => t.id === id);
+  const fallback = defaultTrip(state.trips);
+  state.activeTripId = hasTrip(snapshot.activeTripId) ? snapshot.activeTripId : (fallback?.live ? fallback.id : null);
+  state.mapTripId = hasTrip(snapshot.mapTripId) ? snapshot.mapTripId : (fallback?.id || null);
   debugLog("snapshot.restored", { savedAt: snapshot.savedAt, trips: state.trips.length, mapTripId: state.mapTripId });
   emit("trips");
   return true;
 }
 
-// Ein "Ort" in der Oberfläche ist ein Besuch mit dem Katalog-Ort geflacht
-// hinein (title/note/category_id/rating/lat/lon kommen vom Ort, alles
-// andere vom einzelnen Besuch — siehe api/router.js: GET /api/besuche
-// liefert genau diese Form). `id` bleibt die Besuch-ID (die Karte/das
-// Logbuch zeigt einzelne Aufenthalte), `ortId` verbindet mehrere Besuche
-// desselben Ortes über Reisen hinweg (siehe orteMitBesuchszahl()).
-// tripId wird NICHT gespeichert, sondern wie bei Fahrten live aus dem
-// Zeitpunkt berechnet — legt man rückwirkend eine Reise an, ordnen sich
-// passende Besuche beim nächsten Laden automatisch ein.
+// A "place" in the UI is a visit with its catalogue place flattened in
+// (title/note/category_id/rating/lat/lon come from the place, everything else
+// from the visit — see api/router.js: GET /api/besuche returns exactly this
+// shape). `id` stays the visit id (map and logbook show single stays), `ortId`
+// links several visits to the same place across trips (see
+// placesWithVisitCount()). tripId is NOT stored but computed from the time, like
+// for drives — creating a trip afterwards sorts matching visits in on the next load.
 export function toPlace(row) {
   return {
     id: row.id,
     ortId: row.ort_id || null,
-    tripId: zugehoerigeReise(row.occurred_at),
+    tripId: tripAt(row.occurred_at),
     catId: row.category_id || "stellplatz",
     title: row.title || "(ohne Titel)",
-    // Vom Reverse-Geocoding ermittelte Adresse, getrennt vom (überschreib-
-    // baren) Titel — bleibt auch dann sichtbar, wenn der Titel längst
-    // umbenannt wurde (Nutzerwunsch, 6. September 2026).
+    // Address from reverse geocoding, kept apart from the (editable) title —
+    // stays visible after the title was renamed (requested 6 September 2026).
     address: row.address || "",
     note: row.note || "",
     stars: row.rating ?? 0,
-    // `at` ist der Zeitpunkt (fürs Tagebuch), `date` seine kurze Anzeige.
+    // `at` is the time (for the logbook), `date` its short display.
     at: row.occurred_at || "",
     date: row.occurred_at ? new Date(row.occurred_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "",
     lon: Number(row.lon),
@@ -203,7 +202,7 @@ export function toPlace(row) {
 export function toNote(row) {
   return {
     id: row.id,
-    tripId: zugehoerigeReise(row.occurred_at),
+    tripId: tripAt(row.occurred_at),
     besuchId: row.besuch_id || null,
     title: row.title || titleFromNoteText(row.text),
     text: row.text || "",
@@ -215,8 +214,8 @@ export function toNote(row) {
   };
 }
 
-/** Ein Tagebucheintrag aus der Datenbank (blocks kommt als JSON-Text). */
-export function toTagebuch(row) {
+/** A diary entry from the database (blocks arrive as JSON text). */
+export function toDiaryEntry(row) {
   return {
     id: row.id,
     tripId: row.trip_id,
@@ -243,33 +242,29 @@ export function toPhoto(row) {
 }
 
 /**
- * Wie oft wurde an diesem Ort schon übernachtet, über alle Reisen hinweg —
- * cross-trip echte Identität über ortId, nicht über Koordinaten-Nähe
- * geraten (siehe api/router.js: besuche.ort_id). Gruppiert die geladenen
- * Besuche nach Ort, summiert Nächte, merkt sich den letzten Besuch.
+ * How often a place was visited and slept at, across all trips — the real
+ * identity across trips through ortId, not guessed from nearby coordinates (see
+ * api/router.js: besuche.ort_id). Groups the loaded visits by place, sums the
+ * nights and remembers the last visit.
+ * Returns Map(ortId → { ortId, title, catId, lat, lon, visits, totalNights, lastVisit }).
  */
-export function orteMitBesuchszahl() {
-  const gruppen = new Map();
+export function placesWithVisitCount() {
+  const groups = new Map();
   for (const p of state.places) {
     if (!p.ortId) continue;
-    const g = gruppen.get(p.ortId) || { ortId: p.ortId, title: p.title, catId: p.catId, lat: p.lat, lon: p.lon, besuche: 0, naechteGesamt: 0, letzterBesuch: null };
-    g.besuche += 1;
-    // Nächte nur für echte Übernachtungen zählen — bei einem "Stopp" ist
-    // nights nur der Datenbank-Mindestwert (1), keine echte Nächte-Zahl
-    // (siehe TITEL_STOPP-Kommentar in dataload.js). Sonst zeigte "wie oft
-    // war ich hier" fälschlich Nächte für Orte an, an denen nie
-    // übernachtet wurde
-    // (echter Fund; reine Tages-Stopps).
-    if (p.catId === "uebernachtung") g.naechteGesamt += p.nights || 1;
-    if (!g.letzterBesuch || (p.at && p.at > g.letzterBesuch)) g.letzterBesuch = p.at;
-    gruppen.set(p.ortId, g);
+    const g = groups.get(p.ortId) || { ortId: p.ortId, title: p.title, catId: p.catId, lat: p.lat, lon: p.lon, visits: 0, totalNights: 0, lastVisit: null };
+    g.visits += 1;
+    // Only real overnight stays count nights — for a "stop" nights is just the
+    // database minimum (1). Otherwise "how often was I here" showed nights for
+    // places where nobody slept (seen with plain day stops).
+    if (p.catId === "uebernachtung") g.totalNights += p.nights || 1;
+    if (!g.lastVisit || (p.at && p.at > g.lastVisit)) g.lastVisit = p.at;
+    groups.set(p.ortId, g);
   }
-  return gruppen;
+  return groups;
 }
 
-/** Serverzeile -> Client-Form für views/settings.js (renderVehicles):
- * `device` statt `traccar_device_id`, damit sich der Feldname nicht ändern
- * muss, egal welche Positionsquelle dahinter steckt. */
+/** Server row → client shape for views/settings.js (renderVehicles). */
 function toVehicle(row) {
   return {
     id: row.id,
@@ -284,13 +279,13 @@ function titleFromNoteText(text) {
   return clean.length > 48 ? `${clean.slice(0, 47).trim()}…` : clean;
 }
 
-/** Das Wetter liegt als JSON-Text in der Datenbank. */
-function parseWeather(roh) {
-  if (!roh) return null;
-  try { return JSON.parse(roh); } catch { return null; }
+/** Weather is stored as JSON text in the database. */
+function parseWeather(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
-/** Positionen des Servers in Routenpunkte übersetzen (Knoten → km/h). */
+/** Positions from the server as route points (knots → km/h). */
 export function positionsToPath(positions) {
   const waypoints = smoothStandingNoise(positions
     .filter((p) => Number.isFinite(p.longitude) && Number.isFinite(p.latitude))
@@ -303,10 +298,9 @@ export function positionsToPath(positions) {
     })));
   if (waypoints.length < 2) return [];
 
-  // Reihenfolge/Anzahl der Punkte bleibt unangetastet — nur GPS-Rauschen im
-  // Stand wird auf einen Anker gezogen (smoothStandingNoise, src/geo.js),
-  // echte Bewegung bleibt die echte Spur wie eh und je. Die gespeicherten
-  // Rohdaten in der Datenbank sind davon ohnehin nicht betroffen.
+  // Order and number of points stay untouched — only GPS noise while standing
+  // is pulled to an anchor (smoothStandingNoise, src/geo.js). The stored raw
+  // data in the database is not affected either way.
   let day = 1;
   let previousDate = waypoints[0].time ? new Date(waypoints[0].time).toDateString() : null;
   let cum = 0;
@@ -328,212 +322,211 @@ export function positionsToPath(positions) {
 }
 
 /**
- * Kilometer je Reisetag aus der Spur. Jeder Punkt kennt seinen Tag und die
- * bis dahin gefahrene Strecke — die Tagesleistung ist die Differenz.
+ * Kilometres per trip day from the track. Every point knows its day and the
+ * distance driven so far — the day's distance is the difference.
  */
-export function tagesKilometer(path) {
+export function kmPerDay(path) {
   if (!path?.length) return { bars: [0], labels: ["—"] };
-  const proTag = new Map();
+  const perDay = new Map();
   for (const p of path) {
-    const bisher = proTag.get(p.day);
-    if (!bisher) proTag.set(p.day, { von: p.cum, bis: p.cum });
-    else bisher.bis = p.cum;
+    const known = perDay.get(p.day);
+    if (!known) perDay.set(p.day, { from: p.cum, to: p.cum });
+    else known.to = p.cum;
   }
-  const tage = [...proTag.entries()].sort((a, b) => a[0] - b[0]);
+  const days = [...perDay.entries()].sort((a, b) => a[0] - b[0]);
   return {
-    bars: tage.map(([, s]) => Math.round((s.bis - s.von) * 10) / 10),
-    labels: tage.map(([tag]) => `Tag ${tag}`),
+    bars: days.map(([, s]) => Math.round((s.to - s.from) * 10) / 10),
+    labels: days.map(([day]) => `Tag ${day}`),
   };
 }
 
 /**
- * Route einer Reise laden. `force` holt auch dann neu, wenn schon eine Spur
- * da ist — nötig, weil die Spur der laufenden Reise wächst, während man
- * fährt. `silent` unterdrückt Fehleranzeige und Neueinpassen der Karte; das
- * braucht der regelmäßige Hintergrund-Refresh (siehe main.js), damit er die
- * Ansicht nicht alle paar Minuten wegspringen lässt.
+ * Load the route of a trip. `force` loads again even when a track is there —
+ * needed because the running trip's track grows while driving. `silent`
+ * suppresses the error display and refitting the map; the periodic background
+ * refresh (see main.js) needs that so the view does not jump every few minutes.
  *
- * Gegen schlechte Verbindungen (Nutzerfund, 24. Oktober 2026: Teile der Linie
- * fehlten, eine Gerade lief quer über die Karte):
- *  - Nie zwei Abrufe derselben Reise gleichzeitig: ein langsamer alter Abruf
- *    konnte sonst nach einem neueren eintreffen und dessen Stand überschreiben.
- *  - Bei laufender Reise werden nur die NEUEN Punkte nachgeladen und angehängt
- *    (statt jedes Mal die ganze Route, bei 6 Tagen ~14 MB alle 2 Minuten).
- *  - Der aus dem Zwischenspeicher wiederhergestellte, ausgedünnte Pfad gilt als
- *    "grob" (pathGrob), bis ein echter Abruf gelungen ist.
- *  - Scheitert das Auffrischen mehrfach, steht ein Hinweis da — und der letzte
- *    gute Stand bleibt stehen.
+ * Against bad connections (seen 24 October 2026: parts of the line were
+ * missing, a straight line ran across the map):
+ *  - Never two loads of the same trip at once: a slow old load could otherwise
+ *    arrive after a newer one and overwrite it.
+ *  - For a running trip only the NEW points are loaded and appended.
+ *  - A thinned path restored from the snapshot counts as coarse (pathCoarse)
+ *    until a real download succeeded.
+ *  - If refreshing fails repeatedly, a hint is shown — and the last good state stays.
  */
-const ABRUFE_LAUFEN = new Map();
-// Nachladen verpasst Punkte, die der Router erst später nachliefert (Funkloch,
-// Zwischenspeicher) und die älter sind als der letzte bekannte — daher spätestens
-// alle 30 Minuten wieder die ganze Route holen.
-const VOLLABRUF_ALLE_MS = 30 * 60_000;
+const LOADS_RUNNING = new Map();
+// Loading only new points misses points the router delivers late (dead spot,
+// buffer) that are older than the last known one — so the whole route is
+// loaded again at least every 30 minutes.
+const FULL_LOAD_EVERY_MS = 30 * 60_000;
 // How long a finished trip counts as checked against the server.
-const PRUEFUNG_GILT_MS = 10 * 60_000;
-let pfadFehlerInFolge = 0;
+const CHECK_VALID_MS = 10 * 60_000;
+let pathFailuresInARow = 0;
 
 /**
- * Was die Routen-Aktualisierung zuletzt getan hat — für Mehr → Status und das
- * Debug-Log. Enthält bewusst keine Koordinaten, nur Zeiten und Zählungen.
+ * What the route refresh did last — for More → Status and the debug log.
+ * Holds no coordinates on purpose, only times and counts.
+ * Entries: { time, kind: "full" | "new" | "unchanged", received, newPoints, total, durationMs, background }
+ * and failures { time, kind, error, inARow, durationMs, background }.
  */
-export const routenAbruf = { erfolg: null, fehler: null, zwischenspeicher: false };
-function protokolliere(eintrag) {
-  const { ok, ...daten } = eintrag;
-  if (ok) { routenAbruf.erfolg = { zeit: Date.now(), ...daten }; routenAbruf.zwischenspeicher = false; }
-  else routenAbruf.fehler = { zeit: Date.now(), ...daten };
-  debugLog(ok ? "route.geladen" : "route.fetch-failed", daten);
+export const routeLoadLog = { success: null, failure: null, fromCache: false };
+function logRouteLoad(entry) {
+  const { ok, ...data } = entry;
+  if (ok) { routeLoadLog.success = { time: Date.now(), ...data }; routeLoadLog.fromCache = false; }
+  else routeLoadLog.failure = { time: Date.now(), ...data };
+  debugLog(ok ? "route.loaded" : "route.fetch-failed", data);
   emit("routeInfo");
 }
-const VERBINDUNG_HINWEIS = "Verbindung schwach — die Route ist evtl. nicht aktuell oder unvollständig.";
+const WEAK_CONNECTION_HINT = "Verbindung schwach — die Route ist evtl. nicht aktuell oder unvollständig.";
 
 export function ensureTripPath(trip, { force = false, silent = false } = {}) {
-  // Nicht nur "haben wir schon eine Spur", sondern "für das gerade aktive
-  // Gerät" — sonst bleibt nach einem Fahrzeugwechsel die (evtl. leere)
-  // Spur des vorherigen Geräts stehen, obwohl Reise/Fahrten längst neu
-  // geladen wurden (echter Fund: 05.09.2026, zweites Fahrzeug aktiviert,
-  // Karte zeigte weiter nichts).
-  const nochAktuell = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathGrob && trip.pathGeprueft;
+  // Not just "do we have a track" but "for the currently active device" —
+  // otherwise after switching vehicles the previous device's (possibly empty)
+  // track stays although trips and drives were reloaded (seen 05.09.2026).
+  const upToDate = trip?.path.length && trip.pathDevice === state.config.device && !trip.pathCoarse && trip.pathChecked;
   // A finished trip does not grow: a forced refresh (map tab, timer) only
-  // checks it again after PRUEFUNG_GILT_MS, not every time.
-  const kuerzlichGeprueft = nochAktuell && trip.range?.to && Date.now() - (trip.pathGeprueftUm || 0) < PRUEFUNG_GILT_MS;
-  if (!trip || (nochAktuell && (!force || kuerzlichGeprueft)) || status.mode !== "live") return Promise.resolve();
+  // checks it again after CHECK_VALID_MS, not every time.
+  const checkedRecently = upToDate && trip.range?.to && Date.now() - (trip.pathCheckedAt || 0) < CHECK_VALID_MS;
+  if (!trip || (upToDate && (!force || checkedRecently)) || status.mode !== "live") return Promise.resolve();
   if (!state.config.device || !trip.range?.from) return Promise.resolve();
-  const schluessel = `${trip.id}|${state.config.device}`;
-  if (ABRUFE_LAUFEN.has(schluessel)) return ABRUFE_LAUFEN.get(schluessel);
-  const abruf = ladePfad(trip, silent).finally(() => ABRUFE_LAUFEN.delete(schluessel));
-  ABRUFE_LAUFEN.set(schluessel, abruf);
-  return abruf;
+  const key = `${trip.id}|${state.config.device}`;
+  if (LOADS_RUNNING.has(key)) return LOADS_RUNNING.get(key);
+  const load = loadPath(trip, silent).finally(() => LOADS_RUNNING.delete(key));
+  LOADS_RUNNING.set(key, load);
+  return load;
 }
 
-async function ladePfad(trip, silent) {
+async function loadPath(trip, silent) {
   const start = Date.now();
-  const vorherLaenge = trip.path?.length || 0;
-  let art = "komplett";
-  let empfangen = 0;
+  const lengthBefore = trip.path?.length || 0;
+  let kind = "full";
+  let received = 0;
   try {
-    const geraet = state.config.device;
-    const bis = trip.range.to || new Date().toISOString();
-    const schluessel = routeKey(trip, geraet);
+    const device = state.config.device;
+    const to = trip.range.to || new Date().toISOString();
+    const storeKey = routeKey(trip, device);
     // Stored route of this trip: show it right away, before anything is downloaded.
-    if (!trip.path?.length || trip.pathGrob || trip.pathDevice !== geraet) {
-      const gespeichert = await readRoute(schluessel);
-      if (gespeichert?.rows?.length && gespeichert.device === geraet) {
-        uebernehmeGespeichertenPfad(trip, gespeichert);
+    if (!trip.path?.length || trip.pathCoarse || trip.pathDevice !== device) {
+      const stored = await readRoute(storeKey);
+      if (stored?.rows?.length && stored.device === device) {
+        takeStoredPath(trip, stored);
         emit(silent ? "tripPath" : "trips");
       }
     }
     // Finished trip with a complete stored route: only ask whether the server
     // holds the same points. Late deliveries from the router change the count.
-    if (trip.range.to && trip.pathStand && trip.pathDevice === geraet && !trip.pathGrob) {
-      art = "unverändert";
-      const stand = await fetchRouteStand(geraet, trip.range.from, bis);
-      if (stand && stand.total === trip.pathStand.total && stand.lastAt === trip.pathStand.lastAt) {
-        trip.pathGeprueft = true;
-        trip.pathGeprueftUm = Date.now();
-        pfadGelungen();
-        protokolliere({ ok: true, art, empfangen: 0, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
+    if (trip.range.to && trip.pathCount && trip.pathDevice === device && !trip.pathCoarse) {
+      kind = "unchanged";
+      const count = await fetchRouteStand(device, trip.range.from, to);
+      if (count && count.total === trip.pathCount.total && count.lastAt === trip.pathCount.lastAt) {
+        trip.pathChecked = true;
+        trip.pathCheckedAt = Date.now();
+        pathLoaded();
+        logRouteLoad({ ok: true, kind, received: 0, newPoints: 0, total: trip.path.length, durationMs: Date.now() - start, background: silent });
         return;
       }
-      art = "komplett";
+      kind = "full";
     }
-    // Nur Neues nachladen: laufende Reise, frischer (nicht grober) Pfad für dasselbe Gerät.
-    const letzter = trip.path?.length ? trip.path[trip.path.length - 1] : null;
-    const anhaengen = Boolean(letzter?.time) && trip.pathDevice === geraet && !trip.pathGrob && !trip.range.to
-      && Date.now() - (trip.pfadVollUm || 0) < VOLLABRUF_ALLE_MS;
-    if (anhaengen) {
-      art = "nur Neues";
-      const positions = await fetchRoute(geraet, letzter.time, bis, { timeoutMs: 45_000 });
-      empfangen = Array.isArray(positions) ? positions.length : 0;
-      const neu = renumberPathByTripStart(positionsToPath(Array.isArray(positions) ? positions : []), trip);
-      const zusammen = appendNewPoints(trip.path, neu);
-      if (zusammen === trip.path) {
-        pfadGelungen();
-        protokolliere({ ok: true, art, empfangen, neuePunkte: 0, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
+    // Only load new points: running trip, fresh (not coarse) path for the same device.
+    const last = trip.path?.length ? trip.path[trip.path.length - 1] : null;
+    const append = Boolean(last?.time) && trip.pathDevice === device && !trip.pathCoarse && !trip.range.to
+      && Date.now() - (trip.fullLoadAt || 0) < FULL_LOAD_EVERY_MS;
+    if (append) {
+      kind = "new";
+      const positions = await fetchRoute(device, last.time, to, { timeoutMs: 45_000 });
+      received = Array.isArray(positions) ? positions.length : 0;
+      const fresh = renumberPathByTripStart(positionsToPath(Array.isArray(positions) ? positions : []), trip);
+      const joined = appendNewPoints(trip.path, fresh);
+      if (joined === trip.path) {
+        pathLoaded();
+        logRouteLoad({ ok: true, kind, received, newPoints: 0, total: trip.path.length, durationMs: Date.now() - start, background: silent });
         return;
       }
-      trip.path = zusammen;
-      trip.pathStand = null; // appended pieces: the count no longer matches one download
+      trip.path = joined;
+      trip.pathCount = null; // appended pieces: the count no longer matches one download
     } else {
-      const positions = await fetchRoute(geraet, trip.range.from, bis);
-      empfangen = Array.isArray(positions) ? positions.length : 0;
+      const positions = await fetchRoute(device, trip.range.from, to);
+      received = Array.isArray(positions) ? positions.length : 0;
       trip.path = renumberPathByTripStart(positionsToPath(positions), trip);
-      trip.pfadVollUm = Date.now();
-      trip.pathStand = positions?.stand || null;
+      trip.fullLoadAt = Date.now();
+      trip.pathCount = positions?.stand || null;
     }
-    trip.pathDevice = geraet;
-    trip.pathGrob = false;
-    trip.pathGeprueft = true;
-    trip.pathGeprueftUm = Date.now();
-    setzeKennzahlen(trip);
-    writeRoute(schluessel, {
-      device: geraet, rows: packPath(trip.path), stand: trip.pathStand, pfadVollUm: trip.pfadVollUm || 0, savedAt: Date.now(),
+    trip.pathDevice = device;
+    trip.pathCoarse = false;
+    trip.pathChecked = true;
+    trip.pathCheckedAt = Date.now();
+    setTripFigures(trip);
+    writeRoute(storeKey, {
+      device, rows: packPath(trip.path), count: trip.pathCount, fullLoadAt: trip.fullLoadAt || 0, savedAt: Date.now(),
     });
-    pfadGelungen();
-    protokolliere({ ok: true, art, empfangen, neuePunkte: art === "nur Neues" ? trip.path.length - vorherLaenge : trip.path.length, gesamt: trip.path.length, dauerMs: Date.now() - start, hintergrund: silent });
+    pathLoaded();
+    logRouteLoad({ ok: true, kind, received, newPoints: kind === "new" ? trip.path.length - lengthBefore : trip.path.length, total: trip.path.length, durationMs: Date.now() - start, background: silent });
     emit(silent ? "tripPath" : "trips");
     saveSnapshot();
   } catch (err) {
-    pfadFehlerInFolge++;
-    protokolliere({ ok: false, art, fehler: err.message || String(err), inFolge: pfadFehlerInFolge, dauerMs: Date.now() - start, hintergrund: silent });
+    pathFailuresInARow++;
+    logRouteLoad({ ok: false, kind, error: err.message || String(err), inARow: pathFailuresInARow, durationMs: Date.now() - start, background: silent });
     if (!silent) setStatus({ error: `Route konnte nicht geladen werden: ${err.message}` });
-    else if (pfadFehlerInFolge >= 2 && !status.error) setStatus({ error: VERBINDUNG_HINWEIS });
+    else if (pathFailuresInARow >= 2 && !status.error) setStatus({ error: WEAK_CONNECTION_HINT });
   }
 }
 
-/** Reise-Kennzahlen aus der Spur (Kilometer, höchster Punkt, Kilometer je Tag). */
-function setzeKennzahlen(trip) {
+/** Trip figures from the track (kilometres, highest point, kilometres per day). */
+function setTripFigures(trip) {
   if (!trip.path?.length) return;
   trip.km = Math.round(pathLengthKm(trip.path));
   trip.peak = Math.round(elevationRange(trip.path).max);
-  const tage = tagesKilometer(trip.path);
-  trip.bars = tage.bars;
-  trip.barLabels = tage.labels;
+  const days = kmPerDay(trip.path);
+  trip.bars = days.bars;
+  trip.barLabels = days.labels;
 }
 
-function uebernehmeGespeichertenPfad(trip, gespeichert) {
-  trip.path = renumberPathByTripStart(unpackPath(gespeichert.rows), trip);
-  trip.pathDevice = gespeichert.device;
-  trip.pathGrob = false;
-  trip.pathGeprueft = false;
-  trip.pathStand = gespeichert.stand || null;
-  trip.pfadVollUm = gespeichert.pfadVollUm || 0;
-  setzeKennzahlen(trip);
+/** Take a route stored on the device. Records written before the code moved to
+ * English use the keys "stand" and "pfadVollUm". */
+function takeStoredPath(trip, stored) {
+  trip.path = renumberPathByTripStart(unpackPath(stored.rows), trip);
+  trip.pathDevice = stored.device;
+  trip.pathCoarse = false;
+  trip.pathChecked = false;
+  trip.pathCount = stored.count || stored.stand || null;
+  trip.fullLoadAt = stored.fullLoadAt || stored.pfadVollUm || 0;
+  setTripFigures(trip);
 }
 
 /**
- * Beim Start: die im Gerät abgelegten Routen aller Reisen übernehmen, damit
- * Karte, Reise- und Tageswerte sofort stehen. Geprüft bzw. nachgeladen wird
- * danach wie gewohnt über ensureTripPath().
+ * On start: take the routes of all trips stored on the device, so the map,
+ * trip and day values are there at once. They are checked or reloaded
+ * afterwards through ensureTripPath() as usual.
  */
 export async function restoreStoredRoutes() {
   if (state.config.demo || !state.config.device) return;
-  const geraet = state.config.device;
-  let geaendert = false;
+  const device = state.config.device;
+  let changed = false;
   for (const t of [...state.trips]) {
-    if (t.path?.length && !t.pathGrob && t.pathDevice === geraet) continue;
-    const gespeichert = await readRoute(routeKey(t, geraet));
-    // Die Reise kann inzwischen durch einen frischen Stand ersetzt sein.
-    const aktuell = state.trips.find((x) => x.id === t.id);
-    if (!aktuell || !gespeichert?.rows?.length || gespeichert.device !== geraet) continue;
-    if (aktuell.path?.length && !aktuell.pathGrob && aktuell.pathDevice === geraet) continue;
-    uebernehmeGespeichertenPfad(aktuell, gespeichert);
-    geaendert = true;
+    if (t.path?.length && !t.pathCoarse && t.pathDevice === device) continue;
+    const stored = await readRoute(routeKey(t, device));
+    // The trip may have been replaced by a fresh state in the meantime.
+    const current = state.trips.find((x) => x.id === t.id);
+    if (!current || !stored?.rows?.length || stored.device !== device) continue;
+    if (current.path?.length && !current.pathCoarse && current.pathDevice === device) continue;
+    takeStoredPath(current, stored);
+    changed = true;
   }
-  if (geaendert) emit("trips");
+  if (changed) emit("trips");
 }
 
-function pfadGelungen() {
-  pfadFehlerInFolge = 0;
-  if (status.error === VERBINDUNG_HINWEIS) setStatus({ error: null });
+function pathLoaded() {
+  pathFailuresInARow = 0;
+  if (status.error === WEAK_CONNECTION_HINT) setStatus({ error: null });
 }
 
 export async function buildRangeTrip({ from, to, label = "Zeitraum" } = {}) {
   if (!state.config.device || !from) return null;
-  const bis = to || new Date().toISOString();
-  const positions = await fetchRoute(state.config.device, from, bis);
+  const end = to || new Date().toISOString();
+  const positions = await fetchRoute(state.config.device, from, end);
   const path = annotateRangePath(positionsToPath(Array.isArray(positions) ? positions : []));
-  const tage = tagesKilometer(path);
+  const days = kmPerDay(path);
   return {
     id: "__range",
     type: "zeitraum",
@@ -545,26 +538,26 @@ export async function buildRangeTrip({ from, to, label = "Zeitraum" } = {}) {
     km: Math.round(pathLengthKm(path)),
     nights: 0,
     peak: Math.round(elevationRange(path).max),
-    bars: tage.bars,
-    barLabels: tage.labels,
-    range: { from, to: bis },
+    bars: days.bars,
+    barLabels: days.labels,
+    range: { from, to: end },
     start: from,
-    end: bis,
+    end,
   };
 }
 
 function annotateRangePath(path) {
-  const reiseMap = new Map(state.trips.map((reise) => [reise.id, reise]));
+  const tripsById = new Map(state.trips.map((trip) => [trip.id, trip]));
   return path.map((point) => {
-    const tripId = zugehoerigeReise(point.time);
-    const reise = tripId ? reiseMap.get(tripId) : null;
-    return reise
-      ? { ...point, tripId, tripHue: reise.hue, tripName: reise.name }
+    const tripId = tripAt(point.time);
+    const trip = tripId ? tripsById.get(tripId) : null;
+    return trip
+      ? { ...point, tripId, tripHue: trip.hue, tripName: trip.name }
       : { ...point, tripId: null, tripHue: null, tripName: "" };
   });
 }
 
-/** Holt die letzte gemeldete Position des Fahrzeugs. */
+/** Loads the vehicle's last reported position. */
 export async function loadLivePosition() {
   if (state.config.demo || !isConfigured() || !state.config.device) return null;
   try {
@@ -576,12 +569,12 @@ export async function loadLivePosition() {
       at: p.fixTime || p.deviceTime || null,
       speed: Number.isFinite(p.speed) ? p.speed * 1.852 : 0,
     };
-    try { localStorage.setItem(LIVE_POSITION_KEY, JSON.stringify(state.livePosition)); } catch { /* egal */ }
+    try { localStorage.setItem(LIVE_POSITION_KEY, JSON.stringify(state.livePosition)); } catch { /* ignore */ }
     saveSnapshot();
     emit("livePosition");
     return state.livePosition;
   } catch {
-    return null; // stiller Fehlschlag: die Karte bleibt einfach, wie sie ist
+    return null; // silent failure: the map simply stays as it is
   }
 }
 
@@ -601,35 +594,33 @@ export function restoreLivePosition() {
   }
 }
 
-/** S4 — „Lokale Daten löschen" in den Einstellungen: der Offline-/Schnellstart-
- * Zwischenstand (Reisen, Orte, Notizen, Route) und die letzte bekannte
- * Position. Betrifft nur den lokalen Spiegel — bei bestehender Verbindung
- * lädt die App danach einfach neu von der API. */
+/** "Lokale Daten löschen" in the settings: the offline / quick-start snapshot
+ * (trips, places, notes, routes) and the last known position. Only the local
+ * mirror — with a connection the app simply loads again from the API. */
 export function forgetSnapshot() {
   clearRoutes();
-  try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* egal */ }
-  try { localStorage.removeItem(LIVE_POSITION_KEY); } catch { /* egal */ }
+  try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(LIVE_POSITION_KEY); } catch { /* ignore */ }
 }
 
 /**
- * Fahrten erkennt der Server selbst aus der Bewegung (segmentDrives).
- * Wir speichern sie nicht, sondern holen sie für einen Zeitraum und ordnen
- * sie über die Zeit den eigenen Reisen zu. Fällt eine Fahrt in keine Reise,
- * ist es eine Alltagsfahrt.
+ * The server detects drives from the movement itself (segmentDrives). They are
+ * not stored but loaded for a time span and assigned to the trips by time. A
+ * drive that falls into no trip is an everyday drive.
  */
-export async function loadDrives({ tage = 30, from = null, to = null, silent = false } = {}) {
+export async function loadDrives({ days = 30, from = null, to = null, silent = false } = {}) {
   if (state.config.demo || !isConfigured() || !state.config.device) { state.drives = []; return; }
-  const von = from || new Date(Date.now() - tage * 86400000).toISOString();
-  const bis = to || new Date().toISOString();
+  const rangeFrom = from || new Date(Date.now() - days * 86400000).toISOString();
+  const rangeTo = to || new Date().toISOString();
   try {
-    const [roh] = await Promise.all([fetchDrives(state.config.device, von, bis), loadDriveAssignments()]);
-    state.drives = (Array.isArray(roh) ? roh : []).flatMap((t, i) => {
+    const [raw] = await Promise.all([fetchDrives(state.config.device, rangeFrom, rangeTo), loadDriveAssignments()]);
+    state.drives = (Array.isArray(raw) ? raw : []).flatMap((t, i) => {
       const from = t.startTime || t.start_time || t.from || t.start;
       if (!from) return [];
       const to = t.endTime || t.end_time || t.to || t.end || null;
       const key = driveKey(t.deviceId, from);
-      const automatischeReise = zugehoerigeReiseFahrt(from, to);
-      const hatManuelleZuordnung = Object.prototype.hasOwnProperty.call(state.driveAssignments, key);
+      const tripByTime = tripOverlapping(from, to);
+      const assignedByHand = Object.prototype.hasOwnProperty.call(state.driveAssignments, key);
       const startLat = Number(t.startLat ?? t.startLatitude);
       const startLon = Number(t.startLon ?? t.startLongitude);
       return [{
@@ -646,41 +637,38 @@ export async function loadDrives({ tage = 30, from = null, to = null, silent = f
         endAddress: t.endAddress || "",
         startLat: Number.isFinite(startLat) ? startLat : null,
         startLon: Number.isFinite(startLon) ? startLon : null,
-        // Eine von Hand getroffene Zuordnung sticht die Zeit-Automatik.
-        tripId: hatManuelleZuordnung ? state.driveAssignments[key] : automatischeReise,
-        manuell: hatManuelleZuordnung,
+        // An assignment made by hand beats the assignment by time.
+        tripId: assignedByHand ? state.driveAssignments[key] : tripByTime,
+        manual: assignedByHand,
         kind: state.driveKinds[key] === "abstecher" ? "abstecher" : "etappe",
         weather: state.driveWeather[key] || null,
       }];
     }).sort((a, b) => String(b.from).localeCompare(String(a.from)));
     debugLog("drives.loaded", {
-      requestedFrom: von, requestedTo: bis, raw: Array.isArray(roh) ? roh.length : "not-array",
+      requestedFrom: rangeFrom, requestedTo: rangeTo, raw: Array.isArray(raw) ? raw.length : "not-array",
       activeTripId: state.activeTripId,
       trips: state.trips.map((t) => ({ id: t.id, name: t.name, range: t.range, live: t.live })),
-      drives: state.drives.map((d) => ({ key: d.key, from: d.from, to: d.to, tripId: d.tripId, manuell: d.manuell })),
+      drives: state.drives.map((d) => ({ key: d.key, from: d.from, to: d.to, tripId: d.tripId, manual: d.manual })),
     });
     emit("drives");
     saveSnapshot();
-    holeFahrtWetter();
+    loadDriveWeather();
   } catch (err) {
-    // Die zuletzt geladene Fahrtenliste BEHALTEN: sie auf [] zu setzen ließ die
-    // Karte bei schlechter Verbindung auf "alle Punkte, keine Fahrten" kippen
-    // (Etappen-Filter aus, Abstecher sichtbar, Stücke zusammengezogen).
-    debugLog("drives.fetch-failed", { error: err.message || String(err), behalten: state.drives.length, silent });
+    // KEEP the last loaded drive list: setting it to [] made the map fall back to
+    // "all points, no drives" on a bad connection (stage filter off, detours
+    // visible, pieces joined).
+    debugLog("drives.fetch-failed", { error: err.message || String(err), kept: state.drives.length, silent });
     if (!silent) setStatus({ error: `Fahrten konnten nicht geladen werden: ${err.message}` });
   }
 }
 
 /**
- * Kennung einer Fahrt/eines Stopps: Gerät und Startzeit identifizieren sie
- * eindeutig. Bewusst die TATSÄCHLICHE Geräte-ID der Positionsdaten
- * (`deviceId` aus der API-Antwort, siehe api/lib.js baueFahrt/baueStopp),
- * nicht die aktuell im Fahrzeug konfigurierte (`state.config.device`) —
- * sonst würde ein späteres Umbenennen der Geräte-ID in den Einstellungen
- * alle bisherigen manuellen Zuordnungen und Besuche unauffindbar machen
- * (dieselbe Kennung ergäbe plötzlich einen anderen String). Fallback auf
- * `state.config.device` nur, wenn keine deviceId bekannt ist (z. B. für den
- * aktuell laufenden Aufenthalt, wo das ohnehin dasselbe Gerät ist).
+ * Key of a drive or stop: device and start time identify it. Deliberately the
+ * ACTUAL device id of the position data (`deviceId` from the API response, see
+ * api/lib.js), not the one currently configured for the vehicle
+ * (`state.config.device`) — otherwise renaming the device id in the settings
+ * would make all earlier manual assignments and visits unfindable. Falls back
+ * to `state.config.device` only when no deviceId is known.
  */
 export const driveKey = (deviceId, from) => `${deviceId || state.config.device}|${from}`;
 
@@ -699,106 +687,97 @@ async function loadDriveAssignments() {
     debugLog("drive-assignments.loaded", {
       rows: (rows || []).map((r) => ({ key: r.drive_key, tripId: r.trip_id, assignment: r.assignment, kind: r.kind, hasWeather: Boolean(r.weather) })),
       manualKeys: Object.keys(state.driveAssignments),
-      abstecherKeys: Object.keys(state.driveKinds),
+      detourKeys: Object.keys(state.driveKinds),
     });
   } catch {
-    state.driveAssignments = {}; // ohne Zuordnungen greift weiter die Zeit-Automatik
+    state.driveAssignments = {}; // without assignments the assignment by time applies
     state.driveKinds = {};
     state.driveWeather = {};
   }
 }
 
 /**
- * Wetter am Start jeder Fahrt nachladen, die noch keins hat — im Hintergrund
- * und auf wenige Fahrten je Aufruf begrenzt, damit ein Blick auf 30 Tage
- * Historie nicht 30 Tage Wetterabfragen auf einmal auslöst. Der Rest folgt
- * beim nächsten Laden, weil dann wieder nur die noch fehlenden dran sind.
+ * Load the weather at the start of every drive that has none yet — in the
+ * background and limited to a few drives per call, so a look at 30 days of
+ * history does not trigger 30 days of weather requests at once. The rest
+ * follows on the next load.
  */
-async function holeFahrtWetter({ max = 8 } = {}) {
+async function loadDriveWeather({ max = 8 } = {}) {
   if (state.config.demo || !isConfigured()) return;
-  const kandidaten = state.drives
+  const candidates = state.drives
     .filter((d) => !d.weather && Number.isFinite(d.startLat) && Number.isFinite(d.startLon))
     .slice(0, max);
-  for (const d of kandidaten) {
+  for (const d of candidates) {
     try {
-      const wetter = await fetchWeather(d.startLat, d.startLon, d.from);
-      const roh = JSON.stringify(wetter);
-      await cacheDriveWeather(d.key, roh);
-      state.driveWeather[d.key] = wetter;
-      const eintrag = state.drives.find((x) => x.key === d.key);
-      if (eintrag) eintrag.weather = wetter;
+      const weather = await fetchWeather(d.startLat, d.startLon, d.from);
+      await cacheDriveWeather(d.key, JSON.stringify(weather));
+      state.driveWeather[d.key] = weather;
+      const drive = state.drives.find((x) => x.key === d.key);
+      if (drive) drive.weather = weather;
     } catch {
-      // Ohne Wetter bleibt die Fahrt vollständig — nur ohne diese Angabe.
+      // Without weather the drive stays complete — just without this detail.
     }
   }
-  if (kandidaten.length) emit("drives");
-  if (kandidaten.length) saveSnapshot();
+  if (candidates.length) emit("drives");
+  if (candidates.length) saveSnapshot();
 }
 
-/** Welche Reise umschließt diesen Zeitpunkt? */
-function zugehoerigeReise(zeitpunkt) {
-  const t = Date.parse(zeitpunkt);
+/** Which trip encloses this point in time? */
+function tripAt(time) {
+  const t = Date.parse(time);
   if (!Number.isFinite(t)) return null;
-  for (const reise of state.trips) {
-    const von = Date.parse(reise.range?.from ?? "");
-    const bis = reise.range?.to ? Date.parse(reise.range.to) : Date.now();
-    if (Number.isFinite(von) && t >= von && t <= bis) return reise.id;
+  for (const trip of state.trips) {
+    const from = Date.parse(trip.range?.from ?? "");
+    const to = trip.range?.to ? Date.parse(trip.range.to) : Date.now();
+    if (Number.isFinite(from) && t >= from && t <= to) return trip.id;
   }
   return null;
 }
 
-/** Welche Reise überschneidet das Zeitfenster einer Fahrt? */
-function zugehoerigeReiseFahrt(vonZeit, bisZeit) {
-  const start = Date.parse(vonZeit);
-  const ende = bisZeit ? Date.parse(bisZeit) : start;
+/** Which trip overlaps the time span of a drive? */
+function tripOverlapping(fromTime, toTime) {
+  const start = Date.parse(fromTime);
+  const end = toTime ? Date.parse(toTime) : start;
   if (!Number.isFinite(start)) return null;
-  const bisFahrt = Number.isFinite(ende) ? ende : start;
-  for (const reise of state.trips) {
-    const von = Date.parse(reise.range?.from ?? "");
-    const bis = reise.range?.to ? Date.parse(reise.range.to) : Date.now();
-    if (Number.isFinite(von) && bisFahrt >= von && start <= bis) return reise.id;
+  const driveEnd = Number.isFinite(end) ? end : start;
+  for (const trip of state.trips) {
+    const from = Date.parse(trip.range?.from ?? "");
+    const to = trip.range?.to ? Date.parse(trip.range.to) : Date.now();
+    if (Number.isFinite(from) && driveEnd >= from && start <= to) return trip.id;
   }
   return null;
 }
 
-/** Die Spur einer einzelnen Fahrt nachladen. */
+/** Load the track of a single drive. */
 export async function drivePath(drive) {
   if (!state.config.device) return [];
-  const von = verschobeneISO(drive.from, -2 * 60000);
-  const bis = verschobeneISO(drive.to || new Date().toISOString(), 2 * 60000);
-  debugLog("drive-path.request", { key: drive.key, from: drive.from, to: drive.to, requestedFrom: von, requestedTo: bis });
-  const roh = await fetchRoute(state.config.device, von, bis);
-  const path = positionsToPath(roh);
-  debugLog("drive-path.loaded", { key: drive.key, raw: Array.isArray(roh) ? roh.length : "not-array", pathPoints: path.length });
+  const from = shiftedIso(drive.from, -2 * 60000);
+  const to = shiftedIso(drive.to || new Date().toISOString(), 2 * 60000);
+  debugLog("drive-path.request", { key: drive.key, from: drive.from, to: drive.to, requestedFrom: from, requestedTo: to });
+  const raw = await fetchRoute(state.config.device, from, to);
+  const path = positionsToPath(raw);
+  debugLog("drive-path.loaded", { key: drive.key, raw: Array.isArray(raw) ? raw.length : "not-array", pathPoints: path.length });
   return path;
 }
 
-function verschobeneISO(iso, deltaMs) {
+function shiftedIso(iso, deltaMs) {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return iso;
   return new Date(t + deltaMs).toISOString();
 }
 
-/* ---------- Übernachtungen automatisch erkennen (N15) ---------- */
+/* ---------- Automatic overnight stays ---------- */
 
-// Titel, die eine automatische Erkennung vergibt, solange keine Adresse
-// bekannt ist. Die eigentliche Erkennung (Übernachtung/Stopp anlegen)
-// läuft seit dem 6. September 2026 serverseitig im ingest-Container
-// (tracker-backend/src/auto-import.js, periodisch für ALLE Fahrzeuge) —
-// die frühere Browser-Variante hier (autoImportCurrentStay()/
-// autoImportStays()) wurde entfernt: beide gleichzeitig zu betreiben war
-// redundant und hat wiederholt zu Inkonsistenzen geführt (u. a. der
-// nights=0- und der verwaiste-Orte-Bug, beide 6. September 2026). Diese
-// Titel-Liste bleibt trotzdem hier, weil store.js (ergaenzeOrtsname())
-// sie braucht, um zu entscheiden, ob ein später eintreffender
-// Namensvorschlag den Titel noch ersetzen darf oder der Mensch ihn längst
-// selbst geändert hat — eine eigene Kopie dieser Liste dort wäre genau
-// die Art Falle, die ROUTE_DRIVE_FILTERS/MAP_METRICS in state.js schon
-// einmal waren, deshalb eine einzige, exportierte Quelle statt
-// verstreuter String-Literale.
-export const AUTO_ORT_PLATZHALTER_TITEL = ["Aktuelle Übernachtung", "Übernachtung", "Stopp"];
+// Titles an automatic detection gives while no address is known. The detection
+// itself (creating overnight stays and stops) runs on the server in the ingest
+// container (tracker-backend/src/auto-import.js) since 6 September 2026. This
+// list stays here because store.js needs it to decide whether a name suggestion
+// arriving later may still replace the title, or whether a person already
+// changed it — one exported source instead of scattered string literals.
+// The titles are UI text and stay German.
+export const AUTO_PLACE_PLACEHOLDER_TITLES = ["Aktuelle Übernachtung", "Übernachtung", "Stopp"];
 
-function entfernungKm(a, b) {
+function distanceBetweenKm(a, b) {
   if (!a || !b) return Infinity;
   const lat1 = Number(a.lat), lon1 = Number(a.lon);
   const lat2 = Number(b.lat), lon2 = Number(b.lon);
@@ -810,49 +789,45 @@ function entfernungKm(a, b) {
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-// Radius für die Wiedererkennung eines schon bekannten ORTES über Reisen
-// hinweg — dieselbe Schwelle wie DOPPELTER_STOPP_RADIUS_KM/
-// ORT_WIEDERERKENNUNG_RADIUS_KM in tracker-backend/src/auto-import.js
-// (dort bei Änderung mit nachziehen).
-const ORT_WIEDERERKENNUNG_RADIUS_KM = 0.3;
+// Radius for recognising an already known PLACE across trips — the same
+// threshold as in tracker-backend/src/auto-import.js (change both together).
+const PLACE_RECOGNITION_RADIUS_KM = 0.3;
 
 /**
- * Gibt es (über ALLE Reisen hinweg, nicht nur die aktuelle) bereits einen
- * Ort in der Nähe derselben Kategorie? Für einen echt NEUEN Besuch an
- * einem schon bekannten Ort — z. B. derselbe Stellplatz wie letztes Jahr,
- * manuell über den Orte-Editor erfasst (die automatische Erkennung läuft
- * serverseitig, siehe oben, und hat ihre eigene, gleichwertige Kopie
- * dieser Logik). Wird der bestehende ort_id wiederverwendet, zählt
- * "wie oft war ich hier" (orteMitBesuchszahl()) automatisch richtig,
- * statt für jeden Besuch einen neuen, unverknüpften Ort anzulegen. Nimmt
- * den nächstgelegenen Treffer, nicht einfach den ersten.
+ * Is there (across ALL trips, not only the current one) already a place of the
+ * same category nearby? For a really NEW visit at a known place — e.g. the same
+ * camp site as last year, entered by hand in the place editor (the automatic
+ * detection runs on the server and has its own copy of this logic). Reusing the
+ * existing ort_id makes "how often was I here" (placesWithVisitCount()) count
+ * right instead of creating a new, unlinked place for every visit. Takes the
+ * nearest match, not just the first.
  */
-export function findeVorhandenenOrt({ lat, lon, catId }) {
-  let bester = null, besteEntfernung = Infinity;
+export function findExistingPlace({ lat, lon, catId }) {
+  let best = null, bestDistance = Infinity;
   for (const p of state.places) {
     if (!p.ortId || p.catId !== catId) continue;
-    const d = entfernungKm({ lat, lon }, p);
-    if (d <= ORT_WIEDERERKENNUNG_RADIUS_KM && d < besteEntfernung) { bester = p; besteEntfernung = d; }
+    const d = distanceBetweenKm({ lat, lon }, p);
+    if (d <= PLACE_RECOGNITION_RADIUS_KM && d < bestDistance) { best = p; bestDistance = d; }
   }
-  return bester?.ortId || null;
+  return best?.ortId || null;
 }
 
 /**
- * Reisen neu holen — nach jeder Änderung, die zentral gespeichert wurde.
- * So zeigt die App den Stand der Datenbank und nicht eine lokale Annahme.
+ * Load the trips again — after every change stored centrally, so the app shows
+ * the state of the database and not a local assumption.
  */
 export async function reloadTrips() {
   if (state.config.demo || !isConfigured()) return;
-  const vorherMapTripId = state.mapTripId;
-  const vorherWarAktiv = vorherMapTripId && vorherMapTripId === state.activeTripId;
+  const previousMapTripId = state.mapTripId;
+  const previousWasActive = previousMapTripId && previousMapTripId === state.activeTripId;
   const rows = await listTrips();
   state.trips = (rows || []).map(toTrip);
-  const standard = standardReise(state.trips);
-  const active = standard?.live ? standard : null;
+  const fallback = defaultTrip(state.trips);
+  const active = fallback?.live ? fallback : null;
   state.activeTripId = active?.id || null;
-  const aktuelleKarteExistiert = state.trips.some((t) => t.id === state.mapTripId);
-  if (!aktuelleKarteExistiert || vorherWarAktiv) {
-    state.mapTripId = standard?.id || null;
+  const mapTripStillExists = state.trips.some((t) => t.id === state.mapTripId);
+  if (!mapTripStillExists || previousWasActive) {
+    state.mapTripId = fallback?.id || null;
   }
   emit("trips");
   debugLog("trips.reloaded", {
@@ -860,12 +835,12 @@ export async function reloadTrips() {
     activeTripId: state.activeTripId, mapTripId: state.mapTripId,
   });
   await loadDrives();
-  const gezeigt = state.trips.find((t) => t.id === state.mapTripId) || standard;
-  if (gezeigt) await ensureTripPath(gezeigt);
+  const shown = state.trips.find((t) => t.id === state.mapTripId) || fallback;
+  if (shown) await ensureTripPath(shown);
   saveSnapshot();
 }
 
-/** Lädt die Daten passend zur eingestellten Quelle. */
+/** Loads the data for the chosen source. */
 export async function loadData() {
   if (state.config.demo) {
     state.livePosition = null;
@@ -889,51 +864,44 @@ export async function loadData() {
   }
 
   setStatus({ mode: "live", loading: true, error: null });
-  const vorherMapTripId = state.mapTripId;
-  const vorherigeTrips = new Map(state.trips.map((t) => [t.id, t]));
+  const previousMapTripId = state.mapTripId;
+  const previousTrips = new Map(state.trips.map((t) => [t.id, t]));
   try {
-    const [trips, places, notes, categories, photos, vehicles, tagebuch] = await Promise.all([
+    const [trips, places, notes, categories, photos, vehicles, diary] = await Promise.all([
       listTrips(), listPlaces(), listNotes().catch(() => []), listCategories().catch(() => []), listPhotos().catch(() => []),
-      listVehicles().catch(() => []), listTagebuch().catch(() => null),
+      listVehicles().catch(() => []), listDiary().catch(() => null),
     ]);
 
-    state.trips = (trips || []).map((row, index) => tripMitLetztemStand(toTrip(row, index), vorherigeTrips.get(row.id)));
+    state.trips = (trips || []).map((row, index) => tripWithLastState(toTrip(row, index), previousTrips.get(row.id)));
     state.places = (places || []).map(toPlace);
     state.notes = (notes || []).map(toNote);
     state.photos = (photos || []).map(toPhoto);
-    // Schlägt das Laden des Tagebuchs fehl (z. B. kurz offline), bleibt der bisherige Stand stehen.
-    if (tagebuch) state.tagebuch = tagebuch.map(toTagebuch);
-    const standard = standardReise(state.trips);
-    const active = standard?.live ? standard : null;
+    // If loading the diary fails (e.g. briefly offline), the previous state stays.
+    if (diary) state.diary = diary.map(toDiaryEntry);
+    const fallback = defaultTrip(state.trips);
+    const active = fallback?.live ? fallback : null;
     state.activeTripId = active?.id || null;
-    state.mapTripId = state.trips.some((t) => t.id === vorherMapTripId) ? vorherMapTripId : (standard?.id || null);
+    state.mapTripId = state.trips.some((t) => t.id === previousMapTripId) ? previousMapTripId : (fallback?.id || null);
 
-    // Geräteübergreifende Einstellungen haben Vorrang vor dem lokalen Stand.
+    // Settings shared across devices win over the local state.
     const prefs = await loadSettings().catch(() => null);
     if (prefs && Object.keys(prefs).length) applyPreferences(prefs);
     else applyLocalData();
 
-    // Kategorien UND Fahrzeuge NACH applyPreferences/applyLocalData
-    // anwenden, damit sie garantiert gewinnen, nicht umgekehrt überschrieben
-    // werden. Echter Fund (16. August 2026 für Fahrzeuge, 6. September 2026
-    // fürs selbe Muster bei Kategorien): beide liefen vorher (auch) über
-    // die Einstellungen-Sammelablage (oben) — die wird nur beim Laden
-    // komplett ersetzt, ein zweites Gerät sah dann seinen eigenen,
-    // womöglich veralteten Stand, und "wer zuletzt speichert" gewann, ohne
-    // Rücksicht auf zwischenzeitlich echte Änderungen (neue Kategorie
-    // angelegt, Fahrzeug wechselt). Die categories-/vehicles-Tabellen
-    // synchronisieren dagegen sofort bei jeder Änderung — jetzt für beide
-    // die einzige Quelle beim Laden. Konkret beobachtet: der Ort-Editor
-    // zeigte nur zwei uralte Kategorien statt aller elf, weil genau diese
-    // veraltete Sammelablage state.categories nach dem korrekten Laden
-    // wieder überschrieben hatte.
+    // Categories AND vehicles are applied AFTER applyPreferences/applyLocalData,
+    // so they are sure to win and are not overwritten. Seen 16 August 2026
+    // (vehicles) and 6 September 2026 (categories): both used to go through
+    // the collected settings store, which is only replaced as a whole on load —
+    // a second device saw its own, possibly outdated state and "whoever saves
+    // last" won. The categories and vehicles tables are synchronised on every
+    // change and are now the only source on load.
     if (categories?.length) {
       state.categories = Object.fromEntries(categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
     }
     if (vehicles?.length) {
       state.vehicles = vehicles.map(toVehicle);
-      const aktiverIndex = vehicles.findIndex((v) => v.active);
-      state.activeVehicle = aktiverIndex >= 0 ? aktiverIndex : 0;
+      const activeIndex = vehicles.findIndex((v) => v.active);
+      state.activeVehicle = activeIndex >= 0 ? activeIndex : 0;
       state.config.device = state.vehicles[state.activeVehicle]?.device || "";
       saveConfig();
     }
@@ -945,8 +913,8 @@ export async function loadData() {
       activeTripId: state.activeTripId, mapTripId: state.mapTripId,
     });
     await loadDrives();
-    const gezeigt = state.trips.find((t) => t.id === state.mapTripId) || standard;
-    if (gezeigt) await ensureTripPath(gezeigt);
+    const shown = state.trips.find((t) => t.id === state.mapTripId) || fallback;
+    if (shown) await ensureTripPath(shown);
     saveSnapshot();
   } catch (err) {
     setStatus({ mode: "live", loading: false, error: `Daten konnten nicht geladen werden: ${err.message}` });

@@ -1,36 +1,34 @@
-// Zentrale Datenhaltung — eine Quelle der Wahrheit.
+// Central app state — one source of truth.
 //
-// Wichtigste Entscheidung: Es gibt genau EINE Ortsliste (`state.places`).
-// Übernachtungen sind dort ganz normale Orte mit `catId: "uebernachtung"`
-// und einer laufenden `night`-Nummer. Reisen halten nur ihre Route (`path`)
-// und verweisen über `tripId` auf ihre Orte — nichts wird doppelt geführt.
+// Key decision: there is exactly ONE list of places (`state.places`).
+// Overnight stays are ordinary places with `catId: "uebernachtung"` and a
+// running night number. Trips only hold their route (`path`) and refer to
+// their places through `tripId` — nothing is kept twice.
 
 const listeners = new Set();
 
-// Gültige Werte für state.routeDriveFilter — an EINER Stelle, nicht als
-// literale Liste an vier Stellen dupliziert (genau das führte beim
-// Hinzufügen von "nicht_zugeordnet" dazu, dass der Klick auf den neuen
-// Filter zunächst nichts tat: setRouteDriveFilter() hatte noch die alte,
-// engere Liste und wies den neuen Wert still ab).
+// Valid values for state.routeDriveFilter — in ONE place, not as a literal list
+// copied into four places (that is exactly why adding "nicht_zugeordnet" first
+// did nothing: setRouteDriveFilter() still had the old, shorter list and
+// silently rejected the new value). The values are stored and stay German.
 export const ROUTE_DRIVE_FILTERS = ["etappe", "abstecher", "alle", "nicht_zugeordnet"];
 
-// Dieselbe Falle, derselbe Fix: gültige Werte für state.metric (Karten-
-// Einfärbung) an EINER Stelle statt an sechs Stellen dupliziert.
+// Same trap, same fix: valid values for state.metric (map colouring) in ONE place.
 export const MAP_METRICS = ["none", "trip", "day", "speed", "elev", "dist"];
 
 export const state = {
   trips: [],          // { id, name, dates, live, km, nights, peak, hue, path, bars, barLabels }
-  places: [],         // Besuch+Ort geflacht: { id, ortId, tripId|null (live berechnet), catId, title, note, stars, date, at, lon, lat, source, hue }
-  notes: [],          // { id, tripId|null (live berechnet), besuchId|null, text, at, lon, lat, source }
+  places: [],         // visit and place flattened: { id, ortId, tripId|null (computed), catId, title, note, stars, date, at, lon, lat, source, hue }
+  notes: [],          // { id, tripId|null (computed), besuchId|null, text, at, lon, lat, source }
   photos: [],         // { id, besuchId|null, noteId|null, tagebuchId|null, takenAt, lat, lon, width, height }
-  tagebuch: [],       // { id, tripId, dayKey, blocks, author, createdAt, updatedAt } — ein Eintrag je Reise und Tag
-  livePosition: null, // { lon, lat, at, speed } — letzte Meldung des Fahrzeugs
-  drives: [],         // Fahrten vom Server: { id, from, to, km, minutes, startAddress, endAddress, tripId, kind }
-  adhocTrip: null,    // einzelne Fahrt, die gerade auf der Karte liegt
-  rangeTrip: null,    // temporärer Zeitraum-Kontext: Karte/Statistik über mehrere Reisen hinweg
-  driveAssignments: {}, // Fahrt-Kennung -> Reise-ID (null = ausdrücklich Alltag)
-  driveKinds: {},     // Fahrt-Kennung -> etappe | abstecher
-  driveWeather: {},   // Fahrt-Kennung -> Wetter am Startpunkt (Zwischenspeicher)
+  diary: [],          // { id, tripId, dayKey, blocks, author, createdAt, updatedAt } — one entry per trip and day
+  livePosition: null, // { lon, lat, at, speed } — the vehicle's last report
+  drives: [],         // drives from the server: { id, from, to, km, minutes, startAddress, endAddress, tripId, kind }
+  adhocTrip: null,    // a single drive currently shown on the map
+  rangeTrip: null,    // temporary time span: map and statistics across several trips
+  driveAssignments: {}, // drive key -> trip id (null = explicitly everyday)
+  driveKinds: {},     // drive key -> etappe | abstecher
+  driveWeather: {},   // drive key -> weather at the start (cache)
   categories: {},     // id -> { name, color }
   vehicles: [],       // { name, device }
   activeVehicle: 0,
@@ -38,32 +36,29 @@ export const state = {
   alarmTypes: [],
   alarmLog: [],
   guardArmed: true,
-  guardRadius: 50, // Meter um die Position beim Scharfschalten (kein Zonen-Konzept, siehe guard.js)
-  guardAnchor: null, // { lat, lon } des Ankerpunkts, für die Dauerlicht-Prüfung in main.js
-  guardZoneRadius: null, // Meter — der beim letzten Scharfschalten TATSÄCHLICH gespeicherte Radius (guardRadius ist nur das Eingabefeld)
-  guardSince: null, // ISO-Zeitpunkt des letzten Scharfschaltens (aus dem Alarm-Protokoll)
-  guardAnchorName: null, // Adresse des Ankerpunkts (Reverse-Geocoding), nur zur Anzeige
+  guardRadius: 50, // metres around the position when arming (no zones, see guard.js)
+  guardAnchor: null, // { lat, lon } of the anchor, for the steady-light check in main.js
+  guardZoneRadius: null, // metres — the radius ACTUALLY stored when last armed (guardRadius is only the input field)
+  guardSince: null, // ISO time of the last arming (from the alarm log)
+  guardAnchorName: null, // address of the anchor (reverse geocoding), display only
   dailyDrives: [],
 
-  // Ansichtszustand
-  activeTripId: null, // laufende Reise (fachlich)
-  mapTripId: null,    // auf der Karte gezeigte Reise (Ansicht)
-  metric: "day",      // siehe MAP_METRICS oben
-  routeDriveFilter: "etappe", // siehe ROUTE_DRIVE_FILTERS oben
+  // View state
+  activeTripId: null, // the running trip
+  mapTripId: null,    // the trip shown on the map
+  metric: "day",      // see MAP_METRICS above
+  routeDriveFilter: "etappe", // see ROUTE_DRIVE_FILTERS above
   layers: { nights: true, places: true, notes: true, km: false },
   filters: { text: "", cats: {}, trip: "", source: "", ref: "none", radius: 0 },
-  // demo: false als Grundzustand — main.js setzt es beim Start explizit auf
-  // true für "nicht angemeldet"/"API nicht erreichbar" (siehe dort). Ein
-  // angemeldeter Nutzer bekommt dagegen nie ein explizites `= false`
-  // spendiert, sondern läuft mit dem, was hier steht bzw. in localStorage
-  // liegt. Stand true als Grundzustand wäre für einen frisch installierten
-  // PWA-Neustart (leeres localStorage, z. B. nach Neuinstallation) falsch:
-  // ein wirklich angemeldeter Rückkehrer sah dann trotz gültiger Sitzung
-  // erst die eingebaute Demo-Reise, bis der Schalter von Hand umgelegt
-  // wurde (live beobachtet, 16. August 2026).
-  config: { device: "", demo: false, theme: "auto", gelaende: false, kartenstil: "farbig", lueckenMarkieren: false },
-  account: null,     // { username, email, emailVerified, isAdmin } wenn angemeldet
-  gast: null,        // { scope, alleReisen, label } wenn per Freigabe-Link geöffnet (nie zusammen mit account)
+  // demo: false by default — main.js sets it to true on start for "not signed
+  // in" / "API unreachable" (see there). A signed-in user never gets an explicit
+  // `= false`, but runs with what is here or in localStorage. true as the
+  // default was wrong for a freshly installed PWA (empty localStorage): a user
+  // who was really signed in first saw the built-in demo trip (seen 16 August 2026).
+  // mapStyle values "farbig" / "dezent" are stored and stay German.
+  config: { device: "", demo: false, theme: "auto", terrain: false, mapStyle: "farbig", markGaps: false },
+  account: null,     // { username, email, emailVerified, isAdmin } when signed in
+  guest: null,       // { scope, allTrips, label, token } when opened through a sharing link (never together with account)
 };
 
 export function subscribe(fn) {
@@ -71,30 +66,28 @@ export function subscribe(fn) {
   return () => listeners.delete(fn);
 }
 
-/** Meldet eine Änderung. `topic` erlaubt gezieltes Neuzeichnen. */
 // Counts every change of the data that trip and day values are computed from.
 // Views use it to keep computed values until something actually changed.
-const DATEN_THEMEN = new Set(["*", "trips", "tripPath", "drives", "notes", "places", "photos", "vehicles", "routeDriveFilter", "config"]);
-let datenStand = 0;
-export const aktuellerDatenStand = () => datenStand;
+const DATA_TOPICS = new Set(["*", "trips", "tripPath", "drives", "notes", "places", "photos", "vehicles", "routeDriveFilter", "config"]);
+let revision = 0;
+export const dataRevision = () => revision;
 
+/** Announces a change. `topic` allows redrawing only what is affected. */
 export function emit(topic = "*") {
-  if (DATEN_THEMEN.has(topic)) datenStand++;
+  if (DATA_TOPICS.has(topic)) revision++;
   for (const fn of listeners) fn(topic);
 }
 
-/* ---------- Abfragen ---------- */
+/* ---------- Queries ---------- */
 
 export const trip = (id) => state.trips.find((t) => t.id === id) || null;
 export const activeTrip = () => trip(state.activeTripId);
 export const mapTrip = () => state.adhocTrip || state.rangeTrip || trip(state.mapTripId) || state.trips[0] || null;
 
 /**
- * Die Reise, deren Tagebuch gezeigt wird. Bewusst OHNE `adhocTrip`: Zeigt man
- * eine einzelne Fahrt „auf der Karte“ (z. B. per Klick auf eine Fahrten-Zeile),
- * ist das eine Vorschau der Karte — das Tagebuch soll dabei nicht plötzlich
- * eine leere Fahrt statt der echten Reise zeigen (das sah wie verlorene
- * Einträge aus, waren aber nur die falsche Reise).
+ * The trip whose logbook is shown. Deliberately WITHOUT `adhocTrip`: showing a
+ * single drive on the map is a map preview — the logbook must not suddenly show
+ * an empty drive instead of the real trip (that looked like lost entries).
  */
 export const journalTrip = () => state.rangeTrip || trip(state.mapTripId) || state.trips[0] || null;
 
@@ -123,7 +116,7 @@ export function rangeTrips(range = state.rangeTrip?.range) {
     .sort((a, b) => String(b.range?.from || b.start || "").localeCompare(String(a.range?.from || a.start || "")));
 }
 
-/** Eine einzelne Fahrt auf der Karte zeigen (ohne sie zu einer Reise zu machen). */
+/** Show a single drive on the map (without making it a trip). */
 export function showAdhocOnMap(tripLike) {
   state.adhocTrip = tripLike;
   emit("mapTrip");
@@ -135,7 +128,7 @@ export function clearAdhoc() {
 }
 export const category = (id) => state.categories[id] || { name: "—", color: "#888" };
 
-/** Alle Orte einer Reise: Übernachtungen zuerst, dann der Rest (jeweils chronologisch). */
+/** All places of a trip: overnight stays first, then the rest (each in time order). */
 export function tripPlaces(tripId) {
   if (tripId === state.rangeTrip?.id) {
     return state.places
@@ -151,14 +144,14 @@ export function tripPlaces(tripId) {
     });
 }
 
-/** Notizen einer Reise, chronologisch. */
+/** Notes of a trip, in time order. */
 export const tripNotes = (tripId) =>
   tripId === state.rangeTrip?.id
     ? state.notes.filter((n) => inIsoRange(n.at, state.rangeTrip.range)).sort((a, b) => String(a.at).localeCompare(String(b.at)))
     : state.notes.filter((n) => n.tripId === tripId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
-/** Fotos zu einem Besuch bzw. einer Notiz, nach Aufnahmezeit. `placeId`
- * meint hier wie überall in der Oberfläche die Besuch-ID (besuchId). */
+/** Photos of a visit or a note, by time taken. `placeId` means the visit id
+ * (besuchId), as everywhere in the UI. */
 export const placePhotos = (placeId) =>
   state.photos.filter((p) => p.besuchId === placeId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
 export const notePhotos = (noteId) =>
@@ -177,22 +170,22 @@ export function removePhoto(id) {
   emit("photos");
 }
 
-/** Fotos eines Tagebucheintrags, nach Aufnahmezeit. */
-export const tagebuchFotos = (eintragId) =>
-  state.photos.filter((p) => p.tagebuchId === eintragId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
+/** Photos of a diary entry, by time taken. */
+export const diaryPhotos = (entryId) =>
+  state.photos.filter((p) => p.tagebuchId === entryId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
 
-export const tagebuchFuer = (tripId, dayKey) => state.tagebuch.find((e) => e.tripId === tripId && e.dayKey === dayKey) || null;
+export const diaryEntryFor = (tripId, dayKey) => state.diary.find((e) => e.tripId === tripId && e.dayKey === dayKey) || null;
 
-export function upsertTagebuch(eintrag) {
-  const i = state.tagebuch.findIndex((e) => e.id === eintrag.id || (e.tripId === eintrag.tripId && e.dayKey === eintrag.dayKey));
-  if (i >= 0) state.tagebuch[i] = { ...state.tagebuch[i], ...eintrag };
-  else state.tagebuch.push(eintrag);
+export function upsertDiaryEntry(entry) {
+  const i = state.diary.findIndex((e) => e.id === entry.id || (e.tripId === entry.tripId && e.dayKey === entry.dayKey));
+  if (i >= 0) state.diary[i] = { ...state.diary[i], ...entry };
+  else state.diary.push(entry);
   emit("notes");
 }
 
-export function removeTagebuch(id) {
-  const i = state.tagebuch.findIndex((e) => e.id === id);
-  if (i >= 0) state.tagebuch.splice(i, 1);
+export function removeDiaryEntry(id) {
+  const i = state.diary.findIndex((e) => e.id === id);
+  if (i >= 0) state.diary.splice(i, 1);
   state.photos = state.photos.filter((p) => p.tagebuchId !== id);
   emit("notes");
 }
@@ -216,21 +209,20 @@ export const nightsOf = (tripId) =>
     .sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")) || String(a.id).localeCompare(String(b.id)));
 
 /**
- * Laufende Nummer einer Übernachtung innerhalb ihrer Reise — nach Zeitpunkt
- * sortiert und bei jedem Aufruf neu berechnet. So bleibt die Nummerierung
- * immer lückenlos und richtig, auch wenn nachträglich eine frühere
- * Übernachtung eingefügt oder eine gelöscht wird — ganz ohne Umnummerieren.
+ * Running number of an overnight stay within its trip — sorted by time and
+ * computed on every call, so the numbering stays complete and right when an
+ * earlier stay is added or one is deleted, without renumbering anything.
  */
 export function nightNumber(place) {
   if (!place || place.catId !== "uebernachtung") return null;
-  const reihenfolge = nightsOf(place.tripId);
-  const index = reihenfolge.findIndex((p) => p.id === place.id);
+  const order = nightsOf(place.tripId);
+  const index = order.findIndex((p) => p.id === place.id);
   return index >= 0 ? index + 1 : null;
 }
 
-/** Summe der tatsächlich verbrachten Nächte einer Reise (nicht die Zahl der Stopps). */
+/** Sum of the nights actually spent on a trip (not the number of stops). */
 export const nightsCount = (tripId) =>
-  nightsOf(tripId).reduce((summe, p) => summe + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1), 0);
+  nightsOf(tripId).reduce((sum, p) => sum + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1), 0);
 
 export function placeCounts() {
   const counts = {};
@@ -238,7 +230,7 @@ export function placeCounts() {
   return counts;
 }
 
-/* ---------- Änderungen ---------- */
+/* ---------- Changes ---------- */
 
 let seq = 0;
 export const newId = (prefix) => `${prefix}_${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -323,15 +315,15 @@ export function deleteTrip(id) {
   emit("trips");
 }
 
-/* ---------- Dauerhaft merken ---------- */
+/* ---------- Kept on the device ---------- */
 
 const CFG_KEY = "vojago.config";
 const LOCAL_KEY = "vojago.local";
 
 /**
- * Kategorien und Fahrzeuge gehören dem Benutzer — sie dürfen beim Neustart
- * nicht verschwinden. Bis die API sie führt, werden sie lokal gesichert;
- * gespeichert wird der Ist-Zustand, nicht ein Unterschied zur Vorgabe.
+ * Categories and vehicles belong to the user — they must not disappear on a
+ * restart. They are kept locally as a fallback; what is stored is the current
+ * state, not a difference to the defaults.
  */
 export function saveLocalData() {
   try {
@@ -344,10 +336,10 @@ export function saveLocalData() {
       routeDriveFilter: state.routeDriveFilter,
       layers: state.layers,
     }));
-  } catch { /* Speicher voll oder gesperrt */ }
+  } catch { /* storage full or blocked */ }
 }
 
-/** Gesicherten Stand über die geladenen Vorgaben legen. */
+/** Lay the stored state over the loaded defaults. */
 export function applyLocalData() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null"); } catch { return; }
@@ -362,20 +354,12 @@ export function applyLocalData() {
 }
 
 /**
- * Was geräteübergreifend gelten soll. Bewusst NICHT dabei: API-Adresse und
- * Token — sie sind der Schlüssel zu dieser Ablage und liegen deshalb auf dem
- * Gerät (sonst bräuchte man sie, um an sie heranzukommen).
- *
- * Ebenfalls bewusst NICHT dabei (mehr): vehicles/activeVehicle/device.
- * Echter Fund (16. August 2026): diese Sammel-Ablage wird nur BEIM LADEN
- * einmal komplett überschrieben — meldet sich ein zweites Gerät an, bevor
- * das erste je gespeichert hat, sehen beide unterschiedliche Stände, und
- * das zuletzt speichernde Gerät gewinnt einfach, ohne Rücksicht auf das
- * andere. Fahrzeuge haben mit der `vehicles`-Tabelle (api/router.js) längst
- * eine echte, sauber synchronisierte Ablage (jede Änderung landet
- * augenblicklich beim Server, nicht erst gesammelt) — dataload.js lädt sie
- * jetzt bei jedem Start frisch, das macht diese Sammel-Kopie überflüssig
- * (und potenziell irreführend, siehe oben).
+ * What applies across devices. Deliberately NOT included: vehicles,
+ * activeVehicle and device. Seen on 16 August 2026: this collected store is
+ * replaced as a whole only on load — when a second device signed in before the
+ * first had saved, both saw different states and the device saving last simply
+ * won. Vehicles have their own synchronised table (`vehicles`, api/router.js);
+ * dataload.js loads it fresh on every start.
  */
 export const collectPreferences = () => ({
   categories: state.categories,
@@ -394,18 +378,33 @@ export function applyPreferences(prefs) {
   if (prefs.layers && typeof prefs.layers === "object") Object.assign(state.layers, prefs.layers);
 }
 
-/** Auf Werkszustand zurücksetzen (in den Einstellungen erreichbar). */
+/** Reset to factory state (reachable in the settings). */
 export function forgetLocalData() {
-  try { localStorage.removeItem(LOCAL_KEY); } catch { /* egal */ }
+  try { localStorage.removeItem(LOCAL_KEY); } catch { /* ignore */ }
+}
+
+// Config keys used before the code moved to English; stored values are taken over once.
+const OLD_CONFIG_KEYS = { gelaende: "terrain", kartenstil: "mapStyle", lueckenMarkieren: "markGaps" };
+
+/** Config as stored on the device, with the old German keys renamed. */
+export function migrateConfig(stored) {
+  const out = { ...(stored && typeof stored === "object" ? stored : {}) };
+  for (const [old, now] of Object.entries(OLD_CONFIG_KEYS)) {
+    if (old in out) {
+      if (!(now in out)) out[now] = out[old];
+      delete out[old];
+    }
+  }
+  return out;
 }
 
 export function loadConfig() {
   try {
-    Object.assign(state.config, JSON.parse(localStorage.getItem(CFG_KEY) || "{}"));
-  } catch { /* ungültige Daten ignorieren */ }
+    Object.assign(state.config, migrateConfig(JSON.parse(localStorage.getItem(CFG_KEY) || "{}")));
+  } catch { /* ignore invalid data */ }
 }
 
 export function saveConfig() {
-  try { localStorage.setItem(CFG_KEY, JSON.stringify(state.config)); } catch { /* Speicher voll/blockiert */ }
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(state.config)); } catch { /* storage full or blocked */ }
   emit("config");
 }

@@ -121,7 +121,7 @@ export function exportDebugLog(state, status) {
     mapTripId: state.mapTripId,
     trips: state.trips.map((t) => tripExport(t, precise)),
     drives: state.drives.map((d) => ({
-      key: d.key, from: d.from, to: d.to, tripId: d.tripId, manuell: d.manuell,
+      key: d.key, from: d.from, to: d.to, tripId: d.tripId, manual: d.manual,
       km: d.km, minutes: d.minutes, hasWeather: Boolean(d.weather),
       hasStartPosition: Number.isFinite(d.startLat) && Number.isFinite(d.startLon),
       startAddress: precise ? d.startAddress : REDACTED,

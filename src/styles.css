@@ -831,7 +831,7 @@
   .jt-karte[open] > .jt-karte-kopf { margin-bottom: 8px; }
   .jt-route { position: absolute; left: 0; top: 0; width: 340px; height: 150px; }
   .jt-quelle { position: absolute; right: 0; bottom: 0; padding: 1px 6px; border-radius: 6px 0 0 0; background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--ink-faint); font-size: 10px; }
-  /* Im Dunkelmodus wie die große Karte abdunkeln (Werte entsprechen kachelPaint in map-style.js) */
+  /* Im Dunkelmodus wie die große Karte abdunkeln (values match tilePaint in map-style.js) */
   :root[data-theme="dark"] .jt-kachel { filter: brightness(.5) contrast(1.25) saturate(1.3); }
   :root[data-theme="dark"] .jt-kachel-dezent { filter: brightness(.5) contrast(1.25) saturate(.8); }
   @media (prefers-color-scheme: dark) {

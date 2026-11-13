@@ -2,7 +2,7 @@
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { applyTheme, gueltigesTheme } from "../theme.js";
 import { routeInfoRows } from "../route-info.js";
-import { gueltigerKartenstil } from "../map-style.js";
+import { validMapStyle } from "../map-style.js";
 import * as mapview from "../mapview.js";
 import { ICON } from "../icons.js";
 import { state, saveConfig, emit, saveLocalData, forgetLocalData, collectPreferences } from "../state.js";
@@ -13,7 +13,7 @@ import { health, isConfigured, logout, changePassword, setEmail,
   createShare, listShares, revokeShare, devices as fetchDevices,
   ingestStatus, setIngestLearning,
   listUsers, createUser, updateUser, deleteUser } from "../api.js";
-import { status as dataStatus, forgetSnapshot, routenAbruf } from "../dataload.js";
+import { status as dataStatus, forgetSnapshot, routeLoadLog } from "../dataload.js";
 import { clearRoutes } from "../route-store.js";
 import { clearDebugLog, debugCount, debugEnabled, exportDebugLog, preciseDebugDataEnabled, setDebugEnabled, setPreciseDebugDataEnabled } from "../debug.js";
 
@@ -382,26 +382,26 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
   zeigeTheme();
 
   const zeigeKartenstil = () => {
-    const aktuell = gueltigerKartenstil(state.config.kartenstil);
+    const aktuell = validMapStyle(state.config.mapStyle);
     $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === aktuell)));
   };
   $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => b.addEventListener("click", () => {
-    state.config.kartenstil = gueltigerKartenstil(b.dataset.kartenstilWahl);
+    state.config.mapStyle = validMapStyle(b.dataset.kartenstilWahl);
     saveConfig();
-    mapview.setKartenstil(state.config.kartenstil);
+    mapview.setMapStyle(state.config.mapStyle);
     zeigeKartenstil();
   }));
   zeigeKartenstil();
 
   const lueckenSwitch = $("#cfg-luecken");
   if (lueckenSwitch) {
-    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.lueckenMarkieren)));
+    lueckenSwitch.setAttribute("aria-checked", String(Boolean(state.config.markGaps)));
     lueckenSwitch.addEventListener("click", () => {
       const an = lueckenSwitch.getAttribute("aria-checked") !== "true";
       lueckenSwitch.setAttribute("aria-checked", String(an));
-      state.config.lueckenMarkieren = an;
+      state.config.markGaps = an;
       saveConfig();
-      mapview.setLuecken(an);
+      mapview.setGaps(an);
     });
   }
 
@@ -507,7 +507,7 @@ async function emailSpeichern() {
 export function renderRouteInfo() {
   const box = $("#route-info");
   if (!box) return;
-  render(box, routeInfoRows(routenAbruf).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
+  render(box, routeInfoRows(routeLoadLog).map(([k, v]) => el("div", {}, [el("span", { text: k }), el("b", { text: v })])));
 }
 
 function renderDebugControls() {
