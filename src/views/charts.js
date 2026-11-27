@@ -21,21 +21,35 @@ export function miniRoute(trip, w, h) {
   const spanLon = Math.max(b.maxLon - b.minLon, 1e-6);
   const spanLat = Math.max(b.maxLat - b.minLat, 1e-6);
   const scale = Math.min((w - 2 * pad) / spanLon, (h - 2 * pad) / spanLat);
-  const ox = pad + ((w - 2 * pad) - spanLon * scale) / 2;
-  const oy = pad + ((h - 2 * pad) - spanLat * scale) / 2;
+  const ox = pad + (w - 2 * pad - spanLon * scale) / 2;
+  const oy = pad + (h - 2 * pad - spanLat * scale) / 2;
   const X = (lon) => ox + (lon - b.minLon) * scale;
   const Y = (lat) => oy + (b.maxLat - lat) * scale; // north up
 
   const d = "M" + path.map((p) => `${X(p.lon).toFixed(1)},${Y(p.lat).toFixed(1)}`).join(" L");
-  svg.appendChild(svgEl("path", {
-    d, fill: "none", stroke: `hsl(${trip.hue},70%,52%)`,
-    "stroke-width": w > 120 ? 3 : 2, "stroke-linecap": "round", "stroke-linejoin": "round",
-  }));
+  svg.appendChild(
+    svgEl("path", {
+      d,
+      fill: "none",
+      stroke: `hsl(${trip.hue},70%,52%)`,
+      "stroke-width": w > 120 ? 3 : 2,
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+    }),
+  );
 
-  const first = path[0], last = path[path.length - 1];
+  const first = path[0],
+    last = path[path.length - 1];
   const r = w > 120 ? 4 : 2.6;
   svg.appendChild(svgEl("circle", { cx: X(first.lon), cy: Y(first.lat), r, fill: "var(--ink)" }));
-  svg.appendChild(svgEl("circle", { cx: X(last.lon), cy: Y(last.lat), r, fill: trip.live ? "var(--accent)" : "var(--ink)" }));
+  svg.appendChild(
+    svgEl("circle", {
+      cx: X(last.lon),
+      cy: Y(last.lat),
+      r,
+      fill: trip.live ? "var(--accent)" : "var(--ink)",
+    }),
+  );
   return svg;
 }
 
@@ -86,7 +100,11 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
   // stretched SVG, label, dot and value chip were distorted (seen 15 October 2026).
   const wrap = document.createElement("div");
   wrap.className = "profile-wrap";
-  const svg = svgEl("svg", { class: "profile", viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: "none" });
+  const svg = svgEl("svg", {
+    class: "profile",
+    viewBox: `0 0 ${w} ${h}`,
+    preserveAspectRatio: "none",
+  });
   wrap.appendChild(svg);
   if (!path?.length) return wrap;
   const pad = 4;
@@ -102,7 +120,8 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
     max = 1;
     for (const v of values) if (v > max) max = v; // a loop instead of Math.max(...values): on very long trips the spread exceeds the argument limit
   } else {
-    min = Infinity; max = -Infinity;
+    min = Infinity;
+    max = -Infinity;
     for (const v of values) {
       if (v < min) min = v;
       if (v > max) max = v;
@@ -123,12 +142,24 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
   }));
 
   const d = "M" + pts.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" L");
-  svg.appendChild(svgEl("path", { d: `${d} L${w - pad},${h - pad} L${pad},${h - pad} Z`, fill: color, opacity: ".14" }));
+  svg.appendChild(
+    svgEl("path", {
+      d: `${d} L${w - pad},${h - pad} L${pad},${h - pad} Z`,
+      fill: color,
+      opacity: ".14",
+    }),
+  );
   // non-scaling-stroke: an evenly thin line, whatever the stretch.
-  svg.appendChild(svgEl("path", {
-    d, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linejoin": "round",
-    "vector-effect": "non-scaling-stroke",
-  }));
+  svg.appendChild(
+    svgEl("path", {
+      d,
+      fill: "none",
+      stroke: color,
+      "stroke-width": 1.5,
+      "stroke-linejoin": "round",
+      "vector-effect": "non-scaling-stroke",
+    }),
+  );
 
   const range = document.createElement("div");
   range.className = "profile-range";
@@ -141,7 +172,12 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
   // releasing until a tap elsewhere — on touch, "disappears on release" would be
   // useless.
   const guide = svgEl("line", {
-    y1: topSpace, y2: h - pad, stroke: color, "stroke-width": 1, "stroke-dasharray": "2,2", opacity: 0,
+    y1: topSpace,
+    y2: h - pad,
+    stroke: color,
+    "stroke-width": 1,
+    "stroke-dasharray": "2,2",
+    opacity: 0,
     "vector-effect": "non-scaling-stroke",
   });
   const dot = document.createElement("div");
@@ -150,7 +186,14 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
   const chip = document.createElement("div");
   chip.className = "profile-chip";
   chip.style.background = color;
-  const overlay = svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "transparent", style: "cursor:crosshair;touch-action:none" });
+  const overlay = svgEl("rect", {
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
+    fill: "transparent",
+    style: "cursor:crosshair;touch-action:none",
+  });
   svg.append(guide, overlay);
   wrap.append(dot, chip);
 
@@ -158,16 +201,24 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
     const rect = svg.getBoundingClientRect();
     if (!rect.width) return;
     const relX = ((clientX - rect.left) / rect.width) * w;
-    let nearest = pts[0], best = Infinity;
+    let nearest = pts[0],
+      best = Infinity;
     for (const pt of pts) {
       const dist = Math.abs(pt.x - relX);
-      if (dist < best) { best = dist; nearest = pt; }
+      if (dist < best) {
+        best = dist;
+        nearest = pt;
+      }
     }
-    guide.setAttribute("x1", nearest.x); guide.setAttribute("x2", nearest.x); guide.setAttribute("opacity", "1");
+    guide.setAttribute("x1", nearest.x);
+    guide.setAttribute("x2", nearest.x);
+    guide.setAttribute("opacity", "1");
 
     const px = (nearest.x / w) * rect.width;
     const py = (nearest.y / h) * rect.height;
-    dot.style.left = `${px}px`; dot.style.top = `${py}px`; dot.style.opacity = "1";
+    dot.style.left = `${px}px`;
+    dot.style.top = `${py}px`;
+    dot.style.opacity = "1";
 
     chip.textContent = format(nearest.v);
     chip.style.opacity = "1";
@@ -177,12 +228,18 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
     chip.style.top = `${Math.max(py - 26, 0)}px`;
   };
   const hide = () => {
-    guide.setAttribute("opacity", "0"); dot.style.opacity = "0"; chip.style.opacity = "0";
+    guide.setAttribute("opacity", "0");
+    dot.style.opacity = "0";
+    chip.style.opacity = "0";
   };
 
   overlay.addEventListener("pointerdown", (e) => show(e.clientX));
-  overlay.addEventListener("pointermove", (e) => { if (e.buttons === 1) show(e.clientX); });
-  overlay.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hide(); });
+  overlay.addEventListener("pointermove", (e) => {
+    if (e.buttons === 1) show(e.clientX);
+  });
+  overlay.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse") hide();
+  });
 
   return wrap;
 }
@@ -192,11 +249,21 @@ const formatSpeed = (v) => `${Math.round(v)} km/h`;
 
 /** Elevation profile of a route. */
 export function elevationProfile(path, w = 320, h = 84) {
-  return profileChart(path, w, h, { valueOf: (p) => p.elev, rangeMode: "minmax", color: "var(--accent)", format: formatElevation });
+  return profileChart(path, w, h, {
+    valueOf: (p) => p.elev,
+    rangeMode: "minmax",
+    color: "var(--accent)",
+    format: formatElevation,
+  });
 }
 
 /** Speed profile of a route (km/h along the positions). Its own accent colour
  * (--indigo), so both curves are easy to tell apart in the same card stack. */
 export function speedProfile(path, w = 320, h = 84) {
-  return profileChart(path, w, h, { valueOf: (p) => p.spd || 0, rangeMode: "zero", color: "var(--indigo)", format: formatSpeed });
+  return profileChart(path, w, h, {
+    valueOf: (p) => p.spd || 0,
+    rangeMode: "zero",
+    color: "var(--indigo)",
+    format: formatSpeed,
+  });
 }

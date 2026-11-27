@@ -15,8 +15,17 @@
 // Works with better-sqlite3 (containers) and node:sqlite (tests): only
 // exec() and prepare().all()/get()/run() are used.
 
-const spalten = (db, tabelle) => new Set(db.prepare(`PRAGMA table_info(${tabelle})`).all().map((r) => r.name));
-const tabelleDa = (db, tabelle) => Boolean(db.prepare("SELECT 1 AS da FROM sqlite_master WHERE type = 'table' AND name = ?").get(tabelle));
+const spalten = (db, tabelle) =>
+  new Set(
+    db
+      .prepare(`PRAGMA table_info(${tabelle})`)
+      .all()
+      .map((r) => r.name),
+  );
+const tabelleDa = (db, tabelle) =>
+  Boolean(
+    db.prepare("SELECT 1 AS da FROM sqlite_master WHERE type = 'table' AND name = ?").get(tabelle),
+  );
 
 function spalteErgaenzen(db, tabelle, spalte, definition) {
   if (!tabelleDa(db, tabelle) || spalten(db, tabelle).has(spalte)) return false;
@@ -33,9 +42,18 @@ export const MIGRATIONS = [
       // 18 August 2026). Replaced by orte + besuche; the old rows were not
       // carried over then either.
       let neuAufbauen = false;
-      if (tabelleDa(db, "photos") && spalten(db, "photos").has("place_id")) { db.exec("DROP TABLE photos"); neuAufbauen = true; }
-      if (tabelleDa(db, "notes") && spalten(db, "notes").has("place_id")) { db.exec("DROP TABLE notes"); neuAufbauen = true; }
-      if (tabelleDa(db, "places")) { db.exec("DROP TABLE places"); neuAufbauen = true; }
+      if (tabelleDa(db, "photos") && spalten(db, "photos").has("place_id")) {
+        db.exec("DROP TABLE photos");
+        neuAufbauen = true;
+      }
+      if (tabelleDa(db, "notes") && spalten(db, "notes").has("place_id")) {
+        db.exec("DROP TABLE notes");
+        neuAufbauen = true;
+      }
+      if (tabelleDa(db, "places")) {
+        db.exec("DROP TABLE places");
+        neuAufbauen = true;
+      }
       if (neuAufbauen) db.exec(schemaSql);
 
       spalteErgaenzen(db, "users", "email", "TEXT");
@@ -43,10 +61,17 @@ export const MIGRATIONS = [
       spalteErgaenzen(db, "users", "is_admin", "INTEGER NOT NULL DEFAULT 0");
       spalteErgaenzen(db, "trip_shares", "token", "TEXT");
       spalteErgaenzen(db, "orte", "address", "TEXT");
-      spalteErgaenzen(db, "photos", "tagebuch_id", "TEXT REFERENCES tagebuch(id) ON DELETE CASCADE");
+      spalteErgaenzen(
+        db,
+        "photos",
+        "tagebuch_id",
+        "TEXT REFERENCES tagebuch(id) ON DELETE CASCADE",
+      );
       db.exec("CREATE INDEX IF NOT EXISTS photos_tagebuch ON photos (tagebuch_id)");
       if (spalteErgaenzen(db, "drive_assignments", "assignment", "TEXT NOT NULL DEFAULT 'auto'")) {
-        db.exec("UPDATE drive_assignments SET assignment = CASE WHEN trip_id IS NULL THEN 'auto' ELSE 'manual' END");
+        db.exec(
+          "UPDATE drive_assignments SET assignment = CASE WHEN trip_id IS NULL THEN 'auto' ELSE 'manual' END",
+        );
       }
       spalteErgaenzen(db, "drive_assignments", "kind", "TEXT NOT NULL DEFAULT 'etappe'");
     },

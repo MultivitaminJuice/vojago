@@ -15,6 +15,7 @@ export function appendNewPoints(existing, fresh) {
   if (!newer.length) return existing;
   const last = existing[existing.length - 1];
   const first = newer[0];
-  const offset = (last.cum || 0) + distanceKm(last.lon, last.lat, first.lon, first.lat) - (first.cum || 0);
+  const offset =
+    (last.cum || 0) + distanceKm(last.lon, last.lat, first.lon, first.lat) - (first.cum || 0);
   return existing.concat(newer.map((p) => ({ ...p, cum: (p.cum || 0) + offset })));
 }

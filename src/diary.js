@@ -9,12 +9,19 @@ import { localDayKey, tripDayKeys, tripDayNumberFromKeys, tripStartIso } from ".
 /** Turn blocks from the database (JSON text or already a list) into a clean list. */
 export function parseBlocks(raw) {
   let v = raw;
-  if (typeof raw === "string") { try { v = JSON.parse(raw); } catch { v = []; } }
+  if (typeof raw === "string") {
+    try {
+      v = JSON.parse(raw);
+    } catch {
+      v = [];
+    }
+  }
   if (!Array.isArray(v)) return [];
   const out = [];
   for (const b of v) {
     if (b?.t === "text" && typeof b.text === "string") out.push({ t: "text", text: b.text });
-    else if (b?.t === "fotos" && Array.isArray(b.ids)) out.push({ t: "fotos", ids: b.ids.filter((x) => typeof x === "string") });
+    else if (b?.t === "fotos" && Array.isArray(b.ids))
+      out.push({ t: "fotos", ids: b.ids.filter((x) => typeof x === "string") });
   }
   return out;
 }
@@ -35,7 +42,8 @@ export function cleanBlocks(blocks) {
   return out;
 }
 
-export const allPhotoIds = (blocks) => (blocks || []).flatMap((b) => (b.t === "fotos" ? b.ids : []));
+export const allPhotoIds = (blocks) =>
+  (blocks || []).flatMap((b) => (b.t === "fotos" ? b.ids : []));
 export const hasContent = (blocks) => cleanBlocks(blocks).length > 0;
 
 /**
@@ -51,7 +59,9 @@ export function coverPhotoId(blocks) {
 /** Blocks without a given photo (the one shown as cover); empty groups are dropped. */
 export function withoutPhoto(blocks, id) {
   if (!id) return blocks;
-  return cleanBlocks((blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)));
+  return cleanBlocks(
+    (blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)),
+  );
 }
 
 /**
@@ -92,7 +102,10 @@ export function normalizeBlocks(blocks) {
     const top = out[out.length - 1];
     if (b.t === "fotos") {
       if (!b.ids.length) continue;
-      if (top?.t === "fotos") { top.ids = [...top.ids, ...b.ids]; continue; }
+      if (top?.t === "fotos") {
+        top.ids = [...top.ids, ...b.ids];
+        continue;
+      }
       // Empty text between two groups: gone, the groups merge.
       if (top && isEmptyText(top) && out[out.length - 2]?.t === "fotos") {
         out.pop();
@@ -111,7 +124,9 @@ export function normalizeBlocks(blocks) {
 
 /** Take a photo out of all groups (it stays with the entry and so lands in the tray). */
 export const removePhotoFromBlocks = (blocks, id) =>
-  normalizeBlocks((blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)));
+  normalizeBlocks(
+    (blocks || []).map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((x) => x !== id) } : b)),
+  );
 
 /**
  * Places where a paragraph can be split to insert a photo: every line break
@@ -138,7 +153,9 @@ export function textSplitPoints(text) {
  * The indexes refer to `blocks` before the move.
  */
 export function placePhoto(blocks, id, target) {
-  const copy = (blocks || []).map((b) => (b.t === "fotos" ? { t: "fotos", ids: [...b.ids] } : { t: "text", text: b.text }));
+  const copy = (blocks || []).map((b) =>
+    b.t === "fotos" ? { t: "fotos", ids: [...b.ids] } : { t: "text", text: b.text },
+  );
   let index = target.index;
   // Empty the old place; empty groups stay for now so the target's indexes are right.
   copy.forEach((b, i) => {
@@ -156,9 +173,18 @@ export function placePhoto(blocks, id, target) {
     const text = copy[target.block].text;
     const before = text.slice(0, target.from).replace(/\s+$/, "");
     const after = text.slice(target.to ?? target.from).replace(/^\s+/, "");
-    copy.splice(target.block, 1, { t: "text", text: before }, { t: "fotos", ids: [id] }, { t: "text", text: after });
+    copy.splice(
+      target.block,
+      1,
+      { t: "text", text: before },
+      { t: "fotos", ids: [id] },
+      { t: "text", text: after },
+    );
   } else {
-    copy.splice(Math.max(0, Math.min(target.index ?? copy.length, copy.length)), 0, { t: "fotos", ids: [id] });
+    copy.splice(Math.max(0, Math.min(target.index ?? copy.length, copy.length)), 0, {
+      t: "fotos",
+      ids: [id],
+    });
   }
   return normalizeBlocks(copy);
 }
@@ -175,7 +201,10 @@ export function writtenText(dayKey, writtenAt) {
   const t = dbTime(writtenAt);
   if (!Number.isFinite(t) || !dayKey) return "";
   const when = new Date(t);
-  const diff = Math.round((Date.parse(`${localDayKey(when.toISOString())}T12:00:00`) - Date.parse(`${dayKey}T12:00:00`)) / 86400000);
+  const diff = Math.round(
+    (Date.parse(`${localDayKey(when.toISOString())}T12:00:00`) - Date.parse(`${dayKey}T12:00:00`)) /
+      86400000,
+  );
   const hour = when.getHours();
   if (diff < 0) return "";
   if (diff === 0) return hour >= 17 ? "am selben Abend" : "am selben Tag";
@@ -186,8 +215,10 @@ export function writtenText(dayKey, writtenAt) {
 /** All days of the trip to choose from: [{ key, number }] from the start to the end of the trip or today. */
 export function daysForEditor(trip, { now = new Date(), extraKeys = [] } = {}) {
   const startKey = localDayKey(tripStartIso(trip));
-  return tripDayKeys(trip, { nowIso: now.toISOString(), extraKeys })
-    .map((key, i) => ({ key, number: tripDayNumberFromKeys(key, startKey) || i + 1 }));
+  return tripDayKeys(trip, { nowIso: now.toISOString(), extraKeys }).map((key, i) => ({
+    key,
+    number: tripDayNumberFromKeys(key, startKey) || i + 1,
+  }));
 }
 
 /**

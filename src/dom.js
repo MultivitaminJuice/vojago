@@ -21,7 +21,8 @@ export function el(tag, attrs = {}, children = []) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
     if (k === "text") node.textContent = String(v);
-    else if (k === "html") node.innerHTML = v; // only for our own, constant markup snippets
+    else if (k === "html")
+      node.innerHTML = v; // only for our own, constant markup snippets
     else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
     else if (k === "dataset") Object.assign(node.dataset, v);
     else if (k === "on") for (const [ev, fn] of Object.entries(v)) node.addEventListener(ev, fn);
@@ -36,7 +37,9 @@ export function append(parent, children) {
   const list = Array.isArray(children) ? children : [children];
   for (const c of list) {
     if (c == null || c === false) continue;
-    parent.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+    parent.appendChild(
+      typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c,
+    );
   }
   return parent;
 }

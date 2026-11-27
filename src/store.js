@@ -3,12 +3,31 @@
 // Show locally first (the app stays quick), then save centrally — and if saving
 // fails, the display is taken back. Nothing should be on screen that is not
 // stored anywhere. Messages are UI text and stay German.
-import { state, newId, upsertPlace, removePlace, upsertNote, removeNote, upsertDiaryEntry, removeDiaryEntry, emit } from "./state.js";
+import {
+  state,
+  newId,
+  upsertPlace,
+  removePlace,
+  upsertNote,
+  removeNote,
+  upsertDiaryEntry,
+  removeDiaryEntry,
+  emit,
+} from "./state.js";
 import { toast } from "./dom.js";
 import { findExistingPlace, AUTO_PLACE_PLACEHOLDER_TITLES } from "./dataload.js";
 import {
-  isConfigured, createPlace, updatePlace, deletePlace,
-  createNote, updateNote, deleteNote, saveDiaryEntry, deleteDiaryEntry, weather as fetchWeather, geocode as fetchGeocode,
+  isConfigured,
+  createPlace,
+  updatePlace,
+  deletePlace,
+  createNote,
+  updateNote,
+  deleteNote,
+  saveDiaryEntry,
+  deleteDiaryEntry,
+  weather as fetchWeather,
+  geocode as fetchGeocode,
 } from "./api.js";
 
 /** Only when connected is there a central store. */
@@ -58,8 +77,15 @@ export async function storePlace(place, { isNew = false } = {}) {
       // Look across all trips whether this place exists already — then attach
       // the visit there instead of creating a second, unlinked place (so "how
       // often was I here" is right for places entered by hand too).
-      const ortId = findExistingPlace({ lat: Number(place.lat), lon: Number(place.lon), catId: place.catId });
-      const answer = await createPlace({ ...placeToRow(place), ...(ortId ? { ort_id: ortId } : {}) });
+      const ortId = findExistingPlace({
+        lat: Number(place.lat),
+        lon: Number(place.lon),
+        catId: place.catId,
+      });
+      const answer = await createPlace({
+        ...placeToRow(place),
+        ...(ortId ? { ort_id: ortId } : {}),
+      });
       if (answer?.ort_id) upsertPlace({ ...place, ortId: answer.ort_id });
     } else {
       await updatePlace(place.id, placeToRow(place));
@@ -67,7 +93,8 @@ export async function storePlace(place, { isNew = false } = {}) {
     if (isNew) addWeather("place", place);
     return true;
   } catch (err) {
-    if (previous) upsertPlace(previous); else removePlace(place.id);
+    if (previous) upsertPlace(previous);
+    else removePlace(place.id);
     toast(`Nicht gespeichert: ${err.message}`);
     return false;
   }
@@ -100,7 +127,8 @@ export async function storeNote(note, { isNew = false } = {}) {
     if (isNew) addWeather("note", note);
     return true;
   } catch (err) {
-    if (previous) upsertNote(previous); else removeNote(note.id);
+    if (previous) upsertNote(previous);
+    else removeNote(note.id);
     toast(`Nicht gespeichert: ${err.message}`);
     return false;
   }
@@ -127,19 +155,26 @@ export async function dropNote(id) {
  * day). Returns { ok, id }.
  */
 export async function storeDiaryEntry(entry) {
-  const previous = state.diary.find((e) => e.tripId === entry.tripId && e.dayKey === entry.dayKey) || null;
+  const previous =
+    state.diary.find((e) => e.tripId === entry.tripId && e.dayKey === entry.dayKey) || null;
   if (!isCentral()) {
     const id = previous?.id || entry.id || newId("tag");
     upsertDiaryEntry({ ...entry, id });
     return { ok: true, id };
   }
   try {
-    const answer = await saveDiaryEntry({ trip_id: entry.tripId, day_key: entry.dayKey, blocks: entry.blocks });
+    const answer = await saveDiaryEntry({
+      trip_id: entry.tripId,
+      day_key: entry.dayKey,
+      blocks: entry.blocks,
+    });
     const now = new Date().toISOString();
     upsertDiaryEntry({
-      ...entry, id: answer.id,
+      ...entry,
+      id: answer.id,
       author: previous?.author || state.account?.username || entry.author || "",
-      createdAt: previous?.createdAt || now, updatedAt: now,
+      createdAt: previous?.createdAt || now,
+      updatedAt: now,
     });
     return { ok: true, id: answer.id };
   } catch (err) {
@@ -157,7 +192,11 @@ export async function dropDiaryEntry(id) {
     await deleteDiaryEntry(id);
     return true;
   } catch (err) {
-    if (previous) { upsertDiaryEntry(previous); state.photos.push(...photos); emit("photos"); }
+    if (previous) {
+      upsertDiaryEntry(previous);
+      state.photos.push(...photos);
+      emit("photos");
+    }
     toast(`Nicht gelöscht: ${err.message}`);
     return false;
   }
@@ -182,11 +221,17 @@ export async function addWeather(kind, entry) {
     if (kind === "place") {
       await updatePlace(entry.id, { weather: raw });
       const p = state.places.find((x) => x.id === entry.id);
-      if (p) { p.weather = weather; emit("places"); }
+      if (p) {
+        p.weather = weather;
+        emit("places");
+      }
     } else {
       await updateNote(entry.id, { weather: raw });
       const n = state.notes.find((x) => x.id === entry.id);
-      if (n) { n.weather = weather; emit("notes"); }
+      if (n) {
+        n.weather = weather;
+        emit("notes");
+      }
     }
     return weather;
   } catch {
@@ -211,7 +256,8 @@ export async function addWeather(kind, entry) {
  */
 export async function addPlaceName({ id, lat, lon }) {
   if (!isCentral()) return null;
-  const la = Number(lat), lo = Number(lon);
+  const la = Number(lat),
+    lo = Number(lon);
   if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
 
   try {

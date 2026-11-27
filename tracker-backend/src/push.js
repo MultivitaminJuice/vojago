@@ -21,7 +21,9 @@ if (eingerichtet) {
   // Kein Fehler, kein Absturz — Push ist eine optionale Zusatzfunktion,
   // die Zonen-Erkennung selbst funktioniert unabhängig davon weiter
   // (alarm_log wird so oder so beschrieben, siehe alarms.js).
-  console.warn("[push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nicht gesetzt — Push-Benachrichtigungen sind deaktiviert.");
+  console.warn(
+    "[push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY nicht gesetzt — Push-Benachrichtigungen sind deaktiviert.",
+  );
 }
 
 const holeAbos = db.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions");
@@ -38,13 +40,15 @@ export function sendePushAnAlle(titel, text) {
   if (!eingerichtet) return;
   for (const abo of holeAbos.all()) {
     const subscription = { endpoint: abo.endpoint, keys: { p256dh: abo.p256dh, auth: abo.auth } };
-    webpush.sendNotification(subscription, JSON.stringify({ title: titel, body: text })).catch((err) => {
-      // 404/410 = das Abo ist beim Push-Dienst nicht mehr gültig (Browser
-      // abgemeldet, Gerät zurückgesetzt, App neu installiert, ...) —
-      // aufräumen, statt bei jedem künftigen Alarm erneut erfolglos zu
-      // versuchen.
-      if (err.statusCode === 404 || err.statusCode === 410) loescheAbo.run(abo.id);
-      else console.error(`[push] Senden an Abo ${abo.id} fehlgeschlagen:`, err.message);
-    });
+    webpush
+      .sendNotification(subscription, JSON.stringify({ title: titel, body: text }))
+      .catch((err) => {
+        // 404/410 = das Abo ist beim Push-Dienst nicht mehr gültig (Browser
+        // abgemeldet, Gerät zurückgesetzt, App neu installiert, ...) —
+        // aufräumen, statt bei jedem künftigen Alarm erneut erfolglos zu
+        // versuchen.
+        if (err.statusCode === 404 || err.statusCode === 410) loescheAbo.run(abo.id);
+        else console.error(`[push] Senden an Abo ${abo.id} fehlgeschlagen:`, err.message);
+      });
   }
 }

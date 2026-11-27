@@ -48,7 +48,8 @@ export function nightWindowHours(fromIso, toIso = new Date().toISOString()) {
     const end = plusDays(start, OVERNIGHT_NIGHT_START > OVERNIGHT_NIGHT_END ? 1 : 0);
     end.setHours(OVERNIGHT_NIGHT_END, 0, 0, 0);
 
-    const overlap = Math.min(toDate.getTime(), end.getTime()) - Math.max(fromDate.getTime(), start.getTime());
+    const overlap =
+      Math.min(toDate.getTime(), end.getTime()) - Math.max(fromDate.getTime(), start.getTime());
     if (overlap > 0) sum += overlap / MS_PER_HOUR;
     day = plusDays(day, 1);
   }

@@ -20,16 +20,45 @@ export const tileUrl = (style, key) => {
 // readable, brightening it with a raster filter did little) but the light tile,
 // darkened: a dark ground with clear labels. The colourful style keeps its
 // saturation so water and woods stay recognisable.
-export const tilePaint = (dark, style = "farbig") => (dark
-  ? (validMapStyle(style) === "dezent"
-    ? { "raster-brightness-max": 0.5, "raster-brightness-min": 0, "raster-contrast": 0.25, "raster-saturation": -0.2 }
-    : { "raster-brightness-max": 0.48, "raster-brightness-min": 0, "raster-contrast": 0.25, "raster-saturation": 0.3 })
-  : { "raster-brightness-max": 1, "raster-brightness-min": 0, "raster-contrast": 0, "raster-saturation": 0 });
+export const tilePaint = (dark, style = "farbig") =>
+  dark
+    ? validMapStyle(style) === "dezent"
+      ? {
+          "raster-brightness-max": 0.5,
+          "raster-brightness-min": 0,
+          "raster-contrast": 0.25,
+          "raster-saturation": -0.2,
+        }
+      : {
+          "raster-brightness-max": 0.48,
+          "raster-brightness-min": 0,
+          "raster-contrast": 0.25,
+          "raster-saturation": 0.3,
+        }
+    : {
+        "raster-brightness-max": 1,
+        "raster-brightness-min": 0,
+        "raster-contrast": 0,
+        "raster-saturation": 0,
+      };
 
 // Terrain shading (AWS Terrain Tiles elevation model, free to use, no key).
-export const hillshadePaint = (dark) => (dark
-  ? { "hillshade-exaggeration": 0.4, "hillshade-shadow-color": "#000000", "hillshade-highlight-color": "#ffffff", "hillshade-accent-color": "#444444" }
-  : { "hillshade-exaggeration": 0.28, "hillshade-shadow-color": "#2f3d38", "hillshade-highlight-color": "#ffffff", "hillshade-accent-color": "#5a6b64" });
+export const hillshadePaint = (dark) =>
+  dark
+    ? {
+        "hillshade-exaggeration": 0.4,
+        "hillshade-shadow-color": "#000000",
+        "hillshade-highlight-color": "#ffffff",
+        "hillshade-accent-color": "#444444",
+      }
+    : {
+        "hillshade-exaggeration": 0.28,
+        "hillshade-shadow-color": "#2f3d38",
+        "hillshade-highlight-color": "#ffffff",
+        "hillshade-accent-color": "#5a6b64",
+      };
 
-export const ELEVATION_TILES = "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png";
-export const ELEVATION_ATTRIBUTION = '© <a href="https://registry.opendata.aws/terrain-tiles/">AWS Terrain Tiles</a>';
+export const ELEVATION_TILES =
+  "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png";
+export const ELEVATION_ATTRIBUTION =
+  '© <a href="https://registry.opendata.aws/terrain-tiles/">AWS Terrain Tiles</a>';

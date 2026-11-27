@@ -17,7 +17,10 @@ export function wireInlineEdit(input, saveButton, getCurrent, apply) {
   const commit = () => {
     if (!dirty()) return;
     const v = input.value.trim();
-    if (!v) { toast("Darf nicht leer sein"); return; }
+    if (!v) {
+      toast("Darf nicht leer sein");
+      return;
+    }
     apply(v);
     refresh();
     toast("Gespeichert");
@@ -25,8 +28,14 @@ export function wireInlineEdit(input, saveButton, getCurrent, apply) {
 
   input.addEventListener("input", refresh);
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); commit(); }
-    else if (e.key === "Escape") { input.value = getCurrent(); refresh(); input.blur(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      input.value = getCurrent();
+      refresh();
+      input.blur();
+    }
   });
   saveButton.addEventListener("click", commit);
   trackDirty(dirty, input);

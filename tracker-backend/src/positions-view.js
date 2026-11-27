@@ -6,7 +6,10 @@
 import { listRecentPositions } from "./store.js";
 
 const escapeHtml = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
 
 const formatZeit = (ms) => (ms ? new Date(ms).toLocaleString("de-DE") : "—");
 

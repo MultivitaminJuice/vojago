@@ -13,5 +13,10 @@ export function dayNavigation(summaries, currentId) {
   if (!Array.isArray(summaries) || summaries.length < 2) return null;
   const i = summaries.findIndex((s) => s.id === currentId);
   if (i < 0) return null;
-  return { hasPrevious: i > 0, hasNext: i < summaries.length - 1, position: i + 1, count: summaries.length };
+  return {
+    hasPrevious: i > 0,
+    hasNext: i < summaries.length - 1,
+    position: i + 1,
+    count: summaries.length,
+  };
 }

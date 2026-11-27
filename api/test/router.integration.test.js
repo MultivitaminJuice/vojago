@@ -17,19 +17,29 @@ async function api(env, method, path, { body, cookie, headers = {} } = {}) {
   const reqHeaders = new Headers(headers);
   if (body !== undefined) reqHeaders.set("content-type", "application/json");
   if (cookie) reqHeaders.set("cookie", cookie);
-  const response = await handle(new Request(`https://vojago.test${path}`, {
-    method,
-    headers: reqHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  }), env);
+  const response = await handle(
+    new Request(`https://vojago.test${path}`, {
+      method,
+      headers: reqHeaders,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+    env,
+  );
   const text = await response.text();
   let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
   return { response, status: response.status, data, cookie: cookieFrom(response) };
 }
 
 async function setupAndLogin(env, username = "dirk", password = "langgenug1", headers = {}) {
-  const setup = await api(env, "POST", "/api/auth/setup", { body: { username, password }, headers });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    body: { username, password },
+    headers,
+  });
   assert.equal(setup.status, 201);
   assert.ok(setup.cookie.startsWith("vojago_session="));
   return setup.cookie;
@@ -41,7 +51,14 @@ test("API-Integration: Setup, Login, Sitzung und Schutz privater Routen", async 
 
   const vorSetup = await api(env, "GET", "/api/auth/me");
   assert.equal(vorSetup.status, 200);
-  assert.deepEqual(vorSetup.data, { eingerichtet: false, angemeldet: false, username: null, email: null, emailVerified: false, isAdmin: false });
+  assert.deepEqual(vorSetup.data, {
+    eingerichtet: false,
+    angemeldet: false,
+    username: null,
+    email: null,
+    emailVerified: false,
+    isAdmin: false,
+  });
 
   const ohneSitzung = await api(env, "GET", "/api/trips");
   assert.equal(ohneSitzung.status, 401);
@@ -53,13 +70,19 @@ test("API-Integration: Setup, Login, Sitzung und Schutz privater Routen", async 
   assert.equal(me.data.angemeldet, true);
   assert.equal(me.data.username, "dirk");
 
-  const zweitesSetup = await api(env, "POST", "/api/auth/setup", { body: { username: "zweit", password: "langgenug2" } });
+  const zweitesSetup = await api(env, "POST", "/api/auth/setup", {
+    body: { username: "zweit", password: "langgenug2" },
+  });
   assert.equal(zweitesSetup.status, 409);
 
-  const falscherLogin = await api(env, "POST", "/api/auth/login", { body: { username: "dirk", password: "falsch" } });
+  const falscherLogin = await api(env, "POST", "/api/auth/login", {
+    body: { username: "dirk", password: "falsch" },
+  });
   assert.equal(falscherLogin.status, 401);
 
-  const login = await api(env, "POST", "/api/auth/login", { body: { username: "dirk", password: "langgenug1" } });
+  const login = await api(env, "POST", "/api/auth/login", {
+    body: { username: "dirk", password: "langgenug1" },
+  });
   assert.equal(login.status, 200);
   assert.ok(login.cookie.startsWith("vojago_session="));
 
@@ -84,7 +107,9 @@ function mitMailAbfangen(t) {
     }
     return echtesFetch(url, init);
   };
-  t.after(() => { globalThis.fetch = echtesFetch; });
+  t.after(() => {
+    globalThis.fetch = echtesFetch;
+  });
   return gesendet;
 }
 
@@ -99,25 +124,40 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
 
   // Ohne hinterlegte E-Mail antwortet "forgot" trotzdem generisch — und
   // verschickt nichts.
-  const forgotOhneEmail = await api(env, "POST", "/api/auth/forgot", { body: { username: "dirk" }, headers: ip });
+  const forgotOhneEmail = await api(env, "POST", "/api/auth/forgot", {
+    body: { username: "dirk" },
+    headers: ip,
+  });
   assert.equal(forgotOhneEmail.status, 200);
   assert.equal(gesendeteMails.length, 0);
 
   // Unbekannter Benutzername liefert dieselbe Antwort (kein Verrat).
-  const forgotUnbekannt = await api(env, "POST", "/api/auth/forgot", { body: { username: "niemand" }, headers: ip });
+  const forgotUnbekannt = await api(env, "POST", "/api/auth/forgot", {
+    body: { username: "niemand" },
+    headers: ip,
+  });
   assert.equal(forgotUnbekannt.status, 200);
   assert.deepEqual(forgotUnbekannt.data, forgotOhneEmail.data);
 
   // E-Mail hinterlegen verlangt das aktuelle Passwort.
-  const emailFalschesPw = await api(env, "POST", "/api/auth/email", { cookie, body: { password: "falsch", email: "dirk@example.com" } });
+  const emailFalschesPw = await api(env, "POST", "/api/auth/email", {
+    cookie,
+    body: { password: "falsch", email: "dirk@example.com" },
+  });
   assert.equal(emailFalschesPw.status, 401);
 
-  const emailUngueltig = await api(env, "POST", "/api/auth/email", { cookie, body: { password: "altespw123", email: "keine-email" } });
+  const emailUngueltig = await api(env, "POST", "/api/auth/email", {
+    cookie,
+    body: { password: "altespw123", email: "keine-email" },
+  });
   assert.equal(emailUngueltig.status, 400);
 
   // Speichern verschickt sofort eine Bestätigungsmail — die Adresse gilt
   // aber noch nicht.
-  const emailSetzen = await api(env, "POST", "/api/auth/email", { cookie, body: { password: "altespw123", email: "dirk@example.com" } });
+  const emailSetzen = await api(env, "POST", "/api/auth/email", {
+    cookie,
+    body: { password: "altespw123", email: "dirk@example.com" },
+  });
   assert.equal(emailSetzen.status, 200);
   assert.equal(emailSetzen.data.emailVerified, false);
   assert.equal(gesendeteMails.length, 1);
@@ -129,12 +169,17 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
   assert.equal(me.data.emailVerified, false);
 
   // Solange unbestätigt, verschickt "forgot" trotz hinterlegter Adresse nichts.
-  const forgotUnbestaetigt = await api(env, "POST", "/api/auth/forgot", { body: { username: "dirk" }, headers: ip });
+  const forgotUnbestaetigt = await api(env, "POST", "/api/auth/forgot", {
+    body: { username: "dirk" },
+    headers: ip,
+  });
   assert.equal(forgotUnbestaetigt.status, 200);
   assert.equal(gesendeteMails.length, 1, "kein Reset-Versand ohne bestätigte E-Mail");
 
   // Erfundener Bestätigungslink wird abgelehnt.
-  const falscherVerify = await api(env, "POST", "/api/auth/verify-email", { body: { token: "erfunden" } });
+  const falscherVerify = await api(env, "POST", "/api/auth/verify-email", {
+    body: { token: "erfunden" },
+  });
   assert.equal(falscherVerify.status, 401);
 
   // Richtiger Bestätigungslink bestätigt die E-Mail.
@@ -149,11 +194,16 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
   assert.equal(meBestaetigt.data.emailVerified, true);
 
   // Derselbe Link gilt kein zweites Mal.
-  const verifyNochmal = await api(env, "POST", "/api/auth/verify-email", { body: { token: verifyToken } });
+  const verifyNochmal = await api(env, "POST", "/api/auth/verify-email", {
+    body: { token: verifyToken },
+  });
   assert.equal(verifyNochmal.status, 401);
 
   // Jetzt verschickt "forgot" tatsächlich eine Mail mit Reset-Link.
-  const forgot = await api(env, "POST", "/api/auth/forgot", { body: { username: "dirk" }, headers: ip });
+  const forgot = await api(env, "POST", "/api/auth/forgot", {
+    body: { username: "dirk" },
+    headers: ip,
+  });
   assert.equal(forgot.status, 200);
   assert.equal(gesendeteMails.length, 2);
   assert.equal(gesendeteMails[1].to[0], "dirk@example.com");
@@ -162,7 +212,9 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
   assert.ok(token && token.length > 10);
 
   // Falscher Link wird abgelehnt.
-  const falscherToken = await api(env, "POST", "/api/auth/reset", { body: { token: "nicht-der-richtige", password: "neuespw456" } });
+  const falscherToken = await api(env, "POST", "/api/auth/reset", {
+    body: { token: "nicht-der-richtige", password: "neuespw456" },
+  });
   assert.equal(falscherToken.status, 401);
 
   // Zu kurzes neues Passwort wird abgelehnt, ohne den Link zu verbrauchen.
@@ -170,15 +222,23 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
   assert.equal(zuKurz.status, 400);
 
   // Richtiger Link setzt das Passwort und meldet zugleich an.
-  const reset = await api(env, "POST", "/api/auth/reset", { body: { token, password: "neuespw456" } });
+  const reset = await api(env, "POST", "/api/auth/reset", {
+    body: { token, password: "neuespw456" },
+  });
   assert.equal(reset.status, 200);
   assert.equal(reset.data.username, "dirk");
   assert.ok(reset.cookie.startsWith("vojago_session="), "reset meldet zugleich an");
 
   // Altes Passwort geht nicht mehr, neues schon.
-  const altesPwWeg = await api(env, "POST", "/api/auth/login", { body: { username: "dirk", password: "altespw123" }, headers: ip });
+  const altesPwWeg = await api(env, "POST", "/api/auth/login", {
+    body: { username: "dirk", password: "altespw123" },
+    headers: ip,
+  });
   assert.equal(altesPwWeg.status, 401);
-  const neuesPwGeht = await api(env, "POST", "/api/auth/login", { body: { username: "dirk", password: "neuespw456" }, headers: ip });
+  const neuesPwGeht = await api(env, "POST", "/api/auth/login", {
+    body: { username: "dirk", password: "neuespw456" },
+    headers: ip,
+  });
   assert.equal(neuesPwGeht.status, 200);
 
   // Die Sitzung von vor dem Zurücksetzen ist beendet.
@@ -186,7 +246,9 @@ test("API-Integration: E-Mail bestätigen + Passwort-Reset per E-Mail-Link (N11)
   assert.equal(alteSitzungTot.status, 401);
 
   // Der Link ist verbraucht, gilt kein zweites Mal.
-  const tokenNochmal = await api(env, "POST", "/api/auth/reset", { body: { token, password: "wiederneu789" } });
+  const tokenNochmal = await api(env, "POST", "/api/auth/reset", {
+    body: { token, password: "wiederneu789" },
+  });
   assert.equal(tokenNochmal.status, 401);
 });
 
@@ -203,7 +265,9 @@ test("API-Integration: E-Mail schon bei der Kontoanlage — optional, unbestäti
 
   // Ohne E-Mail funktioniert die Kontoanlage wie zuvor — kein Mailversand
   // nötig, um überhaupt ein erstes Konto anlegen zu können.
-  const ohneEmail = await api(env, "POST", "/api/auth/setup", { body: { username: "dirk", password: "startpw1234" } });
+  const ohneEmail = await api(env, "POST", "/api/auth/setup", {
+    body: { username: "dirk", password: "startpw1234" },
+  });
   assert.equal(ohneEmail.status, 201);
   assert.equal(ohneEmail.data.emailPending, false);
   assert.equal(gesendeteMails.length, 0);
@@ -229,17 +293,30 @@ test("API-Integration: E-Mail schon bei der Kontoanlage — optional, unbestäti
   const alterLink = gesendeteMails2[0].text.match(/https:\/\/\S+/)[0];
   const alterToken = new URL(alterLink).searchParams.get("verify");
   const geaendert = await api(env2, "POST", "/api/auth/email", {
-    cookie: mitEmail.cookie, body: { password: "startpw1234", email: "andere@example.com" },
+    cookie: mitEmail.cookie,
+    body: { password: "startpw1234", email: "andere@example.com" },
   });
   assert.equal(geaendert.status, 200);
-  assert.equal(gesendeteMails2.length, 2, "die Änderung verschickt selbst einen neuen Bestätigungslink");
+  assert.equal(
+    gesendeteMails2.length,
+    2,
+    "die Änderung verschickt selbst einen neuen Bestätigungslink",
+  );
 
-  const alterTokenNochGueltig = await api(env2, "POST", "/api/auth/verify-email", { body: { token: alterToken } });
-  assert.equal(alterTokenNochGueltig.status, 409, "der Link galt für die alte Adresse, nicht die neue");
+  const alterTokenNochGueltig = await api(env2, "POST", "/api/auth/verify-email", {
+    body: { token: alterToken },
+  });
+  assert.equal(
+    alterTokenNochGueltig.status,
+    409,
+    "der Link galt für die alte Adresse, nicht die neue",
+  );
 
   const neuerLink = gesendeteMails2[1].text.match(/https:\/\/\S+/)[0];
   const neuerToken = new URL(neuerLink).searchParams.get("verify");
-  const neuerTokenOk = await api(env2, "POST", "/api/auth/verify-email", { body: { token: neuerToken } });
+  const neuerTokenOk = await api(env2, "POST", "/api/auth/verify-email", {
+    body: { token: neuerToken },
+  });
   assert.equal(neuerTokenOk.status, 200);
   assert.equal(neuerTokenOk.data.email, "andere@example.com");
 });
@@ -254,10 +331,15 @@ test("API-Integration: ohne RESEND_API_KEY gilt die E-Mail sofort als bestätigt
   const ip = { "cf-connecting-ip": "203.0.113.70" };
 
   const setup = await api(env, "POST", "/api/auth/setup", {
-    headers: ip, body: { username: "dirk", password: "startpw1234", email: "dirk@example.com" },
+    headers: ip,
+    body: { username: "dirk", password: "startpw1234", email: "dirk@example.com" },
   });
   assert.equal(setup.status, 201);
-  assert.equal(setup.data.emailPending, false, "kein Versand möglich, also auch kein Warten auf Bestätigung");
+  assert.equal(
+    setup.data.emailPending,
+    false,
+    "kein Versand möglich, also auch kein Warten auf Bestätigung",
+  );
 
   const me = await api(env, "GET", "/api/auth/me", { cookie: setup.cookie, headers: ip });
   assert.equal(me.data.email, "dirk@example.com");
@@ -265,7 +347,9 @@ test("API-Integration: ohne RESEND_API_KEY gilt die E-Mail sofort als bestätigt
 
   // Gilt genauso beim nachträglichen Ändern der Adresse, nicht nur beim Setup.
   const geaendert = await api(env, "POST", "/api/auth/email", {
-    cookie: setup.cookie, headers: ip, body: { password: "startpw1234", email: "andere@example.com" },
+    cookie: setup.cookie,
+    headers: ip,
+    body: { password: "startpw1234", email: "andere@example.com" },
   });
   assert.equal(geaendert.status, 200);
   assert.equal(geaendert.data.emailVerified, true);
@@ -331,7 +415,11 @@ test("API-Integration: Reisen, Orte, Stopps und Notizen laufen gegen D1", async 
   // sich so in Produktion an. Validierung/Duplikat-Check müssen komplett
   // durchlaufen sein, bevor irgendetwas geschrieben wird.
   const verwaisterOrt = await env.DB.prepare("SELECT id FROM orte WHERE title = 'Duplikat'").all();
-  assert.equal(verwaisterOrt.results?.length ?? 0, 0, "ein abgelehnter Besuch darf keinen verwaisten Ort hinterlassen");
+  assert.equal(
+    verwaisterOrt.results?.length ?? 0,
+    0,
+    "ein abgelehnter Besuch darf keinen verwaisten Ort hinterlassen",
+  );
 
   // Ein zweiter Besuch am selben Ort (ort_id wiederverwendet, wie es die
   // Nähe-Erkennung im Frontend täte) — Grundlage für "wie oft war ich hier".
@@ -399,26 +487,61 @@ test("API-Integration: Reisen teilen — Umfang, Ablauf, Widerruf, alle Reisen",
   t.after(() => env.DB.close());
   const cookie = await setupAndLogin(env);
 
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-a", name: "Alpen", start_at: "2026-08-01T08:00:00Z", end_at: "2026-08-05T18:00:00Z" } });
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-b", name: "Küste", start_at: "2026-08-10T08:00:00Z" } });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: {
+      id: "reise-a",
+      name: "Alpen",
+      start_at: "2026-08-01T08:00:00Z",
+      end_at: "2026-08-05T18:00:00Z",
+    },
+  });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: { id: "reise-b", name: "Küste", start_at: "2026-08-10T08:00:00Z" },
+  });
   // Reise-Zugehörigkeit gibt es nicht mehr als gespeichertes Feld — wie bei
   // Fahrten zählt der Zeitpunkt gegen den Reisezeitraum (2026-08-01 bis -05).
-  await api(env, "POST", "/api/besuche", { cookie, body: { id: "besuch-a", title: "Alm", lat: 47.1, lon: 11.1, occurred_at: "2026-08-02T10:00:00Z" } });
-  await api(env, "POST", "/api/notes", { cookie, body: { id: "notiz-a", title: "Aussicht", text: "Toll hier", occurred_at: "2026-08-02T11:00:00Z" } });
+  await api(env, "POST", "/api/besuche", {
+    cookie,
+    body: {
+      id: "besuch-a",
+      title: "Alm",
+      lat: 47.1,
+      lon: 11.1,
+      occurred_at: "2026-08-02T10:00:00Z",
+    },
+  });
+  await api(env, "POST", "/api/notes", {
+    cookie,
+    body: {
+      id: "notiz-a",
+      title: "Aussicht",
+      text: "Toll hier",
+      occurred_at: "2026-08-02T11:00:00Z",
+    },
+  });
 
   // Ohne Anmeldung kein Erzeugen/Auflisten/Widerrufen.
   const ohneSitzung = await api(env, "POST", "/api/shares", { body: { tripId: "reise-a" } });
   assert.equal(ohneSitzung.status, 401);
 
   // Ungültiger Umfang bzw. nicht existierende Reise werden abgelehnt.
-  const falscherUmfang = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-a", scope: "alles" } });
+  const falscherUmfang = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-a", scope: "alles" },
+  });
   assert.equal(falscherUmfang.status, 400);
-  const unbekannteReise = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "nicht-da", scope: "karte" } });
+  const unbekannteReise = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "nicht-da", scope: "karte" },
+  });
   assert.equal(unbekannteReise.status, 404);
 
   // Share für eine einzelne Reise, mit Logbuch.
   const share = await api(env, "POST", "/api/shares", {
-    cookie, body: { tripId: "reise-a", scope: "karte_logbuch", label: "für Oma", expiresInDays: 30 },
+    cookie,
+    body: { tripId: "reise-a", scope: "karte_logbuch", label: "für Oma", expiresInDays: 30 },
   });
   assert.equal(share.status, 201);
   assert.ok(share.data.token && share.data.token.length > 20);
@@ -442,8 +565,13 @@ test("API-Integration: Reisen teilen — Umfang, Ablauf, Widerruf, alle Reisen",
   assert.equal(gelistet.token, share.data.token);
 
   // Umfang "karte" ohne Logbuch: kein Zugriff auf Orte/Notizen über den Link.
-  const nurKarte = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-a", scope: "karte" } });
-  const oeffentlichKarte = await api(env, "GET", `/api/share/${nurKarte.data.token}`, { headers: ip });
+  const nurKarte = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-a", scope: "karte" },
+  });
+  const oeffentlichKarte = await api(env, "GET", `/api/share/${nurKarte.data.token}`, {
+    headers: ip,
+  });
   assert.deepEqual(oeffentlichKarte.data.places, []);
   assert.deepEqual(oeffentlichKarte.data.notes, []);
 
@@ -458,19 +586,31 @@ test("API-Integration: Reisen teilen — Umfang, Ablauf, Widerruf, alle Reisen",
   assert.equal(erfunden.status, 404);
 
   // Ungültiger Ablauf wird abgelehnt.
-  const schlechterAblauf = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-a", expiresInDays: 0 } });
+  const schlechterAblauf = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-a", expiresInDays: 0 },
+  });
   assert.equal(schlechterAblauf.status, 400);
 
   // Bereits abgelaufener Link greift nicht mehr.
-  const abgelaufen = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-a", expiresInDays: 1 } });
-  await env.DB.prepare("UPDATE trip_shares SET expires_at = ? WHERE id = ?").bind(Date.now() - 1000, abgelaufen.data.id).run();
-  const oeffentlichAbgelaufen = await api(env, "GET", `/api/share/${abgelaufen.data.token}`, { headers: ip });
+  const abgelaufen = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-a", expiresInDays: 1 },
+  });
+  await env.DB.prepare("UPDATE trip_shares SET expires_at = ? WHERE id = ?")
+    .bind(Date.now() - 1000, abgelaufen.data.id)
+    .run();
+  const oeffentlichAbgelaufen = await api(env, "GET", `/api/share/${abgelaufen.data.token}`, {
+    headers: ip,
+  });
   assert.equal(oeffentlichAbgelaufen.status, 404);
 
   // Widerrufen sperrt den Link sofort, auch wenn er noch nicht abgelaufen wäre.
   const widerruf = await api(env, "DELETE", `/api/shares/${share.data.id}`, { cookie });
   assert.equal(widerruf.status, 200);
-  const oeffentlichNachWiderruf = await api(env, "GET", `/api/share/${share.data.token}`, { headers: ip });
+  const oeffentlichNachWiderruf = await api(env, "GET", `/api/share/${share.data.token}`, {
+    headers: ip,
+  });
   assert.equal(oeffentlichNachWiderruf.status, 404);
 });
 
@@ -598,42 +738,55 @@ test("API-Integration: Kategorien und Fahrzeuge weisen unbrauchbare Eingaben zur
   t.after(() => env.DB.close());
   const cookie = await setupAndLogin(env);
 
-  const ohneName = await api(env, "POST", "/api/categories", { cookie, body: { color: "#e8802b" } });
+  const ohneName = await api(env, "POST", "/api/categories", {
+    cookie,
+    body: { color: "#e8802b" },
+  });
   assert.equal(ohneName.status, 400);
 
   const schlechteFarbe = await api(env, "POST", "/api/categories", {
-    cookie, body: { name: "Test", color: "javascript:alert(1)" },
+    cookie,
+    body: { name: "Test", color: "javascript:alert(1)" },
   });
   assert.equal(schlechteFarbe.status, 400);
 
   const schlechteId = await api(env, "POST", "/api/categories", {
-    cookie, body: { id: "../../etc", name: "Test" },
+    cookie,
+    body: { id: "../../etc", name: "Test" },
   });
   assert.equal(schlechteId.status, 400);
 
   const gueltig = await api(env, "POST", "/api/categories", {
-    cookie, body: { id: "campingplatz", name: "Campingplatz", color: "#3b82c4", sort: 15 },
+    cookie,
+    body: { id: "campingplatz", name: "Campingplatz", color: "#3b82c4", sort: 15 },
   });
   assert.equal(gueltig.status, 201);
   const schlechtePatch = await api(env, "PATCH", "/api/categories/campingplatz", {
-    cookie, body: { color: "keine-farbe" },
+    cookie,
+    body: { color: "keine-farbe" },
   });
   assert.equal(schlechtePatch.status, 400);
   const gueltigerPatch = await api(env, "PATCH", "/api/categories/campingplatz", {
-    cookie, body: { color: "#123456" },
+    cookie,
+    body: { color: "#123456" },
   });
   assert.equal(gueltigerPatch.status, 200);
 
-  const fahrzeugOhneName = await api(env, "POST", "/api/vehicles", { cookie, body: { traccar_device_id: "5" } });
+  const fahrzeugOhneName = await api(env, "POST", "/api/vehicles", {
+    cookie,
+    body: { traccar_device_id: "5" },
+  });
   assert.equal(fahrzeugOhneName.status, 400);
 
   const fahrzeugSchlechtesFlag = await api(env, "POST", "/api/vehicles", {
-    cookie, body: { name: "Testwagen", active: "ja" },
+    cookie,
+    body: { name: "Testwagen", active: "ja" },
   });
   assert.equal(fahrzeugSchlechtesFlag.status, 400);
 
   const fahrzeugGueltig = await api(env, "POST", "/api/vehicles", {
-    cookie, body: { id: "testwagen", name: "Testwagen", traccar_device_id: 7 },
+    cookie,
+    body: { id: "testwagen", name: "Testwagen", traccar_device_id: 7 },
   });
   assert.equal(fahrzeugGueltig.status, 201);
 });
@@ -649,7 +802,11 @@ test("API-Integration: Geofences sind nur lesbar (W3) — geschrieben wird aussc
   assert.deepEqual(leer.data, []);
 
   // Kein Zonen-CRUD (mehr) — die früheren Schreib-Endpunkte existieren nicht.
-  const post = await api(env, "POST", "/api/geofences", { cookie, headers: ip, body: { name: "x", lat: 47.5, lon: 10.7, radius_m: 200 } });
+  const post = await api(env, "POST", "/api/geofences", {
+    cookie,
+    headers: ip,
+    body: { name: "x", lat: 47.5, lon: 10.7, radius_m: 200 },
+  });
   assert.equal(post.status, 404);
 });
 
@@ -658,63 +815,108 @@ test("API-Integration: Wache scharf/unscharf — merkt sich beim Scharfschalten 
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.72" };
   const adminCookie = await setupAndLogin(env, "dirk", "erstes-passwort", ip);
-  await api(env, "POST", "/api/users", { cookie: adminCookie, body: { username: "beifahrer", password: "zweitespasswort" }, headers: ip });
-  const login = await api(env, "POST", "/api/auth/login", { body: { username: "beifahrer", password: "zweitespasswort" }, headers: ip });
+  await api(env, "POST", "/api/users", {
+    cookie: adminCookie,
+    body: { username: "beifahrer", password: "zweitespasswort" },
+    headers: ip,
+  });
+  const login = await api(env, "POST", "/api/auth/login", {
+    body: { username: "beifahrer", password: "zweitespasswort" },
+    headers: ip,
+  });
   const nutzerCookie = login.cookie;
 
-  const settingsNutzer = await api(env, "GET", "/api/alarms", { cookie: nutzerCookie, headers: ip });
+  const settingsNutzer = await api(env, "GET", "/api/alarms", {
+    cookie: nutzerCookie,
+    headers: ip,
+  });
   assert.equal(settingsNutzer.status, 200);
   const geofenceSetting = settingsNutzer.data.find((s) => s.key === "geofence");
   assert.equal(geofenceSetting.enabled, 1); // Startwert aus db/schema.sql
 
   // Ändern nur für Admins.
-  const aendernNutzer = await api(env, "PATCH", "/api/alarms/geofence", { cookie: nutzerCookie, headers: ip, body: { enabled: false } });
+  const aendernNutzer = await api(env, "PATCH", "/api/alarms/geofence", {
+    cookie: nutzerCookie,
+    headers: ip,
+    body: { enabled: false },
+  });
   assert.equal(aendernNutzer.status, 403);
 
   // Scharfschalten ohne Position wird abgewiesen — es gäbe nichts zu bewachen.
-  const ohnePosition = await api(env, "PATCH", "/api/alarms/geofence", { cookie: adminCookie, headers: ip, body: { enabled: true } });
+  const ohnePosition = await api(env, "PATCH", "/api/alarms/geofence", {
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: true },
+  });
   assert.equal(ohnePosition.status, 400);
 
   // Scharfschalten mit Position legt den Ankerpunkt an (radius_m optional, Default 50).
   const scharf = await api(env, "PATCH", "/api/alarms/geofence", {
-    cookie: adminCookie, headers: ip, body: { enabled: true, lat: 47.5, lon: 10.7, radius_m: 80 },
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: true, lat: 47.5, lon: 10.7, radius_m: 80 },
   });
   assert.equal(scharf.status, 200);
-  const zonenNachScharf = await api(env, "GET", "/api/geofences", { cookie: adminCookie, headers: ip });
+  const zonenNachScharf = await api(env, "GET", "/api/geofences", {
+    cookie: adminCookie,
+    headers: ip,
+  });
   assert.equal(zonenNachScharf.data.length, 1);
   assert.equal(zonenNachScharf.data[0].radius_m, 80);
   assert.equal(zonenNachScharf.data[0].lat, 47.5);
 
   // Erneutes Scharfschalten an anderer Position ERSETZT den Ankerpunkt statt eine zweite Zone anzulegen.
   const scharfAnderswo = await api(env, "PATCH", "/api/alarms/geofence", {
-    cookie: adminCookie, headers: ip, body: { enabled: true, lat: 48.0, lon: 11.0, radius_m: 50 },
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: true, lat: 48.0, lon: 11.0, radius_m: 50 },
   });
   assert.equal(scharfAnderswo.status, 200);
-  const zonenNachher = await api(env, "GET", "/api/geofences", { cookie: adminCookie, headers: ip });
+  const zonenNachher = await api(env, "GET", "/api/geofences", {
+    cookie: adminCookie,
+    headers: ip,
+  });
   assert.equal(zonenNachher.data.length, 1);
   assert.equal(zonenNachher.data[0].lat, 48.0);
 
   // Ungültiger Radius wird abgewiesen.
   const schlechterRadius = await api(env, "PATCH", "/api/alarms/geofence", {
-    cookie: adminCookie, headers: ip, body: { enabled: true, lat: 47.5, lon: 10.7, radius_m: 5 },
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: true, lat: 47.5, lon: 10.7, radius_m: 5 },
   });
   assert.equal(schlechterRadius.status, 400);
 
   // Unscharfschalten braucht keine Position.
-  const unscharf = await api(env, "PATCH", "/api/alarms/geofence", { cookie: adminCookie, headers: ip, body: { enabled: false } });
+  const unscharf = await api(env, "PATCH", "/api/alarms/geofence", {
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: false },
+  });
   assert.equal(unscharf.status, 200);
   // Scharf- und Unscharfschalten stehen im Protokoll (Grundlage für "scharf seit").
   const protokoll = await api(env, "GET", "/api/alarms/log", { cookie: adminCookie, headers: ip });
   const meldungen = protokoll.data.map((e) => e.message);
-  assert.ok(meldungen.some((m) => /^Wache scharf geschaltet \(Radius 50 m\)$/.test(m)), "Scharfschalten fehlt im Protokoll");
+  assert.ok(
+    meldungen.some((m) => /^Wache scharf geschaltet \(Radius 50 m\)$/.test(m)),
+    "Scharfschalten fehlt im Protokoll",
+  );
   assert.ok(meldungen.includes("Wache unscharf geschaltet"), "Unscharfschalten fehlt im Protokoll");
   const nachUnscharf = await api(env, "GET", "/api/alarms", { cookie: adminCookie, headers: ip });
   assert.equal(nachUnscharf.data.find((s) => s.key === "geofence").enabled, 0);
 
-  const unbekannterTyp = await api(env, "PATCH", "/api/alarms/nicht-vorhanden", { cookie: adminCookie, headers: ip, body: { enabled: true } });
+  const unbekannterTyp = await api(env, "PATCH", "/api/alarms/nicht-vorhanden", {
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: true },
+  });
   assert.equal(unbekannterTyp.status, 404);
 
-  const schlechterWert = await api(env, "PATCH", "/api/alarms/geofence", { cookie: adminCookie, headers: ip, body: { enabled: "ja" } });
+  const schlechterWert = await api(env, "PATCH", "/api/alarms/geofence", {
+    cookie: adminCookie,
+    headers: ip,
+    body: { enabled: "ja" },
+  });
   assert.equal(schlechterWert.status, 400);
 });
 
@@ -723,22 +925,34 @@ test("API-Integration: Fotos — Validierung und Verhalten ohne eingerichteten S
   t.after(() => env.DB.close());
   const cookie = await setupAndLogin(env);
 
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-1", name: "Testreise", start_at: "2026-08-09T08:00:00Z" } });
-  await api(env, "POST", "/api/besuche", { cookie, body: { id: "besuch-1", title: "Rasthof", lat: 52.1, lon: 7.3 } });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: { id: "reise-1", name: "Testreise", start_at: "2026-08-09T08:00:00Z" },
+  });
+  await api(env, "POST", "/api/besuche", {
+    cookie,
+    body: { id: "besuch-1", title: "Rasthof", lat: 52.1, lon: 7.3 },
+  });
 
   const bild = new File([new Uint8Array([1, 2, 3, 4])], "foto.jpg", { type: "image/jpeg" });
 
   // Ohne Besuch/Notiz-Bezug wird abgelehnt.
   const ohneBezug = new FormData();
   ohneBezug.set("file", bild);
-  const antwortOhneBezug = await apiFormData(env, "POST", "/api/photos", { cookie, body: ohneBezug });
+  const antwortOhneBezug = await apiFormData(env, "POST", "/api/photos", {
+    cookie,
+    body: ohneBezug,
+  });
   assert.equal(antwortOhneBezug.status, 400);
 
   // Unbekannter Besuch wird abgelehnt.
   const unbekannterOrt = new FormData();
   unbekannterOrt.set("file", bild);
   unbekannterOrt.set("besuch_id", "nicht-da");
-  const antwortUnbekannt = await apiFormData(env, "POST", "/api/photos", { cookie, body: unbekannterOrt });
+  const antwortUnbekannt = await apiFormData(env, "POST", "/api/photos", {
+    cookie,
+    body: unbekannterOrt,
+  });
   assert.equal(antwortUnbekannt.status, 404);
 
   // Kein Bild wird abgelehnt.
@@ -791,47 +1005,82 @@ test("API-Integration: Benutzerverwaltung — erstes Konto wird Admin, Rechte, l
 
   // Admin legt ein zweites, normales Konto an.
   const anlegen = await api(env, "POST", "/api/users", {
-    cookie: adminCookie, headers: ip, body: { username: "beifahrer", password: "zweitespasswort" },
+    cookie: adminCookie,
+    headers: ip,
+    body: { username: "beifahrer", password: "zweitespasswort" },
   });
   assert.equal(anlegen.status, 201);
   const zweiteId = anlegen.data.id;
 
   // Doppelter Benutzername wird abgewiesen.
   const doppelt = await api(env, "POST", "/api/users", {
-    cookie: adminCookie, headers: ip, body: { username: "beifahrer", password: "irgendwas12" },
+    cookie: adminCookie,
+    headers: ip,
+    body: { username: "beifahrer", password: "irgendwas12" },
   });
   assert.equal(doppelt.status, 409);
 
   // Das neue Konto meldet sich an, sieht dieselben Daten, ist aber kein Admin.
-  const zweiteLogin = await api(env, "POST", "/api/auth/login", { body: { username: "beifahrer", password: "zweitespasswort" }, headers: ip });
+  const zweiteLogin = await api(env, "POST", "/api/auth/login", {
+    body: { username: "beifahrer", password: "zweitespasswort" },
+    headers: ip,
+  });
   assert.equal(zweiteLogin.status, 200);
-  const meZweite = await api(env, "GET", "/api/auth/me", { cookie: zweiteLogin.cookie, headers: ip });
+  const meZweite = await api(env, "GET", "/api/auth/me", {
+    cookie: zweiteLogin.cookie,
+    headers: ip,
+  });
   assert.equal(meZweite.data.isAdmin, false);
   const verboten = await api(env, "GET", "/api/users", { cookie: zweiteLogin.cookie, headers: ip });
   assert.equal(verboten.status, 403);
 
   // Admin setzt das Passwort des zweiten Kontos neu — dessen Sitzung endet dabei.
-  const pwReset = await api(env, "PATCH", `/api/users/${zweiteId}`, { cookie: adminCookie, headers: ip, body: { password: "drittespasswort" } });
+  const pwReset = await api(env, "PATCH", `/api/users/${zweiteId}`, {
+    cookie: adminCookie,
+    headers: ip,
+    body: { password: "drittespasswort" },
+  });
   assert.equal(pwReset.status, 200);
-  const alteSitzungTot = await api(env, "GET", "/api/trips", { cookie: zweiteLogin.cookie, headers: ip });
+  const alteSitzungTot = await api(env, "GET", "/api/trips", {
+    cookie: zweiteLogin.cookie,
+    headers: ip,
+  });
   assert.equal(alteSitzungTot.status, 401);
-  const neuerLogin = await api(env, "POST", "/api/auth/login", { body: { username: "beifahrer", password: "drittespasswort" }, headers: ip });
+  const neuerLogin = await api(env, "POST", "/api/auth/login", {
+    body: { username: "beifahrer", password: "drittespasswort" },
+    headers: ip,
+  });
   assert.equal(neuerLogin.status, 200);
 
   // Das eigene Konto lässt sich hier nicht löschen …
   const meIds = await api(env, "GET", "/api/users", { cookie: adminCookie, headers: ip });
   const eigeneId = meIds.data.find((u) => u.username === "dirk").id;
-  const selbstLoeschen = await api(env, "DELETE", `/api/users/${eigeneId}`, { cookie: adminCookie, headers: ip });
+  const selbstLoeschen = await api(env, "DELETE", `/api/users/${eigeneId}`, {
+    cookie: adminCookie,
+    headers: ip,
+  });
   assert.equal(selbstLoeschen.status, 409);
 
   // … der letzte Admin auch nicht entmachtbar, solange er der einzige ist.
-  const entmachten = await api(env, "PATCH", `/api/users/${eigeneId}`, { cookie: adminCookie, headers: ip, body: { isAdmin: false } });
+  const entmachten = await api(env, "PATCH", `/api/users/${eigeneId}`, {
+    cookie: adminCookie,
+    headers: ip,
+    body: { isAdmin: false },
+  });
   assert.equal(entmachten.status, 409);
 
   // Zweites Konto zum Admin befördern — jetzt sind es zwei, das erste darf entmachtet werden.
-  const befoerdern = await api(env, "PATCH", `/api/users/${zweiteId}`, { cookie: adminCookie, headers: ip, body: { isAdmin: true } });
+  const befoerdern = await api(env, "PATCH", `/api/users/${zweiteId}`, {
+    cookie: adminCookie,
+    headers: ip,
+    body: { isAdmin: true },
+  });
   assert.equal(befoerdern.status, 200);
-  const entmachtenJetzt = await api(env, "PATCH", `/api/users/${eigeneId}`, { cookie: adminCookie, headers: ip, body: { isAdmin: false } });
+  const entmachtenJetzt = await api(env, "PATCH", `/api/users/${eigeneId}`, {
+    cookie: adminCookie,
+    headers: ip,
+    body: { isAdmin: false },
+  });
   assert.equal(entmachtenJetzt.status, 200);
 
   // dirk hat jetzt keine Admin-Rechte mehr — sofort wirksam, ohne Neuanmeldung.
@@ -839,13 +1088,19 @@ test("API-Integration: Benutzerverwaltung — erstes Konto wird Admin, Rechte, l
   assert.equal(dirkOhneRechte.status, 403);
 
   // beifahrer (jetzt einziger Admin) darf dirk löschen (nicht sich selbst, dirk ist kein Admin, 2 Konten vorhanden).
-  const loeschenOk = await api(env, "DELETE", `/api/users/${eigeneId}`, { cookie: neuerLogin.cookie, headers: ip });
+  const loeschenOk = await api(env, "DELETE", `/api/users/${eigeneId}`, {
+    cookie: neuerLogin.cookie,
+    headers: ip,
+  });
   assert.equal(loeschenOk.status, 200);
   const nachher = await api(env, "GET", "/api/users", { cookie: neuerLogin.cookie, headers: ip });
   assert.equal(nachher.data.length, 1);
 
   // Jetzt ist beifahrer das letzte verbliebene Konto — auch der greift zuerst der Selbst-Schutz.
-  const letztesKontoSelbst = await api(env, "DELETE", `/api/users/${zweiteId}`, { cookie: neuerLogin.cookie, headers: ip });
+  const letztesKontoSelbst = await api(env, "DELETE", `/api/users/${zweiteId}`, {
+    cookie: neuerLogin.cookie,
+    headers: ip,
+  });
   assert.equal(letztesKontoSelbst.status, 409);
 });
 
@@ -858,36 +1113,71 @@ test("API-Integration: Kategorien/Fahrzeuge — Lesen für alle, Ändern nur fü
   // fälschlich 429 statt der erwarteten Statuscodes bekommen.
   const ip = { "cf-connecting-ip": "203.0.113.40" };
   const adminCookie = await setupAndLogin(env, "dirk", "erstes-passwort", ip);
-  await api(env, "POST", "/api/users", { cookie: adminCookie, body: { username: "beifahrer", password: "zweitespasswort" }, headers: ip });
-  const login = await api(env, "POST", "/api/auth/login", { body: { username: "beifahrer", password: "zweitespasswort" }, headers: ip });
+  await api(env, "POST", "/api/users", {
+    cookie: adminCookie,
+    body: { username: "beifahrer", password: "zweitespasswort" },
+    headers: ip,
+  });
+  const login = await api(env, "POST", "/api/auth/login", {
+    body: { username: "beifahrer", password: "zweitespasswort" },
+    headers: ip,
+  });
   const nutzerCookie = login.cookie;
 
   // Lesen funktioniert für beide.
-  const kategorienAdmin = await api(env, "GET", "/api/categories", { cookie: adminCookie, headers: ip });
+  const kategorienAdmin = await api(env, "GET", "/api/categories", {
+    cookie: adminCookie,
+    headers: ip,
+  });
   assert.equal(kategorienAdmin.status, 200);
-  const kategorienNutzer = await api(env, "GET", "/api/categories", { cookie: nutzerCookie, headers: ip });
+  const kategorienNutzer = await api(env, "GET", "/api/categories", {
+    cookie: nutzerCookie,
+    headers: ip,
+  });
   assert.equal(kategorienNutzer.status, 200);
-  const fahrzeugeNutzer = await api(env, "GET", "/api/vehicles", { cookie: nutzerCookie, headers: ip });
+  const fahrzeugeNutzer = await api(env, "GET", "/api/vehicles", {
+    cookie: nutzerCookie,
+    headers: ip,
+  });
   assert.equal(fahrzeugeNutzer.status, 200);
 
   // Ändern nur für Admins — der normale Nutzer bekommt 403.
-  const kategorieAnlegenNutzer = await api(env, "POST", "/api/categories", { cookie: nutzerCookie, headers: ip, body: { name: "Test", color: "#123456", sort: 0 } });
+  const kategorieAnlegenNutzer = await api(env, "POST", "/api/categories", {
+    cookie: nutzerCookie,
+    headers: ip,
+    body: { name: "Test", color: "#123456", sort: 0 },
+  });
   assert.equal(kategorieAnlegenNutzer.status, 403);
-  const fahrzeugAnlegenNutzer = await api(env, "POST", "/api/vehicles", { cookie: nutzerCookie, headers: ip, body: { name: "Zweitwagen" } });
+  const fahrzeugAnlegenNutzer = await api(env, "POST", "/api/vehicles", {
+    cookie: nutzerCookie,
+    headers: ip,
+    body: { name: "Zweitwagen" },
+  });
   assert.equal(fahrzeugAnlegenNutzer.status, 403);
 
   // Admin darf weiterhin.
-  const kategorieAnlegenAdmin = await api(env, "POST", "/api/categories", { cookie: adminCookie, headers: ip, body: { name: "Test", color: "#123456", sort: 0 } });
+  const kategorieAnlegenAdmin = await api(env, "POST", "/api/categories", {
+    cookie: adminCookie,
+    headers: ip,
+    body: { name: "Test", color: "#123456", sort: 0 },
+  });
   assert.equal(kategorieAnlegenAdmin.status, 201);
 });
 
 async function apiFormData(env, method, path, { body, cookie, headers = {} } = {}) {
   const reqHeaders = new Headers(headers);
   if (cookie) reqHeaders.set("cookie", cookie);
-  const response = await handle(new Request(`https://vojago.test${path}`, { method, headers: reqHeaders, body }), env);
+  const response = await handle(
+    new Request(`https://vojago.test${path}`, { method, headers: reqHeaders, body }),
+    env,
+  );
   const text = await response.text();
   let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
   return { response, status: response.status, data };
 }
 
@@ -895,8 +1185,10 @@ async function apiFormData(env, method, path, { body, cookie, headers = {} } = {
 async function seedPositions(env, deviceId, punkte) {
   for (const p of punkte) {
     await env.DB.prepare(
-      "INSERT INTO positions (device_id, at, lat, lon, speed_kmh, protocol, created_at) VALUES (?,?,?,?,?,?,?)"
-    ).bind(deviceId, p.at, p.lat, p.lon, p.speedKmh ?? 0, "test", p.at).run();
+      "INSERT INTO positions (device_id, at, lat, lon, speed_kmh, protocol, created_at) VALUES (?,?,?,?,?,?,?)",
+    )
+      .bind(deviceId, p.at, p.lat, p.lon, p.speedKmh ?? 0, "test", p.at)
+      .run();
   }
 }
 
@@ -907,7 +1199,10 @@ test("/api/positions, /api/route, /api/drives, /api/stops are served from the lo
   // ohne IP-Header über den geteilten "unbekannt"-Zähler, der von den vielen
   // anderen Tests im selben Lauf schon ausgeschöpft sein kann).
   const ip = { "cf-connecting-ip": "203.0.113.50" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   assert.equal(setup.status, 201);
   const cookie = setup.cookie;
 
@@ -920,7 +1215,10 @@ test("/api/positions, /api/route, /api/drives, /api/stops are served from the lo
     { at: t0 + 15 * min, lat: 52.02, lon: 7.02, speedKmh: 0 },
   ]);
 
-  const positions = await api(env, "GET", "/api/positions?deviceId=geraet1", { cookie, headers: ip });
+  const positions = await api(env, "GET", "/api/positions?deviceId=geraet1", {
+    cookie,
+    headers: ip,
+  });
   assert.equal(positions.status, 200);
   assert.equal(positions.data.length, 1);
   assert.equal(positions.data[0].latitude, 52.02);
@@ -929,17 +1227,26 @@ test("/api/positions, /api/route, /api/drives, /api/stops are served from the lo
   const von = new Date(t0 - min).toISOString();
   const bis = new Date(t0 + 20 * min).toISOString();
 
-  const route = await api(env, "GET", `/api/route?deviceId=geraet1&from=${von}&to=${bis}`, { cookie, headers: ip });
+  const route = await api(env, "GET", `/api/route?deviceId=geraet1&from=${von}&to=${bis}`, {
+    cookie,
+    headers: ip,
+  });
   assert.equal(route.status, 200);
   assert.equal(route.data.length, 4);
   assert.equal(route.data[0].latitude, 52.0);
 
-  const drives = await api(env, "GET", `/api/drives?deviceId=geraet1&from=${von}&to=${bis}`, { cookie, headers: ip });
+  const drives = await api(env, "GET", `/api/drives?deviceId=geraet1&from=${von}&to=${bis}`, {
+    cookie,
+    headers: ip,
+  });
   assert.equal(drives.status, 200);
   assert.equal(drives.data.length, 1);
   assert.ok(drives.data[0].distance > 0);
 
-  const stops = await api(env, "GET", `/api/stops?deviceId=geraet1&from=${von}&to=${bis}`, { cookie, headers: ip });
+  const stops = await api(env, "GET", `/api/stops?deviceId=geraet1&from=${von}&to=${bis}`, {
+    cookie,
+    headers: ip,
+  });
   assert.equal(stops.status, 200);
   assert.equal(stops.data.length, 1); // nur der Stopp VOR der Fahrt liegt vollständig im Zeitraum
   assert.equal(stops.data[0].startTime, new Date(t0).toISOString());
@@ -954,16 +1261,27 @@ test("positions: an unknown device yields empty lists, not an error", async (t) 
   const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.51" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   assert.equal(setup.status, 201);
   const cookie = setup.cookie;
   await seedPositions(env, "irrelevant", []);
 
-  const positions = await api(env, "GET", "/api/positions?deviceId=unbekannt", { cookie, headers: ip });
+  const positions = await api(env, "GET", "/api/positions?deviceId=unbekannt", {
+    cookie,
+    headers: ip,
+  });
   assert.equal(positions.status, 200);
   assert.deepEqual(positions.data, []);
 
-  const route = await api(env, "GET", "/api/route?deviceId=unbekannt&from=2026-01-01&to=2026-01-02", { cookie, headers: ip });
+  const route = await api(
+    env,
+    "GET",
+    "/api/route?deviceId=unbekannt&from=2026-01-01&to=2026-01-02",
+    { cookie, headers: ip },
+  );
   assert.equal(route.status, 200);
   assert.deepEqual(route.data, []);
 });
@@ -990,7 +1308,10 @@ test("Sitzungscookie über HTTP: kein 'Secure', Anmeldung bleibt über weitere A
   assert.equal(setupRes.status, 201);
   const setCookie = setupRes.headers.get("set-cookie");
   assert.ok(setCookie.includes("HttpOnly"));
-  assert.ok(!setCookie.includes("Secure"), "Secure darf über HTTP nicht gesetzt sein, sonst verwirft der Browser das Cookie");
+  assert.ok(
+    !setCookie.includes("Secure"),
+    "Secure darf über HTTP nicht gesetzt sein, sonst verwirft der Browser das Cookie",
+  );
   const cookie = setCookie.split(";")[0];
 
   // Genau der Fehler, der live beobachtet wurde: eine Folgeanfrage mit
@@ -1020,7 +1341,10 @@ test("/api/health reports the local positions table", async (t) => {
   const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.62" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   await seedPositions(env, "geraet1", [{ at: Date.now(), lat: 52, lon: 7 }]);
 
   const health = await api(env, "GET", "/api/health", { cookie: setup.cookie, headers: ip });
@@ -1038,7 +1362,10 @@ test("API-Integration: Push-Benachrichtigung — öffentlicher Schlüssel und Ab
   const envOhne = makeEnv();
   t.after(() => envOhne.DB.close());
   const cookieOhne = await setupAndLogin(envOhne, "dirk", "langgenug1", ip);
-  const ohneSchluessel = await api(envOhne, "GET", "/api/push-public-key", { cookie: cookieOhne, headers: ip });
+  const ohneSchluessel = await api(envOhne, "GET", "/api/push-public-key", {
+    cookie: cookieOhne,
+    headers: ip,
+  });
   assert.equal(ohneSchluessel.status, 503);
 
   const env = makeEnv({ VAPID_PUBLIC_KEY: "test-oeffentlicher-schluessel" });
@@ -1050,29 +1377,45 @@ test("API-Integration: Push-Benachrichtigung — öffentlicher Schlüssel und Ab
   assert.equal(schluessel.status, 200);
   assert.equal(schluessel.data.key, "test-oeffentlicher-schluessel");
 
-  const ohneFelder = await api(env, "POST", "/api/push-subscriptions", { cookie, headers: ip2, body: { endpoint: "https://push.example/x" } });
+  const ohneFelder = await api(env, "POST", "/api/push-subscriptions", {
+    cookie,
+    headers: ip2,
+    body: { endpoint: "https://push.example/x" },
+  });
   assert.equal(ohneFelder.status, 400);
 
   const angemeldet = await api(env, "POST", "/api/push-subscriptions", {
-    cookie, headers: ip2,
-    body: { endpoint: "https://push.example/abc", keys: { p256dh: "p256dh-wert", auth: "auth-wert" } },
+    cookie,
+    headers: ip2,
+    body: {
+      endpoint: "https://push.example/abc",
+      keys: { p256dh: "p256dh-wert", auth: "auth-wert" },
+    },
   });
   assert.equal(angemeldet.status, 201);
   assert.ok(angemeldet.data.id);
 
   // Erneutes Abo mit demselben endpoint ersetzt statt einen Duplikat-Fehler zu werfen.
   const erneut = await api(env, "POST", "/api/push-subscriptions", {
-    cookie, headers: ip2,
-    body: { endpoint: "https://push.example/abc", keys: { p256dh: "neuer-wert", auth: "auth-wert" } },
+    cookie,
+    headers: ip2,
+    body: {
+      endpoint: "https://push.example/abc",
+      keys: { p256dh: "neuer-wert", auth: "auth-wert" },
+    },
   });
   assert.equal(erneut.status, 201);
 
-  const geloescht = await api(env, "DELETE", `/api/push-subscriptions/${angemeldet.data.id}`, { cookie, headers: ip2 });
+  const geloescht = await api(env, "DELETE", `/api/push-subscriptions/${angemeldet.data.id}`, {
+    cookie,
+    headers: ip2,
+  });
   assert.equal(geloescht.status, 200);
 
   // Ohne Anmeldung geht gar nichts — wie der Rest der API.
   const ohneAnmeldung = await api(env, "POST", "/api/push-subscriptions", {
-    headers: ip2, body: { endpoint: "https://push.example/xyz", keys: { p256dh: "p", auth: "a" } },
+    headers: ip2,
+    body: { endpoint: "https://push.example/xyz", keys: { p256dh: "p", auth: "a" } },
   });
   assert.equal(ohneAnmeldung.status, 401);
 });
@@ -1085,9 +1428,16 @@ function fotoSpeicher() {
   const objekte = new Map();
   return {
     objekte,
-    put: async (key, daten) => { objekte.set(key, daten); },
-    delete: async (key) => { objekte.delete(key); },
-    get: async (key) => (objekte.has(key) ? { body: objekte.get(key), httpMetadata: { contentType: "image/jpeg" } } : null),
+    put: async (key, daten) => {
+      objekte.set(key, daten);
+    },
+    delete: async (key) => {
+      objekte.delete(key);
+    },
+    get: async (key) =>
+      objekte.has(key)
+        ? { body: objekte.get(key), httpMetadata: { contentType: "image/jpeg" } }
+        : null,
   };
 }
 
@@ -1098,9 +1448,13 @@ test("API-Integration: Tagebuch — anlegen, überschreiben, Fotos anhängen, l�
   // Eigene IP: die allgemeine Lastbegrenzung zählt je Adresse, und alle Tests dieser Datei teilen sich sonst "unbekannt".
   const ip = { "cf-connecting-ip": "203.0.113.41" };
   const cookie = await setupAndLogin(env, "dirk", "langgenug1", ip);
-  const api = (e, m, p, o = {}) => apiBasis(e, m, p, { ...o, headers: { ...ip, ...(o.headers || {}) } });
+  const api = (e, m, p, o = {}) =>
+    apiBasis(e, m, p, { ...o, headers: { ...ip, ...(o.headers || {}) } });
   const apiFormData = (e, m, p, o = {}) => formBasis(e, m, p, { ...o, headers: ip });
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-t", name: "Tagebuchreise", start_at: "2026-07-12T06:00:00Z" } });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: { id: "reise-t", name: "Tagebuchreise", start_at: "2026-07-12T06:00:00Z" },
+  });
 
   const ohneSitzung = await api(env, "GET", "/api/tagebuch");
   assert.equal(ohneSitzung.status, 401);
@@ -1108,18 +1462,34 @@ test("API-Integration: Tagebuch — anlegen, überschreiben, Fotos anhängen, l�
   const leer = await api(env, "GET", "/api/tagebuch", { cookie });
   assert.deepEqual(leer.data, []);
 
-  const schlecht = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "gestern", blocks: [] } });
+  const schlecht = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "reise-t", day_key: "gestern", blocks: [] },
+  });
   assert.equal(schlecht.status, 400);
-  const unbekannteReise = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "nicht-da", day_key: "2026-07-14", blocks: [] } });
+  const unbekannteReise = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "nicht-da", day_key: "2026-07-14", blocks: [] },
+  });
   assert.equal(unbekannteReise.status, 404);
 
-  const erster = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "2026-07-14", blocks: [{ t: "text", text: "Früh los." }] } });
+  const erster = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "reise-t", day_key: "2026-07-14", blocks: [{ t: "text", text: "Früh los." }] },
+  });
   assert.equal(erster.status, 201);
   assert.equal(erster.data.neu, true);
   const id = erster.data.id;
 
   // Dasselbe (Reise, Tag) noch einmal: überschreibt den Eintrag, legt keinen zweiten an.
-  const zweiter = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-t", day_key: "2026-07-14", blocks: [{ t: "text", text: "Früh los und Kaffee." }] } });
+  const zweiter = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: {
+      trip_id: "reise-t",
+      day_key: "2026-07-14",
+      blocks: [{ t: "text", text: "Früh los und Kaffee." }],
+    },
+  });
   assert.equal(zweiter.status, 200);
   assert.equal(zweiter.data.neu, false);
   assert.equal(zweiter.data.id, id);
@@ -1139,7 +1509,10 @@ test("API-Integration: Tagebuch — anlegen, überschreiben, Fotos anhängen, l�
   const unbekannt = new FormData();
   unbekannt.set("file", bild);
   unbekannt.set("tagebuch_id", "nicht-da");
-  assert.equal((await apiFormData(env, "POST", "/api/photos", { cookie, body: unbekannt })).status, 404);
+  assert.equal(
+    (await apiFormData(env, "POST", "/api/photos", { cookie, body: unbekannt })).status,
+    404,
+  );
 
   const fotos = await api(env, "GET", "/api/photos", { cookie });
   assert.equal(fotos.data.length, 1);
@@ -1159,12 +1532,35 @@ test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur
   t.after(() => env.DB.close());
   const verwalter = { "cf-connecting-ip": "203.0.113.42" };
   const cookie = await setupAndLogin(env, "dirk", "langgenug1", verwalter);
-  const api = (e, m, p, o = {}) => apiBasis(e, m, p, { ...o, headers: { ...verwalter, ...(o.headers || {}) } });
+  const api = (e, m, p, o = {}) =>
+    apiBasis(e, m, p, { ...o, headers: { ...verwalter, ...(o.headers || {}) } });
   const apiFormData = (e, m, p, o = {}) => formBasis(e, m, p, { ...o, headers: verwalter });
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-x", name: "Freigegeben", start_at: "2026-07-12T06:00:00Z", end_at: "2026-07-20T06:00:00Z" } });
-  await api(env, "POST", "/api/trips", { cookie, body: { id: "reise-y", name: "Andere", start_at: "2026-08-01T06:00:00Z", end_at: "2026-08-05T06:00:00Z" } });
-  const eintragX = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-x", day_key: "2026-07-13", blocks: [{ t: "text", text: "Bei Oma." }] } });
-  const eintragY = await api(env, "PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-y", day_key: "2026-08-02", blocks: [{ t: "text", text: "Geheim." }] } });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: {
+      id: "reise-x",
+      name: "Freigegeben",
+      start_at: "2026-07-12T06:00:00Z",
+      end_at: "2026-07-20T06:00:00Z",
+    },
+  });
+  await api(env, "POST", "/api/trips", {
+    cookie,
+    body: {
+      id: "reise-y",
+      name: "Andere",
+      start_at: "2026-08-01T06:00:00Z",
+      end_at: "2026-08-05T06:00:00Z",
+    },
+  });
+  const eintragX = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "reise-x", day_key: "2026-07-13", blocks: [{ t: "text", text: "Bei Oma." }] },
+  });
+  const eintragY = await api(env, "PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "reise-y", day_key: "2026-08-02", blocks: [{ t: "text", text: "Geheim." }] },
+  });
   const form = new FormData();
   form.set("file", new File([new Uint8Array([9, 9])], "f.jpg", { type: "image/jpeg" }));
   form.set("tagebuch_id", eintragX.data.id);
@@ -1173,8 +1569,14 @@ test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur
   const foto = await apiFormData(env, "POST", "/api/photos", { cookie, body: form });
   assert.equal(foto.status, 201);
 
-  const nurKarte = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-x", scope: "karte" } });
-  const mitLogbuch = await api(env, "POST", "/api/shares", { cookie, body: { tripId: "reise-x", scope: "karte_logbuch" } });
+  const nurKarte = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-x", scope: "karte" },
+  });
+  const mitLogbuch = await api(env, "POST", "/api/shares", {
+    cookie,
+    body: { tripId: "reise-x", scope: "karte_logbuch" },
+  });
   const ip = { "cf-connecting-ip": "203.0.113.77" };
 
   const karte = await api(env, "GET", `/api/share/${nurKarte.data.token}`, { headers: ip });
@@ -1185,11 +1587,24 @@ test("API-Integration: Tagebuch über den Freigabe-Link — nur mit Logbuch, nur
   assert.equal(logbuch.data.tagebuch[0].id, eintragX.data.id);
   assert.equal(logbuch.data.photos.length, 1);
   assert.equal(logbuch.data.photos[0].tagebuch_id, eintragX.data.id);
-  assert.ok(!logbuch.data.tagebuch.some((e) => e.id === eintragY.data.id), "Eintrag einer anderen Reise bleibt privat");
+  assert.ok(
+    !logbuch.data.tagebuch.some((e) => e.id === eintragY.data.id),
+    "Eintrag einer anderen Reise bleibt privat",
+  );
 
-  const ausgeliefert = await handle(new Request(`https://vojago.test/api/share/${mitLogbuch.data.token}/photos/${foto.data.id}`, { headers: ip }), env);
+  const ausgeliefert = await handle(
+    new Request(`https://vojago.test/api/share/${mitLogbuch.data.token}/photos/${foto.data.id}`, {
+      headers: ip,
+    }),
+    env,
+  );
   assert.equal(ausgeliefert.status, 200);
-  const nurKarteFoto = await handle(new Request(`https://vojago.test/api/share/${nurKarte.data.token}/photos/${foto.data.id}`, { headers: ip }), env);
+  const nurKarteFoto = await handle(
+    new Request(`https://vojago.test/api/share/${nurKarte.data.token}/photos/${foto.data.id}`, {
+      headers: ip,
+    }),
+    env,
+  );
   assert.equal(nurKarteFoto.status, 403);
 });
 
@@ -1199,8 +1614,14 @@ test("API-Integration: Tagebuch — an existing database without photos.tagebuch
   const ip = { "cf-connecting-ip": "203.0.113.43" };
   const cookie = await setupAndLogin(env, "dirk", "langgenug1", ip);
   const a = (m, p, o = {}) => apiBasis(env, m, p, { ...o, headers: ip });
-  await a("POST", "/api/trips", { cookie, body: { id: "reise-alt", name: "Alt", start_at: "2026-07-12T06:00:00Z" } });
-  await a("POST", "/api/besuche", { cookie, body: { id: "besuch-alt", title: "Platz", lat: 50, lon: 8 } });
+  await a("POST", "/api/trips", {
+    cookie,
+    body: { id: "reise-alt", name: "Alt", start_at: "2026-07-12T06:00:00Z" },
+  });
+  await a("POST", "/api/besuche", {
+    cookie,
+    body: { id: "besuch-alt", title: "Platz", lat: 50, lon: 8 },
+  });
 
   // Zustand vor dem Update nachbauen: photos ohne tagebuch_id, keine Tagebuch-Tabelle, ein vorhandenes Foto.
   env.DB.db.exec("PRAGMA foreign_keys = OFF");
@@ -1209,7 +1630,9 @@ test("API-Integration: Tagebuch — an existing database without photos.tagebuch
     id TEXT PRIMARY KEY, besuch_id TEXT REFERENCES besuche(id) ON DELETE CASCADE,
     note_id TEXT REFERENCES notes(id) ON DELETE CASCADE, r2_key TEXT NOT NULL, taken_at TEXT,
     lat REAL, lon REAL, width INTEGER, height INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
-  env.DB.db.exec("INSERT INTO photos (id, besuch_id, r2_key) VALUES ('altes-foto', 'besuch-alt', 'fotos/altes-foto.jpg')");
+  env.DB.db.exec(
+    "INSERT INTO photos (id, besuch_id, r2_key) VALUES ('altes-foto', 'besuch-alt', 'fotos/altes-foto.jpg')",
+  );
   env.DB.db.exec("PRAGMA foreign_keys = ON");
 
   // Container restart on the old database: schema, then migrations. The old photo stays.
@@ -1226,7 +1649,10 @@ test("API-Integration: Tagebuch — an existing database without photos.tagebuch
   assert.equal(fotos.data[0].id, "altes-foto");
   assert.equal(fotos.data[0].tagebuch_id, null);
 
-  const eintrag = await a("PUT", "/api/tagebuch", { cookie, body: { trip_id: "reise-alt", day_key: "2026-07-13", blocks: [] } });
+  const eintrag = await a("PUT", "/api/tagebuch", {
+    cookie,
+    body: { trip_id: "reise-alt", day_key: "2026-07-13", blocks: [] },
+  });
   assert.equal(eintrag.status, 201);
   assert.equal((await a("GET", "/api/tagebuch", { cookie })).data.length, 1);
 });
@@ -1235,15 +1661,30 @@ test("/api/route?compact=1 sends a thinned, compact route; without the flag the 
   const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.71" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   const start = Date.UTC(2026, 9, 26, 10, 0, 0);
-  await seedPositions(env, "dev-1", Array.from({ length: 60 }, (_, i) => ({ at: start + i * 1000, lat: 52, lon: 8 + i * 0.0003, speedKmh: 90 })));
+  await seedPositions(
+    env,
+    "dev-1",
+    Array.from({ length: 60 }, (_, i) => ({
+      at: start + i * 1000,
+      lat: 52,
+      lon: 8 + i * 0.0003,
+      speedKmh: 90,
+    })),
+  );
   const q = `deviceId=dev-1&from=${new Date(start).toISOString()}&to=${new Date(start + 60_000).toISOString()}`;
 
   const voll = await api(env, "GET", `/api/route?${q}`, { cookie: setup.cookie, headers: ip });
   assert.equal(voll.data.length, 60);
 
-  const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, { cookie: setup.cookie, headers: ip });
+  const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, {
+    cookie: setup.cookie,
+    headers: ip,
+  });
   assert.equal(kompakt.status, 200);
   assert.equal(kompakt.data.total, 60);
   assert.ok(kompakt.data.points.length >= 2 && kompakt.data.points.length <= 5);
@@ -1254,35 +1695,69 @@ test("/api/route?stand=1 returns only the count and the newest point of the rang
   const env = makeEnv();
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.72" };
-  const setup = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const setup = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   const start = Date.UTC(2026, 9, 26, 10, 0, 0);
-  await seedPositions(env, "dev-1", Array.from({ length: 12 }, (_, i) => ({ at: start + i * 1000, lat: 52, lon: 8 + i * 0.0003 })));
+  await seedPositions(
+    env,
+    "dev-1",
+    Array.from({ length: 12 }, (_, i) => ({ at: start + i * 1000, lat: 52, lon: 8 + i * 0.0003 })),
+  );
   const q = `deviceId=dev-1&from=${new Date(start).toISOString()}&to=${new Date(start + 60_000).toISOString()}`;
-  const stand = await api(env, "GET", `/api/route?stand=1&${q}`, { cookie: setup.cookie, headers: ip });
+  const stand = await api(env, "GET", `/api/route?stand=1&${q}`, {
+    cookie: setup.cookie,
+    headers: ip,
+  });
   assert.deepEqual(stand.data, { total: 12, lastAt: start + 11_000 });
-  const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, { cookie: setup.cookie, headers: ip });
+  const kompakt = await api(env, "GET", `/api/route?compact=1&${q}`, {
+    cookie: setup.cookie,
+    headers: ip,
+  });
   assert.equal(kompakt.data.total, 12);
   assert.equal(kompakt.data.lastAt, start + 11_000);
 });
 
 test("/api/backup: admins get the archive, others 403, without a backup function 501", async (t) => {
-  const env = makeEnv({ BACKUP: async () => ({ data: Buffer.from("gz"), filename: "vojago-backup-2026-11-13.tar.gz" }) });
+  const env = makeEnv({
+    BACKUP: async () => ({ data: Buffer.from("gz"), filename: "vojago-backup-2026-11-13.tar.gz" }),
+  });
   t.after(() => env.DB.close());
   const ip = { "cf-connecting-ip": "203.0.113.73" };
-  const admin = await api(env, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
+  const admin = await api(env, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
   const ok = await api(env, "GET", "/api/backup", { cookie: admin.cookie, headers: ip });
   assert.equal(ok.status, 200);
   assert.equal(ok.response.headers.get("content-type"), "application/gzip");
   assert.match(ok.response.headers.get("content-disposition"), /vojago-backup-2026-11-13\.tar\.gz/);
 
-  await api(env, "POST", "/api/users", { cookie: admin.cookie, headers: ip, body: { username: "gast", password: "langgenug2", isAdmin: false } });
-  const gast = await api(env, "POST", "/api/auth/login", { headers: ip, body: { username: "gast", password: "langgenug2" } });
-  assert.equal((await api(env, "GET", "/api/backup", { cookie: gast.cookie, headers: ip })).status, 403);
+  await api(env, "POST", "/api/users", {
+    cookie: admin.cookie,
+    headers: ip,
+    body: { username: "gast", password: "langgenug2", isAdmin: false },
+  });
+  const gast = await api(env, "POST", "/api/auth/login", {
+    headers: ip,
+    body: { username: "gast", password: "langgenug2" },
+  });
+  assert.equal(
+    (await api(env, "GET", "/api/backup", { cookie: gast.cookie, headers: ip })).status,
+    403,
+  );
 
   const ohne = makeEnv();
   t.after(() => ohne.DB.close());
-  const a2 = await api(ohne, "POST", "/api/auth/setup", { headers: ip, body: { username: "dirk", password: "langgenug1" } });
-  assert.equal((await api(ohne, "GET", "/api/backup", { cookie: a2.cookie, headers: ip })).status, 501);
+  const a2 = await api(ohne, "POST", "/api/auth/setup", {
+    headers: ip,
+    body: { username: "dirk", password: "langgenug1" },
+  });
+  assert.equal(
+    (await api(ohne, "GET", "/api/backup", { cookie: a2.cookie, headers: ip })).status,
+    501,
+  );
 
   const anonym = await api(env, "GET", "/api/backup", { headers: ip });
   assert.equal(anonym.status, 401);

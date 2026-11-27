@@ -5,7 +5,7 @@ export function parseAllowedDeviceIds(value = process.env.TRACKER_ALLOWED_DEVICE
     String(value)
       .split(/[\s,]+/)
       .map((id) => id.trim())
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
@@ -26,7 +26,7 @@ export function isLearningActive(now = Date.now()) {
 export function setLearningUntil(until) {
   db.prepare(
     "INSERT INTO ingest_settings (key, value) VALUES ('learning_until', ?) " +
-    "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+      "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
   ).run(String(Math.max(0, Number(until) || 0)));
 }
 
@@ -39,17 +39,22 @@ export function markDeviceSeen(deviceId, protocol, accepted = false, now = Date.
      ON CONFLICT(device_id) DO UPDATE SET
        last_seen = excluded.last_seen,
        protocol = excluded.protocol,
-       accepted = CASE WHEN known_devices.accepted = 1 OR excluded.accepted = 1 THEN 1 ELSE 0 END`
+       accepted = CASE WHEN known_devices.accepted = 1 OR excluded.accepted = 1 THEN 1 ELSE 0 END`,
   ).run(id, now, now, protocol || "unknown", accepted ? 1 : 0);
 }
 
 function vehicleAllows(id) {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM vehicles WHERE trim(coalesce(traccar_device_id, '')) = ? LIMIT 1"
-  ).get(id));
+  return Boolean(
+    db
+      .prepare("SELECT 1 FROM vehicles WHERE trim(coalesce(traccar_device_id, '')) = ? LIMIT 1")
+      .get(id),
+  );
 }
 
-export function isDeviceAllowed(deviceId, { allowed = parseAllowedDeviceIds(), protocol = "unknown", now = Date.now() } = {}) {
+export function isDeviceAllowed(
+  deviceId,
+  { allowed = parseAllowedDeviceIds(), protocol = "unknown", now = Date.now() } = {},
+) {
   const id = cleanDeviceId(deviceId);
   if (!id) return false;
   const accepted = allowed.has(id) || vehicleAllows(id);

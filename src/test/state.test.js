@@ -8,7 +8,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { state, ROUTE_DRIVE_FILTERS, MAP_METRICS, setRouteDriveFilter, setMetric, collectPreferences, applyPreferences, migrateConfig } from "../state.js";
+import {
+  state,
+  ROUTE_DRIVE_FILTERS,
+  MAP_METRICS,
+  setRouteDriveFilter,
+  setMetric,
+  collectPreferences,
+  applyPreferences,
+  migrateConfig,
+} from "../state.js";
 
 test("setRouteDriveFilter: every valid value is actually taken", () => {
   for (const value of ROUTE_DRIVE_FILTERS) {
@@ -64,9 +73,13 @@ test("collectPreferences/applyPreferences: every valid metric value survives the
 });
 
 test("migrateConfig: settings stored under the old German keys are taken over", () => {
-  assert.deepEqual(migrateConfig({ theme: "dark", gelaende: true, kartenstil: "dezent", lueckenMarkieren: true }),
-    { theme: "dark", terrain: true, mapStyle: "dezent", markGaps: true });
+  assert.deepEqual(
+    migrateConfig({ theme: "dark", gelaende: true, kartenstil: "dezent", lueckenMarkieren: true }),
+    { theme: "dark", terrain: true, mapStyle: "dezent", markGaps: true },
+  );
   // a value already stored under the new key wins
-  assert.deepEqual(migrateConfig({ kartenstil: "dezent", mapStyle: "farbig" }), { mapStyle: "farbig" });
+  assert.deepEqual(migrateConfig({ kartenstil: "dezent", mapStyle: "farbig" }), {
+    mapStyle: "farbig",
+  });
   assert.deepEqual(migrateConfig(null), {});
 });

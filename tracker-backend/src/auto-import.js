@@ -47,7 +47,8 @@ function haversineKm(a, b) {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 +
+  const h =
+    Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
@@ -98,10 +99,12 @@ function bewerteStopp(stopp) {
   let endeIso = stopp.endTime;
   if (reise?.end_at) {
     const reiseEnde = Date.parse(reise.end_at);
-    if (Number.isFinite(reiseEnde) && Date.parse(endeIso) > reiseEnde) endeIso = new Date(reiseEnde).toISOString();
+    if (Number.isFinite(reiseEnde) && Date.parse(endeIso) > reiseEnde)
+      endeIso = new Date(reiseEnde).toISOString();
   }
   const entscheidung = classifyStand(stopp.startTime, endeIso);
-  const kategorie = entscheidung && !(!reise && entscheidung.catId === "uebernachtung") ? entscheidung.catId : null;
+  const kategorie =
+    entscheidung && !(!reise && entscheidung.catId === "uebernachtung") ? entscheidung.catId : null;
   return { reise, endeIso, kategorie };
 }
 
@@ -123,19 +126,23 @@ const STOPP_FORTSETZUNG_MAX_STUNDEN = 3;
  * dadurch zwei eigenständige, sehr kurz aufeinanderfolgende Stopps statt
  * eines durchgehenden. */
 function findeAehnlicheUebernachtung(lat, lon, tripId, kategorie, startIso) {
-  const rows = db.prepare(
-    `SELECT b.id, b.occurred_at, b.nights, o.id AS ort_id, o.category_id, o.lat, o.lon
+  const rows = db
+    .prepare(
+      `SELECT b.id, b.occurred_at, b.nights, o.id AS ort_id, o.category_id, o.lat, o.lon
      FROM besuche b JOIN orte o ON o.id = b.ort_id
      WHERE o.category_id = ?
-     ORDER BY b.occurred_at DESC`
-  ).all(kategorie);
+     ORDER BY b.occurred_at DESC`,
+    )
+    .all(kategorie);
   const startMs = Date.parse(startIso);
   for (const row of rows) {
     if (findeReiseId(row.occurred_at) !== tripId) continue;
     if (kategorie !== "uebernachtung") {
       const rowMs = Date.parse(row.occurred_at);
-      const abstandStunden = Number.isFinite(startMs) && Number.isFinite(rowMs)
-        ? Math.abs(startMs - rowMs) / 3600_000 : Infinity;
+      const abstandStunden =
+        Number.isFinite(startMs) && Number.isFinite(rowMs)
+          ? Math.abs(startMs - rowMs) / 3600_000
+          : Infinity;
       if (abstandStunden > STOPP_FORTSETZUNG_MAX_STUNDEN) return null;
     }
     // Nur der JÜNGSTE Besuch dieser Reise/Kategorie zählt — sobald der
@@ -151,18 +158,24 @@ function findeAehnlicheUebernachtung(lat, lon, tripId, kategorie, startIso) {
  * hinweg schon einen Ort in der Nähe derselben Kategorie? */
 function findeVorhandenenOrt(lat, lon, catId) {
   const rows = db.prepare("SELECT id, lat, lon FROM orte WHERE category_id = ?").all(catId);
-  let bester = null, besteEntfernung = Infinity;
+  let bester = null,
+    besteEntfernung = Infinity;
   for (const r of rows) {
     const d = haversineKm({ lat, lon }, r);
-    if (d <= ORT_WIEDERERKENNUNG_RADIUS_KM && d < besteEntfernung) { bester = r; besteEntfernung = d; }
+    if (d <= ORT_WIEDERERKENNUNG_RADIUS_KM && d < besteEntfernung) {
+      bester = r;
+      besteEntfernung = d;
+    }
   }
   return bester?.id || null;
 }
 
 function holeFahrzeuge() {
-  return db.prepare(
-    "SELECT id, name, traccar_device_id, active FROM vehicles WHERE traccar_device_id IS NOT NULL AND traccar_device_id != ''"
-  ).all();
+  return db
+    .prepare(
+      "SELECT id, name, traccar_device_id, active FROM vehicles WHERE traccar_device_id IS NOT NULL AND traccar_device_id != ''",
+    )
+    .all();
 }
 
 // ── Offener Stand ────────────────────────────────────────────────────────
@@ -223,7 +236,7 @@ function planeFrist(deviceId, offenerStartIso, jetztMs) {
   const timer = setTimeout(() => {
     fristTimerJeGeraet.delete(deviceId);
     fuehreAutoImportAus({ deviceId, planen: true }).catch((err) =>
-      console.error(`[auto-import] Fristlauf für ${deviceId} fehlgeschlagen:`, err)
+      console.error(`[auto-import] Fristlauf für ${deviceId} fehlgeschlagen:`, err),
     );
   }, wartezeit);
   timer.unref?.();
@@ -236,14 +249,18 @@ function planeFrist(deviceId, offenerStartIso, jetztMs) {
  * bleibt der Eintrag. */
 function entferneAutoBesuchWennUnberuehrt(besuch) {
   const b = db.prepare("SELECT kind FROM besuche WHERE id = ?").get(besuch.id);
-  const ort = db.prepare("SELECT title, address, note, rating, category_id FROM orte WHERE id = ?").get(besuch.ort_id);
+  const ort = db
+    .prepare("SELECT title, address, note, rating, category_id FROM orte WHERE id = ?")
+    .get(besuch.ort_id);
   if (!b || b.kind !== "auto" || !ort) return false;
   if (!["uebernachtung", "stopp"].includes(ort.category_id)) return false;
-  const titelAutomatisch = PLATZHALTER_TITEL.includes(ort.title) || (ort.address && ort.title === ort.address);
+  const titelAutomatisch =
+    PLATZHALTER_TITEL.includes(ort.title) || (ort.address && ort.title === ort.address);
   if (!titelAutomatisch || (ort.note && ort.note.trim()) || ort.rating != null) return false;
   for (const tabelle of ["notes", "photos"]) {
     try {
-      if (db.prepare(`SELECT 1 FROM ${tabelle} WHERE besuch_id = ? LIMIT 1`).get(besuch.id)) return false;
+      if (db.prepare(`SELECT 1 FROM ${tabelle} WHERE besuch_id = ? LIMIT 1`).get(besuch.id))
+        return false;
     } catch (err) {
       // Tabelle gibt es nur, wenn der app-Container sie schon angelegt hat.
       // Jeder andere Fehler: lieber behalten als womöglich Fotos mitlöschen.
@@ -266,15 +283,17 @@ function entferneAutoBesuchWennUnberuehrt(besuch) {
  * die normale Erkennung legt den Stopp danach im selben Durchlauf neu an. */
 function bereinigeVorlaeufige(deviceId, segmente, endeVirtuell) {
   let entfernt = 0;
-  const zeilen = db.prepare("SELECT stop_key FROM auto_vorlaeufig WHERE stop_key LIKE ?").all(`${deviceId}|%`);
+  const zeilen = db
+    .prepare("SELECT stop_key FROM auto_vorlaeufig WHERE stop_key LIKE ?")
+    .all(`${deviceId}|%`);
   for (const { stop_key: stopKey } of zeilen) {
     const startIso = stopKey.slice(deviceId.length + 1);
     const seg = segmente.find((s) => s.startTime === startIso);
     const offen = Boolean(seg && endeVirtuell && seg.endTime === endeVirtuell);
     const besuch = holeBesuchMitStopKey(stopKey);
     const kategorie = seg ? bewerteStopp(seg).kategorie : null;
-    const bestaetigt = besuch && kategorie
-      && (kategorie === besuch.category_id || kategorie === "uebernachtung");
+    const bestaetigt =
+      besuch && kategorie && (kategorie === besuch.category_id || kategorie === "uebernachtung");
     // Noch offen UND weiterhin gültig: bleibt vorläufig. Noch offen, aber nicht
     // mehr gültig (z. B. die Reise wurde beendet, bevor der Stand zur Nacht
     // wurde): weiter zum Entfernen.
@@ -286,14 +305,23 @@ function bereinigeVorlaeufige(deviceId, segmente, endeVirtuell) {
 }
 
 function holeVerworfeneStopKeys() {
-  return new Set(db.prepare("SELECT stop_key FROM ignored_stops").all().map((r) => r.stop_key));
+  return new Set(
+    db
+      .prepare("SELECT stop_key FROM ignored_stops")
+      .all()
+      .map((r) => r.stop_key),
+  );
 }
 
 function holeBesuchMitStopKey(stopKey) {
-  return db.prepare(
-    `SELECT b.id, b.nights, o.id AS ort_id, o.category_id, o.lat, o.lon
-     FROM besuche b JOIN orte o ON o.id = b.ort_id WHERE b.stop_key = ?`
-  ).get(stopKey) || null;
+  return (
+    db
+      .prepare(
+        `SELECT b.id, b.nights, o.id AS ort_id, o.category_id, o.lat, o.lon
+     FROM besuche b JOIN orte o ON o.id = b.ort_id WHERE b.stop_key = ?`,
+      )
+      .get(stopKey) || null
+  );
 }
 
 /** Adresse (Reverse-Geocoding) + Wetter nachträglich ergänzen — wie
@@ -312,7 +340,10 @@ async function reichereOrtAn(ortId, besuchId, lat, lon, occurredAt, { geocode, w
     const name = await geocode(lat, lon);
     if (name) {
       const aktuell = db.prepare("SELECT title FROM orte WHERE id = ?").get(ortId);
-      db.prepare("UPDATE orte SET address = ?, updated_at = datetime('now') WHERE id = ?").run(name, ortId);
+      db.prepare("UPDATE orte SET address = ?, updated_at = datetime('now') WHERE id = ?").run(
+        name,
+        ortId,
+      );
       if (aktuell && PLATZHALTER_TITEL.includes(aktuell.title)) {
         db.prepare("UPDATE orte SET title = ? WHERE id = ?").run(name, ortId);
       }
@@ -322,7 +353,10 @@ async function reichereOrtAn(ortId, besuchId, lat, lon, occurredAt, { geocode, w
   }
   try {
     const werte = await wetter(lat, lon, occurredAt);
-    db.prepare("UPDATE besuche SET weather = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(werte), besuchId);
+    db.prepare("UPDATE besuche SET weather = ?, updated_at = datetime('now') WHERE id = ?").run(
+      JSON.stringify(werte),
+      besuchId,
+    );
   } catch (err) {
     console.warn("[auto-import] Wetter nicht ermittelbar:", err.message || err);
   }
@@ -334,7 +368,7 @@ function legeBesuchAn({ lat, lon, kategorie, occurredAt, nights, stopKey }) {
     ortId = randomUUID();
     const titel = kategorie === "uebernachtung" ? "Aktuelle Übernachtung" : "Stopp";
     db.prepare(
-      "INSERT INTO orte (id, title, category_id, rating, lat, lon) VALUES (?,?,?,?,?,?)"
+      "INSERT INTO orte (id, title, category_id, rating, lat, lon) VALUES (?,?,?,?,?,?)",
     ).run(ortId, titel, kategorie, null, lat, lon);
   }
   const besuchId = randomUUID();
@@ -343,7 +377,7 @@ function legeBesuchAn({ lat, lon, kategorie, occurredAt, nights, stopKey }) {
   // niemanden ein sichtbar nützlicher Unterschied.
   db.prepare(
     `INSERT INTO besuche (id, ort_id, source, kind, occurred_at, nights, stop_key)
-     VALUES (?,?,?,?,?,?,?)`
+     VALUES (?,?,?,?,?,?,?)`,
   ).run(besuchId, ortId, "camper", "auto", occurredAt, nights, stopKey);
   return { ortId, besuchId };
 }
@@ -357,21 +391,27 @@ function legeBesuchAn({ lat, lon, kategorie, occurredAt, nights, stopKey }) {
  * Logging. `geocode`/`wetter` austauschbar für Tests (siehe reichereOrtAn()).
  */
 export async function fuehreAutoImportAus({
-  geocode = holeOrtsname, wetter = holeWetter, deviceId = null,
-  jetzt = Date.now(), offenerStand = true, planen = false,
+  geocode = holeOrtsname,
+  wetter = holeWetter,
+  deviceId = null,
+  jetzt = Date.now(),
+  offenerStand = true,
+  planen = false,
 } = {}) {
   const von = jetzt - TAGE_RUECKBLICK * 86400_000;
   const bis = jetzt;
   const verworfen = holeVerworfeneStopKeys();
-  let erstellt = 0, aktualisiert = 0, entfernt = 0;
+  let erstellt = 0,
+    aktualisiert = 0,
+    entfernt = 0;
 
   const fahrzeuge = deviceId
     ? holeFahrzeuge().filter((f) => f.traccar_device_id === deviceId)
     : holeFahrzeuge();
   for (const fahrzeug of fahrzeuge) {
-    const positionen = db.prepare(
-      "SELECT * FROM positions WHERE device_id = ? AND at BETWEEN ? AND ? ORDER BY at"
-    ).all(fahrzeug.traccar_device_id, von, bis);
+    const positionen = db
+      .prepare("SELECT * FROM positions WHERE device_id = ? AND at BETWEEN ? AND ? ORDER BY at")
+      .all(fahrzeug.traccar_device_id, von, bis);
     if (positionen.length < 2) continue;
 
     // Offener Stand (siehe Kommentar bei MAX_OFFENER_STAND_TAGE): künstlicher
@@ -379,14 +419,29 @@ export async function fuehreAutoImportAus({
     // und nur, solange die letzte Meldung nicht zu lange her ist.
     let endeVirtuell = null;
     const letzte = positionen[positionen.length - 1];
-    if (offenerStand && fahrzeug.active && jetzt > letzte.at && jetzt - letzte.at <= MAX_OFFENER_STAND_TAGE * 86400_000) {
-      positionen.push({ device_id: letzte.device_id, at: jetzt, lat: letzte.lat, lon: letzte.lon, speed_kmh: 0 });
+    if (
+      offenerStand &&
+      fahrzeug.active &&
+      jetzt > letzte.at &&
+      jetzt - letzte.at <= MAX_OFFENER_STAND_TAGE * 86400_000
+    ) {
+      positionen.push({
+        device_id: letzte.device_id,
+        at: jetzt,
+        lat: letzte.lat,
+        lon: letzte.lon,
+        speed_kmh: 0,
+      });
       endeVirtuell = new Date(jetzt).toISOString();
     }
     const segmente = segmentStops(positionen);
     entfernt += bereinigeVorlaeufige(fahrzeug.traccar_device_id, segmente, endeVirtuell);
     if (planen) {
-      planeFrist(fahrzeug.traccar_device_id, segmente.find((s) => s.endTime === endeVirtuell)?.startTime ?? null, jetzt);
+      planeFrist(
+        fahrzeug.traccar_device_id,
+        segmente.find((s) => s.endTime === endeVirtuell)?.startTime ?? null,
+        jetzt,
+      );
     }
 
     for (const stopp of segmente) {
@@ -394,7 +449,8 @@ export async function fuehreAutoImportAus({
       if (!kategorie) continue;
       const istUebernachtung = kategorie === "uebernachtung";
 
-      const lat = stopp.lat, lon = stopp.lon;
+      const lat = stopp.lat,
+        lon = stopp.lon;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
 
       const deviceId = stopp.deviceId || fahrzeug.traccar_device_id;
@@ -406,18 +462,28 @@ export async function fuehreAutoImportAus({
       // Fortsetzungssuche jetzt für beide Kategorien (siehe Kommentar bei
       // findeAehnlicheUebernachtung oben) — bei "stopp" zeitlich eng
       // begrenzt, bei "uebernachtung" wie gehabt unbegrenzt.
-      const aehnlich = bestehend || findeAehnlicheUebernachtung(lat, lon, tripId, kategorie, stopp.startTime);
-      const nights = istUebernachtung ? naechteAusZeitraum(aehnlich?.occurred_at || stopp.startTime, endeIso) : 1;
+      const aehnlich =
+        bestehend || findeAehnlicheUebernachtung(lat, lon, tripId, kategorie, stopp.startTime);
+      const nights = istUebernachtung
+        ? naechteAusZeitraum(aehnlich?.occurred_at || stopp.startTime, endeIso)
+        : 1;
 
       if (aehnlich) {
         const felder = [];
         const werte = [];
-        if (nights !== aehnlich.nights) { felder.push("nights = ?"); werte.push(nights); }
+        if (nights !== aehnlich.nights) {
+          felder.push("nights = ?");
+          werte.push(nights);
+        }
         if (kategorie === "uebernachtung" && aehnlich.category_id !== "uebernachtung") {
-          db.prepare("UPDATE orte SET category_id = 'uebernachtung', updated_at = datetime('now') WHERE id = ?").run(aehnlich.ort_id);
+          db.prepare(
+            "UPDATE orte SET category_id = 'uebernachtung', updated_at = datetime('now') WHERE id = ?",
+          ).run(aehnlich.ort_id);
         }
         if (felder.length) {
-          db.prepare(`UPDATE besuche SET ${felder.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...werte, aehnlich.id);
+          db.prepare(
+            `UPDATE besuche SET ${felder.join(", ")}, updated_at = datetime('now') WHERE id = ?`,
+          ).run(...werte, aehnlich.id);
           aktualisiert++;
         }
         continue;
@@ -425,7 +491,14 @@ export async function fuehreAutoImportAus({
 
       let angelegt;
       try {
-        angelegt = legeBesuchAn({ lat, lon, kategorie, occurredAt: stopp.startTime, nights, stopKey });
+        angelegt = legeBesuchAn({
+          lat,
+          lon,
+          kategorie,
+          occurredAt: stopp.startTime,
+          nights,
+          stopKey,
+        });
       } catch (err) {
         // Unique-Index auf stop_key: die Browser-Variante war schneller —
         // kein Fehler, sondern genau die vorgesehene Absicherung gegen
@@ -439,12 +512,17 @@ export async function fuehreAutoImportAus({
       if (stopp.endTime === endeVirtuell) {
         db.prepare("INSERT OR IGNORE INTO auto_vorlaeufig (stop_key) VALUES (?)").run(stopKey);
       }
-      await reichereOrtAn(angelegt.ortId, angelegt.besuchId, lat, lon, stopp.startTime, { geocode, wetter });
+      await reichereOrtAn(angelegt.ortId, angelegt.besuchId, lat, lon, stopp.startTime, {
+        geocode,
+        wetter,
+      });
     }
   }
 
   if (erstellt || aktualisiert || entfernt) {
-    console.log(`[auto-import] ${erstellt} neu angelegt, ${aktualisiert} aktualisiert, ${entfernt} widerlegt entfernt`);
+    console.log(
+      `[auto-import] ${erstellt} neu angelegt, ${aktualisiert} aktualisiert, ${entfernt} widerlegt entfernt`,
+    );
   }
   return { erstellt, aktualisiert, entfernt };
 }
@@ -484,7 +562,7 @@ export function pruefeStoppsFuerGeraet(deviceId) {
   const ruheTimer = setTimeout(() => {
     ruheTimerJeGeraet.delete(deviceId);
     fuehreAutoImportAus({ deviceId, planen: true }).catch((err) =>
-      console.error(`[auto-import] Ruhelauf für ${deviceId} fehlgeschlagen:`, err)
+      console.error(`[auto-import] Ruhelauf für ${deviceId} fehlgeschlagen:`, err),
     );
   }, RUHE_NACH_LETZTEM_PAKET_MS);
   ruheTimer.unref?.();
@@ -494,6 +572,6 @@ export function pruefeStoppsFuerGeraet(deviceId) {
   if (Date.now() - zuletzt < MIN_ABSTAND_MS) return;
   letzterLaufJeGeraet.set(deviceId, Date.now());
   fuehreAutoImportAus({ deviceId, planen: true }).catch((err) =>
-    console.error(`[auto-import] Durchlauf für ${deviceId} fehlgeschlagen:`, err)
+    console.error(`[auto-import] Durchlauf für ${deviceId} fehlgeschlagen:`, err),
   );
 }

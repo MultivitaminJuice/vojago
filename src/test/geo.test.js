@@ -8,7 +8,12 @@ import { smoothStandingNoise, distanceKm, simplify } from "../geo.js";
 
 test("smoothStandingNoise: jumping fixes while standing are pulled to one anchor", () => {
   const base = { lon: 6.0, lat: 51.9 };
-  const wobble = (dLon, dLat, spd = 0) => ({ lon: base.lon + dLon, lat: base.lat + dLat, elev: 10, spd });
+  const wobble = (dLon, dLat, spd = 0) => ({
+    lon: base.lon + dLon,
+    lat: base.lat + dLat,
+    elev: 10,
+    spd,
+  });
   const points = [
     wobble(0, 0),
     wobble(0.00005, 0.00003), // a few metres of noise
@@ -38,7 +43,11 @@ test("smoothStandingNoise: a real change of place while standing (> radius) sets
   const b = { lon: 6.0006, lat: 51.9, elev: 10, spd: 1 };
   const smoothed = smoothStandingNoise([a, b]);
   assert.equal(smoothed[0].lon, a.lon);
-  assert.equal(smoothed[1].lon, b.lon, "a distant fix stays where it is, it is not pulled to the old anchor");
+  assert.equal(
+    smoothed[1].lon,
+    b.lon,
+    "a distant fix stays where it is, it is not pulled to the old anchor",
+  );
   assert.ok(distanceKm(a.lon, a.lat, b.lon, b.lat) * 1000 > 12);
 });
 
@@ -52,22 +61,33 @@ test("simplify: a straight line shrinks to its start and end", () => {
 
 test("simplify: a corner stays, and so do the fields of the points", () => {
   const line = [
-    { lon: 10.000, lat: 50.000, cum: 0, time: "a" },
-    { lon: 10.001, lat: 50.000, cum: 1, time: "b" },
-    { lon: 10.002, lat: 50.000, cum: 2, time: "c" },
+    { lon: 10.0, lat: 50.0, cum: 0, time: "a" },
+    { lon: 10.001, lat: 50.0, cum: 1, time: "b" },
+    { lon: 10.002, lat: 50.0, cum: 2, time: "c" },
     { lon: 10.002, lat: 50.001, cum: 3, time: "d" },
     { lon: 10.002, lat: 50.002, cum: 4, time: "e" },
   ];
   const r = simplify(line, 3);
-  assert.deepEqual(r.map((p) => p.time), ["a", "c", "e"], "the corner (c) stays, the points in between are dropped");
+  assert.deepEqual(
+    r.map((p) => p.time),
+    ["a", "c", "e"],
+    "the corner (c) stays, the points in between are dropped",
+  );
 });
 
 test("simplify: short lines and noise below the tolerance", () => {
   assert.deepEqual(simplify([], 3), []);
-  const two = [{ lon: 1, lat: 1 }, { lon: 2, lat: 2 }];
+  const two = [
+    { lon: 1, lat: 1 },
+    { lon: 2, lat: 2 },
+  ];
   assert.equal(simplify(two, 3), two);
   // a 1 m sideways outlier is dropped at 3 m tolerance and kept at 0.5 m
-  const noisy = [{ lon: 10, lat: 50 }, { lon: 10.0005, lat: 50.00001 }, { lon: 10.001, lat: 50 }];
+  const noisy = [
+    { lon: 10, lat: 50 },
+    { lon: 10.0005, lat: 50.00001 },
+    { lon: 10.001, lat: 50 },
+  ];
   assert.equal(simplify(noisy, 3).length, 2);
   assert.equal(simplify(noisy, 0.5).length, 3);
 });

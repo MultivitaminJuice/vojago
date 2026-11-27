@@ -4,14 +4,43 @@ import { webcrypto } from "node:crypto";
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import assert from "node:assert/strict";
 import {
-  corsHeaders, allowedOrigins, safeEqual,
-  validateOrt, validateBesuch, validateTrip, validateRange, createRateLimiter, publicError,
-  hashPassword, verifyPassword, newSessionToken, hashToken,
-  sessionCookie, clearedSessionCookie, istHttps, readCookie, validateCredentials,
-  validateNote, validateTagebuch, weatherText, weatherSymbol, pickHourIndex, validateCoords, benenneOrtAusGeocodeAntwort,
-  isValidId, isHexColor, validateCategory, validateVehicle,
-  isValidEmail, newResetToken, RESET_TOKEN_MINUTES, newVerifyToken, EMAIL_VERIFY_MINUTES,
-  mapPositionRow, segmentDrives, segmentStops,
+  corsHeaders,
+  allowedOrigins,
+  safeEqual,
+  validateOrt,
+  validateBesuch,
+  validateTrip,
+  validateRange,
+  createRateLimiter,
+  publicError,
+  hashPassword,
+  verifyPassword,
+  newSessionToken,
+  hashToken,
+  sessionCookie,
+  clearedSessionCookie,
+  istHttps,
+  readCookie,
+  validateCredentials,
+  validateNote,
+  validateTagebuch,
+  weatherText,
+  weatherSymbol,
+  pickHourIndex,
+  validateCoords,
+  benenneOrtAusGeocodeAntwort,
+  isValidId,
+  isHexColor,
+  validateCategory,
+  validateVehicle,
+  isValidEmail,
+  newResetToken,
+  RESET_TOKEN_MINUTES,
+  newVerifyToken,
+  EMAIL_VERIFY_MINUTES,
+  mapPositionRow,
+  segmentDrives,
+  segmentStops,
 } from "../lib.js";
 import { ladeFixture } from "./lade-fixture.js";
 
@@ -20,8 +49,10 @@ const req = (headers = {}) => new Request("https://api.example/api/places", { he
 /* ---------------- Herkunft ---------------- */
 
 test("Herkunft: erlaubte Liste wird zerlegt", () => {
-  assert.deepEqual(allowedOrigins({ ALLOWED_ORIGINS: "https://a.example, https://b.example" }),
-    ["https://a.example", "https://b.example"]);
+  assert.deepEqual(allowedOrigins({ ALLOWED_ORIGINS: "https://a.example, https://b.example" }), [
+    "https://a.example",
+    "https://b.example",
+  ]);
   assert.deepEqual(allowedOrigins({}), []);
 });
 
@@ -69,7 +100,10 @@ test("Ort: Teiländerung erlaubt Weglassen, prüft aber Vorhandenes", () => {
 });
 
 test("Ort: address ist optional, aber auch längenbegrenzt", () => {
-  assert.equal(validateOrt({ address: "Musterviertel, Beispielstadt" }, { partial: true }).ok, true);
+  assert.equal(
+    validateOrt({ address: "Musterviertel, Beispielstadt" }, { partial: true }).ok,
+    true,
+  );
   assert.equal(validateOrt({ address: null }, { partial: true }).ok, true);
   assert.equal(validateOrt({ address: "x".repeat(201) }, { partial: true }).ok, false);
 });
@@ -157,7 +191,8 @@ test("Passwort: unbrauchbar gespeicherte Werte werden abgelehnt", async () => {
 });
 
 test("Sitzung: Schlüssel ist zufällig, in der Ablage steht nur der Abdruck", async () => {
-  const a = newSessionToken(), b = newSessionToken();
+  const a = newSessionToken(),
+    b = newSessionToken();
   assert.notEqual(a, b);
   assert.ok(a.length >= 40);
   assert.match(a, /^[A-Za-z0-9_-]+$/); // sicher in einem Cookie
@@ -186,13 +221,17 @@ test("istHttps: erkennt https-URL und x-forwarded-proto, plain http nicht", () =
   assert.equal(istHttps(new Request("https://vojago.test/api/auth/me")), true);
   assert.equal(istHttps(new Request("http://192.168.1.1:8081/api/auth/me")), false);
   assert.equal(
-    istHttps(new Request("http://vojago.test/api/auth/me", { headers: { "x-forwarded-proto": "https" } })),
-    true
+    istHttps(
+      new Request("http://vojago.test/api/auth/me", { headers: { "x-forwarded-proto": "https" } }),
+    ),
+    true,
   );
 });
 
 test("Cookie lesen: findet den eigenen Wert zwischen anderen", () => {
-  const req = new Request("https://x.example", { headers: { cookie: "a=1; vojago_session=xyz; b=2" } });
+  const req = new Request("https://x.example", {
+    headers: { cookie: "a=1; vojago_session=xyz; b=2" },
+  });
   assert.equal(readCookie(req, "vojago_session"), "xyz");
   assert.equal(readCookie(req, "fehlt"), null);
   assert.equal(readCookie(new Request("https://x.example"), "vojago_session"), null);
@@ -201,9 +240,18 @@ test("Cookie lesen: findet den eigenen Wert zwischen anderen", () => {
 test("Zugangsdaten: Benutzername und Mindestlänge werden geprüft", () => {
   assert.equal(validateCredentials({ username: "dirk", password: "x" }).ok, true);
   assert.equal(validateCredentials({ username: "ab", password: "x" }).ok, false);
-  assert.equal(validateCredentials({ username: "dirk", password: "kurz" }, { neu: true }).ok, false);
-  assert.equal(validateCredentials({ username: "dirk", password: "langgenug1" }, { neu: true }).ok, true);
-  assert.equal(validateCredentials({ username: "x".repeat(61), password: "langgenug1" }, { neu: true }).ok, false);
+  assert.equal(
+    validateCredentials({ username: "dirk", password: "kurz" }, { neu: true }).ok,
+    false,
+  );
+  assert.equal(
+    validateCredentials({ username: "dirk", password: "langgenug1" }, { neu: true }).ok,
+    true,
+  );
+  assert.equal(
+    validateCredentials({ username: "x".repeat(61), password: "langgenug1" }, { neu: true }).ok,
+    false,
+  );
 });
 
 test("Passwort: Verkettung mehrerer Blöcke bleibt nachvollziehbar", async () => {
@@ -222,9 +270,17 @@ test("Passwort: Verkettung mehrerer Blöcke bleibt nachvollziehbar", async () =>
 
 test("Notiz: Titel und Text sind Pflicht, Grenzen werden geprüft", () => {
   assert.equal(validateNote({ title: "Kaffee", text: "Schöner Platz" }).ok, true);
-  assert.equal(validateNote({ title: "   ", text: "Schöner Platz" }).ok, false, "nur Leerzeichen ist kein Titel");
+  assert.equal(
+    validateNote({ title: "   ", text: "Schöner Platz" }).ok,
+    false,
+    "nur Leerzeichen ist kein Titel",
+  );
   assert.equal(validateNote({ title: "x".repeat(161), text: "Schöner Platz" }).ok, false);
-  assert.equal(validateNote({ title: "Kaffee", text: "   " }).ok, false, "nur Leerzeichen ist kein Text");
+  assert.equal(
+    validateNote({ title: "Kaffee", text: "   " }).ok,
+    false,
+    "nur Leerzeichen ist kein Text",
+  );
   assert.equal(validateNote({}).ok, false);
   assert.equal(validateNote({ title: "Kaffee", text: "x".repeat(8001) }).ok, false);
   assert.equal(validateNote({ title: "Kaffee", text: "ok", lat: 91 }).ok, false);
@@ -269,7 +325,10 @@ test("Bestätigungs-Schlüssel: zufällig, Link länger gültig als der Reset-Li
   assert.equal(typeof a, "string");
   assert.ok(a.length >= 20, "Schlüssel sollte nicht zu kurz sein");
   assert.notEqual(a, b, "zwei Schlüssel hintereinander müssen verschieden sein");
-  assert.ok(EMAIL_VERIFY_MINUTES > RESET_TOKEN_MINUTES, "Bestätigung darf länger warten als ein Reset");
+  assert.ok(
+    EMAIL_VERIFY_MINUTES > RESET_TOKEN_MINUTES,
+    "Bestätigung darf länger warten als ein Reset",
+  );
 });
 
 /* ---------------- Wetter ---------------- */
@@ -309,7 +368,12 @@ test("Ortsname: ohne POI-Namen wird der kleinste sinnvolle Ortsteil verwendet", 
   // Realer Fund: ein unbenannter Parkplatz an der Parkallee, Musterviertel
   const antwort = {
     name: "",
-    address: { suburb: "Musterviertel", town: "Beispielstadt", road: "Parkallee", house_number: "3" },
+    address: {
+      suburb: "Musterviertel",
+      town: "Beispielstadt",
+      road: "Parkallee",
+      house_number: "3",
+    },
   };
   assert.equal(benenneOrtAusGeocodeAntwort(antwort), "Musterviertel, Beispielstadt");
 });
@@ -417,7 +481,15 @@ test("Wetter: Koordinaten werden geprüft", () => {
 /* ---------------- Eigene Positionsquelle (Phase 2) ---------------- */
 
 test("mapPositionRow: positions-Zeile wird traccar-förmig, km/h wird zu Knoten", () => {
-  const row = { device_id: "abc", at: Date.UTC(2026, 7, 16, 10, 0, 0), lat: 52.1, lon: 7.3, altitude: 42, speed_kmh: 18.52, course: 90 };
+  const row = {
+    device_id: "abc",
+    at: Date.UTC(2026, 7, 16, 10, 0, 0),
+    lat: 52.1,
+    lon: 7.3,
+    altitude: 42,
+    speed_kmh: 18.52,
+    course: 90,
+  };
   const p = mapPositionRow(row);
   assert.equal(p.deviceId, "abc");
   assert.equal(p.latitude, 52.1);
@@ -442,13 +514,13 @@ function testSpur() {
   const t0 = Date.UTC(2026, 7, 16, 10, 0, 0);
   const min = 60_000;
   return [
-    { device_id: "d1", at: t0, lat: 52.000, lon: 7.000, speed_kmh: 0 },
+    { device_id: "d1", at: t0, lat: 52.0, lon: 7.0, speed_kmh: 0 },
     { device_id: "d1", at: t0 + 5 * min, lat: 52.0001, lon: 7.0001, speed_kmh: 0 },
     { device_id: "d1", at: t0 + 10 * min, lat: 52.001, lon: 7.001, speed_kmh: 40 },
-    { device_id: "d1", at: t0 + 15 * min, lat: 52.010, lon: 7.010, speed_kmh: 45 },
-    { device_id: "d1", at: t0 + 20 * min, lat: 52.020, lon: 7.020, speed_kmh: 0 },
+    { device_id: "d1", at: t0 + 15 * min, lat: 52.01, lon: 7.01, speed_kmh: 45 },
+    { device_id: "d1", at: t0 + 20 * min, lat: 52.02, lon: 7.02, speed_kmh: 0 },
     { device_id: "d1", at: t0 + 25 * min, lat: 52.0201, lon: 7.0201, speed_kmh: 0 },
-    { device_id: "d1", at: t0 + 400 * min, lat: 53.000, lon: 8.000, speed_kmh: 50 },
+    { device_id: "d1", at: t0 + 400 * min, lat: 53.0, lon: 8.0, speed_kmh: 50 },
   ];
 }
 
@@ -479,8 +551,14 @@ test("segmentStops: erkennt zwei getrennte Stopps, keinen über die Lücke hinwe
 
 test("segmentDrives/segmentStops: weniger als zwei Punkte ergibt keine Segmente", () => {
   assert.deepEqual(segmentDrives([]), []);
-  assert.deepEqual(segmentDrives([{ device_id: "d1", at: Date.now(), lat: 1, lon: 1, speed_kmh: 20 }]), []);
-  assert.deepEqual(segmentStops([{ device_id: "d1", at: Date.now(), lat: 1, lon: 1, speed_kmh: 0 }]), []);
+  assert.deepEqual(
+    segmentDrives([{ device_id: "d1", at: Date.now(), lat: 1, lon: 1, speed_kmh: 20 }]),
+    [],
+  );
+  assert.deepEqual(
+    segmentStops([{ device_id: "d1", at: Date.now(), lat: 1, lon: 1, speed_kmh: 0 }]),
+    [],
+  );
 });
 
 // Echte Positionsdaten (RUTX50/Handy, Koordinaten verschoben):
@@ -508,14 +586,20 @@ test("segmentDrives: echte Daten ergeben plausible Fahrten, keine Zerstückelung
   // Keine Fahrt darf eine Stunde+ bei nur ein paar hundert Metern dauern
   // (genau das Symptom der Geister-Fahrten durch GPS-Ausreißer im Stand).
   for (const d of drives) {
-    const kmh = (d.distance / 1000) / (d.duration / 3600_000);
-    assert.ok(d.duration < 3_000_000 || kmh > 2, `Fahrt ${d.startTime}–${d.endTime}: ${d.distance} m in ${Math.round(d.duration / 60000)} min sieht nach Stillstand mit GPS-Rauschen aus, nicht nach einer Fahrt`);
+    const kmh = d.distance / 1000 / (d.duration / 3600_000);
+    assert.ok(
+      d.duration < 3_000_000 || kmh > 2,
+      `Fahrt ${d.startTime}–${d.endTime}: ${d.distance} m in ${Math.round(d.duration / 60000)} min sieht nach Stillstand mit GPS-Rauschen aus, nicht nach einer Fahrt`,
+    );
   }
   // Die zweite, tatsächlich abgefragte echte Autofahrt (bis 101,9 km/h,
   // über eine Stunde durchgehend, ~7,5 km) muss klar erkennbar sein.
   const langeFahrt = drives.find((d) => d.distance > 5000);
   assert.ok(langeFahrt, "die lange echte Autofahrt (~7,5 km) fehlt");
-  assert.ok(langeFahrt.maxSpeed * 1.852 > 90, "hohe Geschwindigkeit der echten Autofahrt muss erhalten bleiben");
+  assert.ok(
+    langeFahrt.maxSpeed * 1.852 > 90,
+    "hohe Geschwindigkeit der echten Autofahrt muss erhalten bleiben",
+  );
 });
 
 test("segmentStops: echte Daten — keine stundenlange Standzeit wird fälschlich als Fahrt gezählt", () => {
@@ -551,12 +635,24 @@ test("segmentStops: eine Datenlücke mit echter Ortsveränderung an den Rändern
   const drives = segmentDrives(echteUebernachtungMitFunkluecke());
   // Weder als Stopp noch als Fahrt darf die 3-stündige Tageslücke
   // (14:10:45–17:16:32 Uhr) durchgehend auftauchen — sie bleibt "luecke".
-  const alsStoppDurchgerutscht = stops.some((s) => Date.parse(s.startTime) <= Date.parse("2026-08-31T14:10:45.000Z")
-    && Date.parse(s.endTime) >= Date.parse("2026-08-31T17:16:32.000Z"));
-  assert.ok(!alsStoppDurchgerutscht, "die Tageslücke mit echter Ortsveränderung wurde fälschlich als durchgehender Stand gewertet");
-  const alsFahrtDurchgerutscht = drives.some((d) => Date.parse(d.startTime) <= Date.parse("2026-08-31T14:10:45.000Z")
-    && Date.parse(d.endTime) >= Date.parse("2026-08-31T17:16:32.000Z"));
-  assert.ok(!alsFahrtDurchgerutscht, "die Tageslücke wurde fälschlich als durchgehende Fahrt gewertet");
+  const alsStoppDurchgerutscht = stops.some(
+    (s) =>
+      Date.parse(s.startTime) <= Date.parse("2026-08-31T14:10:45.000Z") &&
+      Date.parse(s.endTime) >= Date.parse("2026-08-31T17:16:32.000Z"),
+  );
+  assert.ok(
+    !alsStoppDurchgerutscht,
+    "die Tageslücke mit echter Ortsveränderung wurde fälschlich als durchgehender Stand gewertet",
+  );
+  const alsFahrtDurchgerutscht = drives.some(
+    (d) =>
+      Date.parse(d.startTime) <= Date.parse("2026-08-31T14:10:45.000Z") &&
+      Date.parse(d.endTime) >= Date.parse("2026-08-31T17:16:32.000Z"),
+  );
+  assert.ok(
+    !alsFahrtDurchgerutscht,
+    "die Tageslücke wurde fälschlich als durchgehende Fahrt gewertet",
+  );
 });
 
 // Echter Fund (6. September 2026): ein rund zweistündiger Stopp auf einer Landstraße fehlte komplett — die Lücke war 120,33
@@ -571,7 +667,11 @@ test("segmentStops: eine Funklücke mit Randgeschwindigkeit GENAU an der Schwell
     { device_id: "d1", at: ende, lat: -51.83809, lon: 26.69663, speed_kmh: 1 },
   ];
   const stops = segmentStops(rows);
-  assert.equal(stops.length, 1, "die Lücke mit Randgeschwindigkeit genau an der Schwelle muss als Stand zählen");
+  assert.equal(
+    stops.length,
+    1,
+    "die Lücke mit Randgeschwindigkeit genau an der Schwelle muss als Stand zählen",
+  );
   assert.equal(stops[0].startTime, new Date(start).toISOString());
   assert.equal(stops[0].endTime, new Date(ende).toISOString());
 });
@@ -612,18 +712,46 @@ test("segmentStops: eine lange Lücke, deren Endpunkt nur wenige Meter entfernt 
 
 test("segmentStops: eine lange Lücke mit hoher Randgeschwindigkeit UND deutlichem Abstand bleibt unbekannt", () => {
   const rows = [
-    { device_id: "d1", at: Date.parse("2026-09-26T19:42:59.000Z"), lat: -47.4443, lon: 30.2436, speed_kmh: 3 },
-    { device_id: "d1", at: Date.parse("2026-09-27T10:17:17.000Z"), lat: -47.446, lon: 30.2436, speed_kmh: 15 }, // ~190 m
+    {
+      device_id: "d1",
+      at: Date.parse("2026-09-26T19:42:59.000Z"),
+      lat: -47.4443,
+      lon: 30.2436,
+      speed_kmh: 3,
+    },
+    {
+      device_id: "d1",
+      at: Date.parse("2026-09-27T10:17:17.000Z"),
+      lat: -47.446,
+      lon: 30.2436,
+      speed_kmh: 15,
+    }, // ~190 m
   ];
   assert.equal(segmentStops(rows).length, 0);
 });
 
 test("validateTagebuch: Reise, Kalendertag und Blöcke werden geprüft und normalisiert", () => {
-  const gut = { trip_id: "reise-1", day_key: "2026-07-14", blocks: [{ t: "text", text: "Hallo" }, { t: "fotos", ids: ["f1", "f2"] }, { t: "text", text: "" }] };
+  const gut = {
+    trip_id: "reise-1",
+    day_key: "2026-07-14",
+    blocks: [
+      { t: "text", text: "Hallo" },
+      { t: "fotos", ids: ["f1", "f2"] },
+      { t: "text", text: "" },
+    ],
+  };
   const ok = validateTagebuch(gut);
   assert.equal(ok.ok, true);
-  assert.deepEqual(ok.blocks, [{ t: "text", text: "Hallo" }, { t: "fotos", ids: ["f1", "f2"] }, { t: "text", text: "" }]);
-  assert.equal(validateTagebuch({ ...gut, blocks: [] }).ok, true, "ein leerer Eintrag darf als Träger für Fotos entstehen");
+  assert.deepEqual(ok.blocks, [
+    { t: "text", text: "Hallo" },
+    { t: "fotos", ids: ["f1", "f2"] },
+    { t: "text", text: "" },
+  ]);
+  assert.equal(
+    validateTagebuch({ ...gut, blocks: [] }).ok,
+    true,
+    "ein leerer Eintrag darf als Träger für Fotos entstehen",
+  );
 
   for (const kaputt of [
     { ...gut, trip_id: "" },
@@ -634,5 +762,6 @@ test("validateTagebuch: Reise, Kalendertag und Blöcke werden geprüft und norma
     { ...gut, blocks: [{ t: "fotos", ids: [""] }] },
     { ...gut, blocks: [{ t: "text", text: "x".repeat(20001) }] },
     { ...gut, blocks: Array.from({ length: 81 }, () => ({ t: "text", text: "a" })) },
-  ]) assert.equal(validateTagebuch(kaputt).ok, false, JSON.stringify(kaputt).slice(0, 60));
+  ])
+    assert.equal(validateTagebuch(kaputt).ok, false, JSON.stringify(kaputt).slice(0, 60));
 });

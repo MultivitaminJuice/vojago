@@ -58,13 +58,15 @@ function segmentsInsideRanges(path, ranges, openFromMs = null) {
 
 function normaliseSegments(segments) {
   let cum = 0;
-  return segments.map((segment) => segment.map((point, index) => {
-    if (index > 0) {
-      const previous = segment[index - 1];
-      cum += distanceKm(previous.lon, previous.lat, point.lon, point.lat);
-    }
-    return { ...point, cum };
-  }));
+  return segments.map((segment) =>
+    segment.map((point, index) => {
+      if (index > 0) {
+        const previous = segment[index - 1];
+        cum += distanceKm(previous.lon, previous.lat, point.lon, point.lat);
+      }
+      return { ...point, cum };
+    }),
+  );
 }
 
 export function driveMatchesRouteFilter(drive, filter = "etappe") {
@@ -74,7 +76,9 @@ export function driveMatchesRouteFilter(drive, filter = "etappe") {
 }
 
 export function filteredRouteDrives(drives, tripId, filter = "etappe") {
-  return (drives || []).filter((drive) => drive.tripId === tripId && driveMatchesRouteFilter(drive, filter));
+  return (drives || []).filter(
+    (drive) => drive.tripId === tripId && driveMatchesRouteFilter(drive, filter),
+  );
 }
 
 export function itemMatchesRouteFilter(item, drives, tripId, filter = "etappe") {
@@ -96,7 +100,13 @@ export function itemMatchesRouteFilter(item, drives, tripId, filter = "etappe") 
  *   the last known drive (the drive list lags behind the path; otherwise the
  *   most recent piece of the route would be missing).
  */
-export function visibleRouteSegments(path, drives, tripId, filter = "etappe", { openEnd = false } = {}) {
+export function visibleRouteSegments(
+  path,
+  drives,
+  tripId,
+  filter = "etappe",
+  { openEnd = false } = {},
+) {
   if (!Array.isArray(path) || !path.length) return [];
   if (filter === "alle") return normaliseSegments([path]);
 

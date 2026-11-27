@@ -5,10 +5,37 @@
 // MapLibre is loaded as a separate library file (it brings its own web worker),
 // so there is deliberately no bundle import here. UI texts stay German.
 const gl = () => window.maplibregl;
-import { state, mapTrip, tripPlaces, tripNotes, category, nightNumber, isRangeTrip, rangeTrips } from "./state.js";
+import {
+  state,
+  mapTrip,
+  tripPlaces,
+  tripNotes,
+  category,
+  nightNumber,
+  isRangeTrip,
+  rangeTrips,
+} from "./state.js";
 import { colorFor, legendFor } from "./colors.js";
-import { bounds, elevationRange, pathLengthKm, pointAtKm, kmMarkerStep, simplify, routeHits, sameSpot, metersPerPixel } from "./geo.js";
-import { CARTO_KEY, tilePaint, tileUrl, validMapStyle, hillshadePaint, ELEVATION_TILES, ELEVATION_ATTRIBUTION } from "./map-style.js";
+import {
+  bounds,
+  elevationRange,
+  pathLengthKm,
+  pointAtKm,
+  kmMarkerStep,
+  simplify,
+  routeHits,
+  sameSpot,
+  metersPerPixel,
+} from "./geo.js";
+import {
+  CARTO_KEY,
+  tilePaint,
+  tileUrl,
+  validMapStyle,
+  hillshadePaint,
+  ELEVATION_TILES,
+  ELEVATION_ATTRIBUTION,
+} from "./map-style.js";
 import { routeSignature } from "./map-signature.js";
 import { findRepeatedStretches, lineWidth } from "./overlap.js";
 import { findGaps, distanceToSegment, durationText } from "./gaps.js";
@@ -21,7 +48,8 @@ import { itemMatchesRouteFilter, visibleRouteSegments } from "./route-visibility
 // REQUIRED" watermarks appear (https://carto.com/basemaps/apikey/). The key is
 // set at build time from CARTO_API_KEY (see scripts/build-site.mjs and README)
 // and is then visible in the tile URL of the shipped app, as intended.
-const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
+const ATTRIBUTION =
+  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
 
 let map = null;
 let markers = [];
@@ -44,8 +72,20 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
     style: {
       version: 8,
       sources: {
-        "tiles-light": { type: "raster", tiles: [tileUrl(state.config.mapStyle, CARTO_KEY)], tileSize: 256, attribution: ATTRIBUTION },
-        dem: { type: "raster-dem", tiles: [ELEVATION_TILES], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: ELEVATION_ATTRIBUTION },
+        "tiles-light": {
+          type: "raster",
+          tiles: [tileUrl(state.config.mapStyle, CARTO_KEY)],
+          tileSize: 256,
+          attribution: ATTRIBUTION,
+        },
+        dem: {
+          type: "raster-dem",
+          tiles: [ELEVATION_TILES],
+          tileSize: 256,
+          encoding: "terrarium",
+          maxzoom: 14,
+          attribution: ELEVATION_ATTRIBUTION,
+        },
         "route-solid": {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
@@ -54,28 +94,79 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
           maxzoom: 24,
         },
         // Stretches driven more than once (out and back): nested over the route, see overlap.js
-        "route-repeated": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
+        "route-repeated": {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+          tolerance: 0,
+          buffer: 512,
+          maxzoom: 24,
+        },
         // Recording gaps (the tracker delivered nothing in between): dashed over the joining line, see gaps.js
-        "route-gaps": { type: "geojson", data: { type: "FeatureCollection", features: [] }, tolerance: 0, buffer: 512, maxzoom: 24 },
+        "route-gaps": {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+          tolerance: 0,
+          buffer: 512,
+          maxzoom: 24,
+        },
       },
       layers: [
-        { id: "tiles-light", type: "raster", source: "tiles-light", paint: tilePaint(isDark(), state.config.mapStyle) },
+        {
+          id: "tiles-light",
+          type: "raster",
+          source: "tiles-light",
+          paint: tilePaint(isDark(), state.config.mapStyle),
+        },
         // Terrain shading: only visible when switched on in the layer menu
         // (only then are the elevation tiles loaded at all).
-        { id: "hillshade", type: "hillshade", source: "dem",
-          layout: { visibility: state.config.terrain ? "visible" : "none" }, paint: hillshadePaint(isDark()) },
-        { id: "route-casing", type: "line", source: "route-solid",
+        {
+          id: "hillshade",
+          type: "hillshade",
+          source: "dem",
+          layout: { visibility: state.config.terrain ? "visible" : "none" },
+          paint: hillshadePaint(isDark()),
+        },
+        {
+          id: "route-casing",
+          type: "line",
+          source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": isDark() ? "#000" : "#0a1919", "line-opacity": 0.35, "line-width": 9 } },
-        { id: "route-backfill", type: "line", source: "route-solid",
+          paint: {
+            "line-color": isDark() ? "#000" : "#0a1919",
+            "line-opacity": 0.35,
+            "line-width": 9,
+          },
+        },
+        {
+          id: "route-backfill",
+          type: "line",
+          source: "route-solid",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#e8802b", "line-opacity": 0.86, "line-width": 5 } },
-        { id: "route-repeated", type: "line", source: "route-repeated",
+          paint: { "line-color": "#e8802b", "line-opacity": 0.86, "line-width": 5 },
+        },
+        {
+          id: "route-repeated",
+          type: "line",
+          source: "route-repeated",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] } },
-        { id: "route-gaps", type: "line", source: "route-gaps",
-          layout: { "line-cap": "butt", "line-join": "round", visibility: state.config.markGaps ? "visible" : "none" },
-          paint: { "line-color": "#ffffff", "line-opacity": 0.92, "line-width": 5, "line-dasharray": [1, 1.4] } },
+          paint: { "line-color": ["get", "c"], "line-width": ["get", "w"] },
+        },
+        {
+          id: "route-gaps",
+          type: "line",
+          source: "route-gaps",
+          layout: {
+            "line-cap": "butt",
+            "line-join": "round",
+            visibility: state.config.markGaps ? "visible" : "none",
+          },
+          paint: {
+            "line-color": "#ffffff",
+            "line-opacity": 0.92,
+            "line-width": 5,
+            "line-dasharray": [1, 1.4],
+          },
+        },
         // No static gradient layer here — one is created per visible segment
         // (see drawGradientSegments() below). Reason: MapLibre's line-gradient
         // computes line-progress PER FEATURE (0..1 over the length of THAT
@@ -97,13 +188,21 @@ export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
   // may have changed size meanwhile (e.g. when jumping to the map right at start,
   // as in the guest view). So do it once before drawing, otherwise the canvas
   // keeps its original size.
-  const markReady = () => { if (ready) return; ready = true; map.resize(); draw({ fit: true }); };
+  const markReady = () => {
+    if (ready) return;
+    ready = true;
+    map.resize();
+    draw({ fit: true });
+  };
   map.on("load", markReady);
   map.once("idle", markReady);
 
   // Apply theme changes (system or switch) to the tiles
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
-  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  new MutationObserver(applyTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
 
   map.on("click", onMapClick);
 
@@ -120,7 +219,8 @@ export function setMapStyle(style) {
 /** Switch marking of recording gaps on or off (Settings → Appearance); off by default. */
 export function setGaps(on) {
   if (!map) return;
-  if (map.getLayer("route-gaps")) map.setLayoutProperty("route-gaps", "visibility", on ? "visible" : "none");
+  if (map.getLayer("route-gaps"))
+    map.setLayoutProperty("route-gaps", "visibility", on ? "visible" : "none");
   if (!on) closeRouteTip();
 }
 
@@ -133,13 +233,15 @@ export function setTerrain(on) {
 function applyTheme() {
   if (!ready) return;
   const dark = isDark();
-  for (const [k, v] of Object.entries(tilePaint(dark, state.config.mapStyle))) map.setPaintProperty("tiles-light", k, v);
-  for (const [k, v] of Object.entries(hillshadePaint(dark))) map.setPaintProperty("hillshade", k, v);
+  for (const [k, v] of Object.entries(tilePaint(dark, state.config.mapStyle)))
+    map.setPaintProperty("tiles-light", k, v);
+  for (const [k, v] of Object.entries(hillshadePaint(dark)))
+    map.setPaintProperty("hillshade", k, v);
   map.setPaintProperty("route-casing", "line-color", dark ? "#000" : "#0a1919");
 }
 
 /* ---------- Tapping the route: day, date, time, km ---------- */
-let tipPath = [];     // full (not simplified) visible path of the drawn trip
+let tipPath = []; // full (not simplified) visible path of the drawn trip
 let tipPopup = null;
 let tipDot = null;
 const TIP_TOLERANCE_PX = 22;
@@ -161,24 +263,43 @@ function onMapClick(e) {
   // passes at the spot — all are shown, not only the nearest. At a wide zoom only
   // those that really lie at the same spot (otherwise hits from kilometres around).
   const hits = sameSpot(routeHits(tipPath, lng, lat, tolerance));
-  if (!hits.length) { showGapTip(lng, lat, tolerance); return; }
+  if (!hits.length) {
+    showGapTip(lng, lat, tolerance);
+    return;
+  }
   const anchor = nearestHit(hits).point;
   const { entries, more } = tipEntries(hits);
   const content = el("div.rt-liste", {}, [
-    ...entries.map((entry) => el("div.rt", {}, [
-      ...(entry.title ? [el("small", { text: entry.title })] : []),
-      el("b", { text: entry.heading }),
-      el("div", { text: entry.values }),
-    ])),
+    ...entries.map((entry) =>
+      el("div.rt", {}, [
+        ...(entry.title ? [el("small", { text: entry.title })] : []),
+        el("b", { text: entry.heading }),
+        el("div", { text: entry.values }),
+      ]),
+    ),
     ...(more ? [el("small.rt-mehr", { text: `+ ${more} weitere` })] : []),
   ]);
-  tipDot = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([anchor.lon, anchor.lat]).addTo(map);
-  tipPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+  tipDot = new (gl().Marker)({ element: el("div.route-dot") })
+    .setLngLat([anchor.lon, anchor.lat])
+    .addTo(map);
+  tipPopup = new (gl().Popup)({
+    closeButton: false,
+    closeOnClick: true,
+    maxWidth: "260px",
+    offset: 14,
+    className: "route-tip",
+  })
     .setLngLat([anchor.lon, anchor.lat])
     .setDOMContent(content)
     .addTo(map);
-  tipPopup.on("close", () => { tipDot?.remove(); tipDot = null; });
-  debugLog("map.route-tip", { passes: hits.length, distanceM: Math.round(nearestHit(hits).distanceM) });
+  tipPopup.on("close", () => {
+    tipDot?.remove();
+    tipDot = null;
+  });
+  debugLog("map.route-tip", {
+    passes: hits.length,
+    distanceM: Math.round(nearestHit(hits).distanceM),
+  });
 }
 
 /** Tap on a recording gap (the dashed joining line): says that nothing was measured there. */
@@ -191,21 +312,41 @@ function showGapTip(lng, lat, tolerance) {
   }
   if (!near) return;
   const { g } = near;
-  const clock = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  const day = new Date(g.from.time).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const clock = (iso) =>
+    new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const day = new Date(g.from.time).toLocaleDateString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
   const middle = { lon: (g.from.lon + g.to.lon) / 2, lat: (g.from.lat + g.to.lat) / 2 };
-  const content = el("div.rt-liste", {}, [el("div.rt", {}, [
-    el("small", { text: "Datenlücke" }),
-    el("b", { text: `${day} · ${clock(g.from.time)}–${clock(g.to.time)}` }),
-    el("div", { text: `${durationText(g.seconds)} ohne Messung · ${g.meters.toLocaleString("de-DE")} m Luftlinie` }),
-    el("small.rt-mehr", { text: "Die Linie verbindet hier nur die Punkte davor und danach." }),
-  ])]);
-  tipDot = new (gl().Marker)({ element: el("div.route-dot") }).setLngLat([middle.lon, middle.lat]).addTo(map);
-  tipPopup = new (gl().Popup)({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 14, className: "route-tip" })
+  const content = el("div.rt-liste", {}, [
+    el("div.rt", {}, [
+      el("small", { text: "Datenlücke" }),
+      el("b", { text: `${day} · ${clock(g.from.time)}–${clock(g.to.time)}` }),
+      el("div", {
+        text: `${durationText(g.seconds)} ohne Messung · ${g.meters.toLocaleString("de-DE")} m Luftlinie`,
+      }),
+      el("small.rt-mehr", { text: "Die Linie verbindet hier nur die Punkte davor und danach." }),
+    ]),
+  ]);
+  tipDot = new (gl().Marker)({ element: el("div.route-dot") })
+    .setLngLat([middle.lon, middle.lat])
+    .addTo(map);
+  tipPopup = new (gl().Popup)({
+    closeButton: false,
+    closeOnClick: true,
+    maxWidth: "260px",
+    offset: 14,
+    className: "route-tip",
+  })
     .setLngLat([middle.lon, middle.lat])
     .setDOMContent(content)
     .addTo(map);
-  tipPopup.on("close", () => { tipDot?.remove(); tipDot = null; });
+  tipPopup.on("close", () => {
+    tipDot?.remove();
+    tipDot = null;
+  });
 }
 
 let pendingDraw = false;
@@ -215,9 +356,12 @@ function visibleRouteForMap(t) {
   // A thinned path restored from the snapshot ("coarse") does not fit the time
   // spans of the drives (short drives would have no points left) — show it
   // without the drive filter until a real download succeeded.
-  const segments = realTrip && !t.pathCoarse
-    ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, { openEnd: Boolean(t.live) })
-    : visibleRouteSegments(t.path || [], [], t?.id, "alle");
+  const segments =
+    realTrip && !t.pathCoarse
+      ? visibleRouteSegments(t.path || [], state.drives, t.id, state.routeDriveFilter, {
+          openEnd: Boolean(t.live),
+        })
+      : visibleRouteSegments(t.path || [], [], t?.id, "alle");
   return { segments, path: segments.flat() };
 }
 
@@ -262,7 +406,11 @@ function drawGradientSegments(segments, metric, ctx) {
   lines.forEach((segment, i) => {
     const sourceId = `route-grad-${i}`;
     const layerId = `route-grad-layer-${i}`;
-    const data = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: segment.map((p) => [p.lon, p.lat]) } };
+    const data = {
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: segment.map((p) => [p.lon, p.lat]) },
+    };
     const gradient = gradientFor(segment, metric, ctx);
     const source = map.getSource(sourceId);
     if (source && map.getLayer(layerId)) {
@@ -270,9 +418,18 @@ function drawGradientSegments(segments, metric, ctx) {
       map.setPaintProperty(layerId, "line-gradient", gradient);
       return;
     }
-    map.addSource(sourceId, { type: "geojson", data, lineMetrics: true, tolerance: 0, buffer: 512, maxzoom: 24 });
+    map.addSource(sourceId, {
+      type: "geojson",
+      data,
+      lineMetrics: true,
+      tolerance: 0,
+      buffer: 512,
+      maxzoom: 24,
+    });
     map.addLayer({
-      id: layerId, type: "line", source: sourceId,
+      id: layerId,
+      type: "line",
+      source: sourceId,
       layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-gradient": gradient, "line-width": 5 },
     });
@@ -324,8 +481,15 @@ function drawGaps(segments) {
   source.setData({
     type: "FeatureCollection",
     features: tipGaps.map((g) => ({
-      type: "Feature", properties: {},
-      geometry: { type: "LineString", coordinates: [[g.from.lon, g.from.lat], [g.to.lon, g.to.lat]] },
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [g.from.lon, g.from.lat],
+          [g.to.lon, g.to.lat],
+        ],
+      },
     })),
   });
   if (map.getLayer("route-gaps")) map.moveLayer("route-gaps");
@@ -352,10 +516,23 @@ function applyGuardZone() {
     ? circlePolygon(guardZone.lat, guardZone.lon, guardZone.radiusM)
     : { type: "FeatureCollection", features: [] };
   const source = map.getSource(GUARD_SOURCE);
-  if (source) { source.setData(data); return; }
+  if (source) {
+    source.setData(data);
+    return;
+  }
   map.addSource(GUARD_SOURCE, { type: "geojson", data });
-  map.addLayer({ id: "guard-zone-fill", type: "fill", source: GUARD_SOURCE, paint: { "fill-color": "#d84a4a", "fill-opacity": 0.12 } });
-  map.addLayer({ id: "guard-zone-line", type: "line", source: GUARD_SOURCE, paint: { "line-color": "#d84a4a", "line-width": 2, "line-dasharray": [2, 2] } });
+  map.addLayer({
+    id: "guard-zone-fill",
+    type: "fill",
+    source: GUARD_SOURCE,
+    paint: { "fill-color": "#d84a4a", "fill-opacity": 0.12 },
+  });
+  map.addLayer({
+    id: "guard-zone-line",
+    type: "line",
+    source: GUARD_SOURCE,
+    paint: { "line-color": "#d84a4a", "line-width": 2, "line-dasharray": [2, 2] },
+  });
 }
 
 /** Draw the guard's watched area (or remove it with null). If the map is not
@@ -393,11 +570,19 @@ function drawNow(options = {}) {
     debugLog("map.draw.bail", { reason: "not-style-loaded", pendingDraw });
     if (!pendingDraw) {
       pendingDraw = true;
-      map.once("idle", () => { pendingDraw = false; draw(options); });
+      map.once("idle", () => {
+        pendingDraw = false;
+        draw(options);
+      });
       // Safety net: "idle" rarely never comes (e.g. when tiles are blocked for
       // good, never failing and never arriving) — then there would never be
       // another attempt. Try again after a few seconds.
-      setTimeout(() => { if (pendingDraw) { pendingDraw = false; draw(options); } }, 4000);
+      setTimeout(() => {
+        if (pendingDraw) {
+          pendingDraw = false;
+          draw(options);
+        }
+      }, 4000);
     }
     return;
   }
@@ -405,10 +590,16 @@ function drawNow(options = {}) {
   const t = mapTrip();
   // No trip (or no route for it yet)? Then the map simply shows where the vehicle
   // is — the most useful view without a trip.
-  if (!t || !t.path?.length) { drawLiveOnly({ fit }); return; }
+  if (!t || !t.path?.length) {
+    drawLiveOnly({ fit });
+    return;
+  }
 
   const { segments, path } = visibleRouteForMap(t);
-  if (!path.length) { drawLiveOnly({ fit }); return; }
+  if (!path.length) {
+    drawLiveOnly({ fit });
+    return;
+  }
   tipPath = path;
   if (fit) closeRouteTip();
 
@@ -439,8 +630,14 @@ function drawNow(options = {}) {
   }
   debugLog("map.draw", {
     redrawn,
-    tripId: t.id, pathPoints: path.length, drawnPoints: drawSegments.reduce((n, s) => n + s.length, 0), hiddenDetours: Math.max(0, t.path.length - path.length),
-    visibleSegments: gradientLayerIds.length, totalKm, zoom: ready ? map.getZoom() : null, fit,
+    tripId: t.id,
+    pathPoints: path.length,
+    drawnPoints: drawSegments.reduce((n, s) => n + s.length, 0),
+    hiddenDetours: Math.max(0, t.path.length - path.length),
+    visibleSegments: gradientLayerIds.length,
+    totalKm,
+    zoom: ready ? map.getZoom() : null,
+    fit,
   });
 
   drawMarkers(t, totalKm, path);
@@ -464,21 +661,38 @@ function drawLiveOnly({ fit = false } = {}) {
 
   const box = $("#legend");
   const pos = state.livePosition;
-  if (!pos) { if (box) box.style.display = "none"; return; }
+  if (!pos) {
+    if (box) box.style.display = "none";
+    return;
+  }
 
-  marker(el("div.marker.marker-live", { text: "🚐", title: "Aktuelle Position" }), pos.lon, pos.lat);
+  marker(
+    el("div.marker.marker-live", { text: "🚐", title: "Aktuelle Position" }),
+    pos.lon,
+    pos.lat,
+  );
 
   if (box) {
     box.style.display = "";
     clear(box);
     box.appendChild(el("h4", { text: "Aktuelle Position" }));
     const when = pos.at ? new Date(pos.at) : null;
-    box.appendChild(el("div.scale", {}, [
-      el("span", { text: when && !Number.isNaN(when.getTime())
-        ? when.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-        : "—" }),
-      el("span", { text: `${pos.speed.toFixed(0)} km/h` }),
-    ]));
+    box.appendChild(
+      el("div.scale", {}, [
+        el("span", {
+          text:
+            when && !Number.isNaN(when.getTime())
+              ? when.toLocaleString("de-DE", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "—",
+        }),
+        el("span", { text: `${pos.speed.toFixed(0)} km/h` }),
+      ]),
+    );
   }
 
   // Only move there the first time (or when asked) — otherwise the map would
@@ -486,7 +700,10 @@ function drawLiveOnly({ fit = false } = {}) {
   if (!liveCentered || fit) {
     // Deliberately without animation: the target may be far away, and a jump
     // is more reliable than a flight across the map.
-    map.jumpTo({ center: [pos.lon, pos.lat], zoom: liveCentered ? Math.max(map.getZoom(), 13) : 13 });
+    map.jumpTo({
+      center: [pos.lon, pos.lat],
+      zoom: liveCentered ? Math.max(map.getZoom(), 13) : 13,
+    });
     liveCentered = true;
   }
 }
@@ -518,7 +735,9 @@ function gradientFor(path, metric, ctx) {
   add(path[0], 0, 0);
   for (let i = step; i < path.length - 1; i += step) add(path[i], i);
   add(path[path.length - 1], path.length - 1, 1);
-  return expr.length >= 7 ? expr : ["interpolate", ["linear"], ["line-progress"], 0, "#e8802b", 1, "#e8802b"];
+  return expr.length >= 7
+    ? expr
+    : ["interpolate", ["linear"], ["line-progress"], 0, "#e8802b", 1, "#e8802b"];
 }
 
 function marker(node, lon, lat) {
@@ -534,31 +753,51 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
   const routeFilter = realTrip ? state.routeDriveFilter : "alle";
 
   // Start
-  marker(el("div.marker.marker-endpoint", { text: "▲", title: "Start" }), visiblePath[0].lon, visiblePath[0].lat);
+  marker(
+    el("div.marker.marker-endpoint", { text: "▲", title: "Start" }),
+    visiblePath[0].lon,
+    visiblePath[0].lat,
+  );
 
   // Places and overnight stays
-  for (const p of tripPlaces(t.id).filter((place) => itemMatchesRouteFilter(place, state.drives, t.id, routeFilter))) {
+  for (const p of tripPlaces(t.id).filter((place) =>
+    itemMatchesRouteFilter(place, state.drives, t.id, routeFilter),
+  )) {
     const isNight = p.catId === "uebernachtung";
     if (isNight && !state.layers.nights) continue;
     if (!isNight && !state.layers.places) continue;
 
     const node = isNight
-      ? el("div.marker.marker-night", { text: String(nightNumber(p) ?? "•"), title: p.nights > 1 ? `${p.title} · ${p.nights} Nächte` : p.title })
+      ? el("div.marker.marker-night", {
+          text: String(nightNumber(p) ?? "•"),
+          title: p.nights > 1 ? `${p.title} · ${p.nights} Nächte` : p.title,
+        })
       : el("div.marker.marker-place", {
           title: p.title,
           class: p.source === "handy" || p.source === "manuell" ? "foot" : "",
           text: p.source === "handy" || p.source === "manuell" ? "🚶" : "",
           style: { borderColor: category(p.catId).color },
         });
-    node.addEventListener("click", (ev) => { ev.stopPropagation(); onPlaceClick(p); });
+    node.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      onPlaceClick(p);
+    });
     marker(node, p.lon, p.lat);
   }
 
   // Notes — their own layer, switchable independently of places
   if (state.layers.notes) {
-    for (const n of tripNotes(t.id).filter((note) => itemMatchesRouteFilter(note, state.drives, t.id, routeFilter))) {
-      const node = el("div.marker.marker-note", { text: "✎", title: (n.title || n.text || "Notiz").slice(0, 60) });
-      node.addEventListener("click", (ev) => { ev.stopPropagation(); onNoteClick(n); });
+    for (const n of tripNotes(t.id).filter((note) =>
+      itemMatchesRouteFilter(note, state.drives, t.id, routeFilter),
+    )) {
+      const node = el("div.marker.marker-note", {
+        text: "✎",
+        title: (n.title || n.text || "Notiz").slice(0, 60),
+      });
+      node.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        onNoteClick(n);
+      });
       marker(node, n.lon, n.lat);
     }
   }
@@ -586,7 +825,8 @@ function drawMarkers(t, totalKm, visiblePath = t.path) {
     t.live
       ? el("div.marker.marker-live", { text: "🚐", title: "Aktuelle Position" })
       : el("div.marker.marker-endpoint", { text: "🏁", title: "Ziel" }),
-    last.lon, last.lat
+    last.lon,
+    last.lat,
   );
 }
 
@@ -594,33 +834,60 @@ function drawLegend(legend) {
   const box = $("#legend");
   if (!box) return;
   // "none" (single-colour route) has no scale to explain.
-  if (!legend) { box.style.display = "none"; return; }
+  if (!legend) {
+    box.style.display = "none";
+    return;
+  }
   box.style.display = "";
   clear(box);
   box.appendChild(el("h4", { text: legend.title }));
   if (legend.items) {
-    box.appendChild(el("div.cats", {}, legend.items.map((it) =>
-      el("div.cat", {}, [el("i", { style: { background: it.color } }), it.label]))));
+    box.appendChild(
+      el(
+        "div.cats",
+        {},
+        legend.items.map((it) =>
+          el("div.cat", {}, [el("i", { style: { background: it.color } }), it.label]),
+        ),
+      ),
+    );
   } else {
     box.appendChild(el("div.bar", { style: { background: legend.gradient } }));
-    box.appendChild(el("div.scale", {}, legend.scale.map((v) => el("span", { text: String(v) }))));
+    box.appendChild(
+      el(
+        "div.scale",
+        {},
+        legend.scale.map((v) => el("span", { text: String(v) })),
+      ),
+    );
   }
 }
 
 export function fitTrip() {
   const t = mapTrip();
   if (!ready) return;
-  if (!t || !t.path?.length) { drawLiveOnly({ fit: true }); return; }
+  if (!t || !t.path?.length) {
+    drawLiveOnly({ fit: true });
+    return;
+  }
   const visible = visibleRouteForMap(t).path;
   const b = bounds(visible.length ? visible : t.path);
   // maxZoom used to be 13 — fine for a multi-day trip, but a small trip (a short
   // outing of a few hundred metres or kilometres) stayed tiny in an otherwise
   // empty map. 16 zooms small trips in properly and stays below the level where
   // the tiles (OSM/CARTO) get blurry or empty.
-  map.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: { top: 120, right: 48, bottom: 64, left: 48 }, duration: 600, maxZoom: 16 });
+  map.fitBounds(
+    [
+      [b.minLon, b.minLat],
+      [b.maxLon, b.maxLat],
+    ],
+    { padding: { top: 120, right: 48, bottom: 64, left: 48 }, duration: 600, maxZoom: 16 },
+  );
 }
 
-export const resetLiveCentering = () => { liveCentered = false; };
+export const resetLiveCentering = () => {
+  liveCentered = false;
+};
 
 export const zoomIn = () => ready && map.zoomIn();
 export const zoomOut = () => ready && map.zoomOut();

@@ -22,8 +22,10 @@ test("D1Shim: Startwerte aus db/schema.sql sind nach dem Öffnen da", () => {
 test("D1Shim: bind().run()/.all() entsprechen der D1-Fassade (success/meta/results)", () => {
   const dir = mkdtempSync(join(tmpdir(), "d1shim-"));
   const db = new D1Shim(join(dir, "test.db"));
-  const insert = db.prepare("INSERT INTO categories (id, name, color, sort) VALUES (?,?,?,?)")
-    .bind("neu", "Neu", "#000000", 100).run();
+  const insert = db
+    .prepare("INSERT INTO categories (id, name, color, sort) VALUES (?,?,?,?)")
+    .bind("neu", "Neu", "#000000", 100)
+    .run();
   assert.equal(insert.success, true);
   assert.equal(insert.meta.changes, 1);
 
@@ -41,9 +43,13 @@ test("D1Shim: undefined als Bind-Wert wird auf null abgebildet, nicht geworfen",
   // bringen" und "der Shim fängt das vorher ab und macht daraus NULL".
   assert.doesNotThrow(() => {
     db.prepare("INSERT INTO alarm_log (type, resolved_at) VALUES (?,?)")
-      .bind("test", undefined).run();
+      .bind("test", undefined)
+      .run();
   });
-  const { results } = db.prepare("SELECT resolved_at FROM alarm_log WHERE type = ?").bind("test").all();
+  const { results } = db
+    .prepare("SELECT resolved_at FROM alarm_log WHERE type = ?")
+    .bind("test")
+    .all();
   assert.equal(results[0].resolved_at, null);
   db.close();
   rmSync(dir, { recursive: true, force: true });

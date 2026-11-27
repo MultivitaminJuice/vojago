@@ -8,9 +8,13 @@ test("ladeFixture: FIXTURES=public liefert die eingecheckte, anonymisierte Fassu
   try {
     const zeilen = ladeFixture("echte-spaziergaenge-17-08-2026");
     assert.ok(zeilen.length > 1000);
-    assert.ok(zeilen.every((z) => z.lat < 0), "Breitengrad gespiegelt (anonymisiert)");
+    assert.ok(
+      zeilen.every((z) => z.lat < 0),
+      "Breitengrad gespiegelt (anonymisiert)",
+    );
   } finally {
-    if (vorher === undefined) delete process.env.FIXTURES; else process.env.FIXTURES = vorher;
+    if (vorher === undefined) delete process.env.FIXTURES;
+    else process.env.FIXTURES = vorher;
   }
 });
 

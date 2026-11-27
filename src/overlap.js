@@ -24,25 +24,42 @@ export function lineWidth(rank, count) {
  * sorted by rank (the narrow ones on top). Short touches (crossings, a shared
  * parking spot) below `minLengthM` do not count.
  */
-export function findRepeatedStretches(segments, { radiusM = 45, stepM = 25, minLengthM = 120, maxRunM = 200, gapMs = 300_000 } = {}) {
+export function findRepeatedStretches(
+  segments,
+  { radiusM = 45, stepM = 25, minLengthM = 120, maxRunM = 200, gapMs = 300_000 } = {},
+) {
   // 1. Build the passes
   const passes = [];
   for (const segment of segments || []) {
     let current = null;
     for (const p of segment) {
       const t = Date.parse(p.time || "");
-      const isNew = !current || (Number.isFinite(t) && Number.isFinite(current.last) && t - current.last > gapMs);
-      if (isNew) { current = { points: [], start: t, last: t }; passes.push(current); }
+      const isNew =
+        !current ||
+        (Number.isFinite(t) && Number.isFinite(current.last) && t - current.last > gapMs);
+      if (isNew) {
+        current = { points: [], start: t, last: t };
+        passes.push(current);
+      }
       current.points.push(p);
       if (Number.isFinite(t)) current.last = t;
     }
   }
   const real = passes.filter((f) => f.points.length > 1);
   if (real.length < 2) return [];
-  real.forEach((f, i) => { f.index = i; });
+  real.forEach((f, i) => {
+    f.index = i;
+  });
   // Rank = order by first timestamp (without time: by position in the list)
-  [...real].sort((a, b) => (Number.isFinite(a.start) && Number.isFinite(b.start) ? a.start - b.start : 0) || a.index - b.index)
-    .forEach((f, i) => { f.rank = i; });
+  [...real]
+    .sort(
+      (a, b) =>
+        (Number.isFinite(a.start) && Number.isFinite(b.start) ? a.start - b.start : 0) ||
+        a.index - b.index,
+    )
+    .forEach((f, i) => {
+      f.rank = i;
+    });
 
   const mLon = METERS_PER_DEGREE * Math.cos(((real[0].points[0].lat || 0) * Math.PI) / 180);
   const X = (p) => p.lon * mLon;
@@ -60,7 +77,13 @@ export function findRepeatedStretches(segments, { radiusM = 45, stepM = 25, minL
       const d = Math.hypot(dx, dy);
       for (let k = 1; k * stepM < d - 1e-6; k++) {
         const t = (k * stepM) / d;
-        s.push({ x: X(a) + t * dx, y: Y(a) + t * dy, lon: a.lon + t * (b.lon - a.lon), lat: a.lat + t * (b.lat - a.lat), point: a });
+        s.push({
+          x: X(a) + t * dx,
+          y: Y(a) + t * dy,
+          lon: a.lon + t * (b.lon - a.lon),
+          lat: a.lat + t * (b.lat - a.lat),
+          point: a,
+        });
       }
     });
     f.samples = s;
@@ -106,15 +129,24 @@ export function findRepeatedStretches(segments, { radiusM = 45, stepM = 25, minL
     const s = f.samples;
     let i = 0;
     while (i < s.length) {
-      if (!f.marked[i]) { i++; continue; }
+      if (!f.marked[i]) {
+        i++;
+        continue;
+      }
       let j = i;
       let length = 0;
-      while (j + 1 < s.length && f.marked[j + 1]) { length += Math.hypot(s[j + 1].x - s[j].x, s[j + 1].y - s[j].y); j++; }
+      while (j + 1 < s.length && f.marked[j + 1]) {
+        length += Math.hypot(s[j + 1].x - s[j].x, s[j + 1].y - s[j].y);
+        j++;
+      }
       if (length >= minLengthM) {
         let start = i;
         let run = 0;
         for (let k = i + 1; k <= j + 1; k++) {
-          const changes = k > j || f.marked[k].rank !== f.marked[start].rank || f.marked[k].count !== f.marked[start].count;
+          const changes =
+            k > j ||
+            f.marked[k].rank !== f.marked[start].rank ||
+            f.marked[k].count !== f.marked[start].count;
           if (k <= j) run += Math.hypot(s[k].x - s[k - 1].x, s[k].y - s[k - 1].y);
           if (changes || run >= maxRunM) {
             // the run ends at sample k, so two runs join without a gap
@@ -122,7 +154,12 @@ export function findRepeatedStretches(segments, { radiusM = 45, stepM = 25, minL
             const part = s.slice(start, end + 1);
             if (part.length > 1) {
               const m = f.marked[start];
-              runs.push({ coords: part.map((q) => [q.lon, q.lat]), point: part[Math.floor(part.length / 2)].point, rank: m.rank, count: m.count });
+              runs.push({
+                coords: part.map((q) => [q.lon, q.lat]),
+                point: part[Math.floor(part.length / 2)].point,
+                rank: m.rank,
+                count: m.count,
+              });
             }
             start = k;
             run = 0;

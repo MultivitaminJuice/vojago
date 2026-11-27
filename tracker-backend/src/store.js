@@ -35,7 +35,7 @@ db.exec(schemaSql);
 migrate(db, { schemaSql, log: (m) => console.log(`[tracker-backend] ${m}`) });
 
 const insertRawStmt = db.prepare(
-  "INSERT INTO raw_packets (device_id, protocol, received_at, payload) VALUES (?, ?, ?, ?)"
+  "INSERT INTO raw_packets (device_id, protocol, received_at, payload) VALUES (?, ?, ?, ?)",
 );
 export function insertRawPacket({ deviceId, protocol, receivedAt, payload }) {
   insertRawStmt.run(deviceId, protocol, receivedAt, payload);
@@ -44,9 +44,11 @@ export function insertRawPacket({ deviceId, protocol, receivedAt, payload }) {
 const insertPositionStmt = db.prepare(
   `INSERT INTO positions
    (device_id, at, lat, lon, speed_kmh, course, altitude, sats, ignition, motion, protocol, created_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 );
-const existiertPositionStmt = db.prepare("SELECT 1 FROM positions WHERE device_id = ? AND at = ? LIMIT 1");
+const existiertPositionStmt = db.prepare(
+  "SELECT 1 FROM positions WHERE device_id = ? AND at = ? LIMIT 1",
+);
 /**
  * @param {{deviceId: string, at: number, lat: number, lon: number,
  *   speedKmh?: number, course?: number, altitude?: number, sats?: number,
@@ -61,11 +63,18 @@ const existiertPositionStmt = db.prepare("SELECT 1 FROM positions WHERE device_i
 export function insertPosition(p) {
   if (existiertPositionStmt.get(p.deviceId, p.at)) return null;
   const ergebnis = insertPositionStmt.run(
-    p.deviceId, p.at, p.lat, p.lon,
-    p.speedKmh ?? null, p.course ?? null, p.altitude ?? null, p.sats ?? null,
+    p.deviceId,
+    p.at,
+    p.lat,
+    p.lon,
+    p.speedKmh ?? null,
+    p.course ?? null,
+    p.altitude ?? null,
+    p.sats ?? null,
     p.ignition === undefined ? null : p.ignition ? 1 : 0,
     p.motion === undefined ? null : p.motion ? 1 : 0,
-    p.protocol, Date.now()
+    p.protocol,
+    Date.now(),
   );
   return ergebnis.lastInsertRowid;
 }

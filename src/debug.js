@@ -16,28 +16,56 @@ function loadEntries() {
 }
 
 function saveEntries() {
-  try { localStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES))); } catch { /* ignorieren */ }
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
+  } catch {
+    /* ignorieren */
+  }
 }
 
 function cloneData(data) {
-  try { return JSON.parse(JSON.stringify(data)); } catch { return String(data); }
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch {
+    return String(data);
+  }
 }
 
 export function debugEnabled() {
-  try { return localStorage.getItem(ENABLED_KEY) === "1"; } catch { return false; }
+  try {
+    return localStorage.getItem(ENABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export function preciseDebugDataEnabled() {
-  try { return localStorage.getItem(PRECISE_KEY) === "1"; } catch { return false; }
+  try {
+    return localStorage.getItem(PRECISE_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export function setDebugEnabled(on) {
-  try { localStorage.setItem(ENABLED_KEY, on ? "1" : "0"); } catch { /* ignorieren */ }
-  debugLog(on ? "debug.enabled" : "debug.disabled", { userAgent: navigator.userAgent }, { force: true });
+  try {
+    localStorage.setItem(ENABLED_KEY, on ? "1" : "0");
+  } catch {
+    /* ignorieren */
+  }
+  debugLog(
+    on ? "debug.enabled" : "debug.disabled",
+    { userAgent: navigator.userAgent },
+    { force: true },
+  );
 }
 
 export function setPreciseDebugDataEnabled(on) {
-  try { localStorage.setItem(PRECISE_KEY, on ? "1" : "0"); } catch { /* ignorieren */ }
+  try {
+    localStorage.setItem(PRECISE_KEY, on ? "1" : "0");
+  } catch {
+    /* ignorieren */
+  }
   debugLog(on ? "debug.precise.enabled" : "debug.precise.disabled", {}, { force: true });
 }
 
@@ -59,10 +87,26 @@ export const debugCount = () => entries.length;
 
 function isPrivateField(key) {
   const k = String(key || "").toLowerCase();
-  return k === "path" || k === "positions" || k === "position" || k === "coords" || k === "coordinates" ||
-    k === "lat" || k === "lon" || k === "lng" || k === "latitude" || k === "longitude" ||
-    k === "startlat" || k === "startlon" || k === "endlat" || k === "endlon" ||
-    k.includes("address") || k.includes("adresse") || k === "title" || k === "note";
+  return (
+    k === "path" ||
+    k === "positions" ||
+    k === "position" ||
+    k === "coords" ||
+    k === "coordinates" ||
+    k === "lat" ||
+    k === "lon" ||
+    k === "lng" ||
+    k === "latitude" ||
+    k === "longitude" ||
+    k === "startlat" ||
+    k === "startlon" ||
+    k === "endlat" ||
+    k === "endlon" ||
+    k.includes("address") ||
+    k.includes("adresse") ||
+    k === "title" ||
+    k === "note"
+  );
 }
 
 function withoutPrivateData(value, key = "") {
@@ -83,22 +127,33 @@ function viewportInfo() {
     devicePixelRatio: window.devicePixelRatio || null,
     clientWidth: document.documentElement.clientWidth,
     clientHeight: document.documentElement.clientHeight,
-    visualViewport: window.visualViewport ? {
-      width: window.visualViewport.width,
-      height: window.visualViewport.height,
-      offsetTop: window.visualViewport.offsetTop,
-      offsetLeft: window.visualViewport.offsetLeft,
-      scale: window.visualViewport.scale,
-    } : null,
-    standalone: window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
+    visualViewport: window.visualViewport
+      ? {
+          width: window.visualViewport.width,
+          height: window.visualViewport.height,
+          offsetTop: window.visualViewport.offsetTop,
+          offsetLeft: window.visualViewport.offsetLeft,
+          scale: window.visualViewport.scale,
+        }
+      : null,
+    standalone:
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true,
     appHeightVar: getComputedStyle(document.documentElement).getPropertyValue("--app-h").trim(),
   };
 }
 
 function tripExport(t, precise) {
   return {
-    id: t.id, name: precise ? t.name : REDACTED, live: t.live, range: t.range, start: t.start, end: t.end,
-    km: t.km, pathPoints: t.path?.length || 0, path: precise ? t.path || [] : REDACTED,
+    id: t.id,
+    name: precise ? t.name : REDACTED,
+    live: t.live,
+    range: t.range,
+    start: t.start,
+    end: t.end,
+    km: t.km,
+    pathPoints: t.path?.length || 0,
+    path: precise ? t.path || [] : REDACTED,
   };
 }
 
@@ -121,8 +176,14 @@ export function exportDebugLog(state, status) {
     mapTripId: state.mapTripId,
     trips: state.trips.map((t) => tripExport(t, precise)),
     drives: state.drives.map((d) => ({
-      key: d.key, from: d.from, to: d.to, tripId: d.tripId, manual: d.manual,
-      km: d.km, minutes: d.minutes, hasWeather: Boolean(d.weather),
+      key: d.key,
+      from: d.from,
+      to: d.to,
+      tripId: d.tripId,
+      manual: d.manual,
+      km: d.km,
+      minutes: d.minutes,
+      hasWeather: Boolean(d.weather),
       hasStartPosition: Number.isFinite(d.startLat) && Number.isFinite(d.startLon),
       startAddress: precise ? d.startAddress : REDACTED,
       endAddress: precise ? d.endAddress : REDACTED,
@@ -134,11 +195,19 @@ export function exportDebugLog(state, status) {
     overnightPlaces: state.places
       .filter((p) => p.catId === "uebernachtung" || p.stopKey)
       .map((p) => ({
-        id: p.id, tripId: p.tripId, title: precise ? p.title : REDACTED, at: p.at,
-        lat: precise ? p.lat : REDACTED, lon: precise ? p.lon : REDACTED,
-        nights: p.nights, stopKey: p.stopKey, source: p.source,
+        id: p.id,
+        tripId: p.tripId,
+        title: precise ? p.title : REDACTED,
+        at: p.at,
+        lat: precise ? p.lat : REDACTED,
+        lon: precise ? p.lon : REDACTED,
+        nights: p.nights,
+        stopKey: p.stopKey,
+        source: p.source,
       })),
-    logs: precise ? entries : entries.map((entry) => ({ ...entry, data: withoutPrivateData(entry.data) })),
+    logs: precise
+      ? entries
+      : entries.map((entry) => ({ ...entry, data: withoutPrivateData(entry.data) })),
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -151,5 +220,10 @@ export function exportDebugLog(state, status) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   if (precise) setPreciseDebugDataEnabled(false);
-  debugLog("debug.exported", { entries: entries.length, drives: state.drives.length, trips: state.trips.length, precise });
+  debugLog("debug.exported", {
+    entries: entries.length,
+    drives: state.drives.length,
+    trips: state.trips.length,
+    precise,
+  });
 }

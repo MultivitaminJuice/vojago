@@ -2,27 +2,65 @@
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { ICON } from "../icons.js";
 import {
-  state, trip, activeTrip, tripPlaces, tripNotes, rangeTrips, isRangeTrip,
-  endTrip, resumeTrip, startTrip, deleteTrip, showTripOnMap, showAdhocOnMap, setRouteDriveFilter, emit,
-  ROUTE_DRIVE_FILTERS, dataRevision,
+  state,
+  trip,
+  activeTrip,
+  tripPlaces,
+  tripNotes,
+  rangeTrips,
+  isRangeTrip,
+  endTrip,
+  resumeTrip,
+  startTrip,
+  deleteTrip,
+  showTripOnMap,
+  showAdhocOnMap,
+  setRouteDriveFilter,
+  emit,
+  ROUTE_DRIVE_FILTERS,
+  dataRevision,
 } from "../state.js";
 import { starterPath } from "../demo.js";
 import { drivePath, ensureTripPath, loadDrives, reloadTrips } from "../dataload.js";
-import { isConfigured, createTrip, updateTrip, deleteTrip as apiDeleteTrip, assignDrive, updateDriveKind } from "../api.js";
+import {
+  isConfigured,
+  createTrip,
+  updateTrip,
+  deleteTrip as apiDeleteTrip,
+  assignDrive,
+  updateDriveKind,
+} from "../api.js";
 import { weatherLine } from "../store.js";
 import { wireInlineEdit } from "../ui/inline-edit.js";
 import { miniRoute, elevationProfile, speedProfile, niceScale } from "./charts.js";
 import { dateField } from "../ui/calendar.js";
-import { routeSummaryToTrip, summarizeDrive, summarizeTrip, summarizeTripDays } from "../route-summary.js";
+import {
+  routeSummaryToTrip,
+  summarizeDrive,
+  summarizeTrip,
+  summarizeTripDays,
+} from "../route-summary.js";
 import { createMemo } from "../memo.js";
 import { neighbour, dayNavigation } from "../day-nav.js";
-import { localDayKey, tripDayNumberForIso, tripDayNumberFromKeys, tripStartIso } from "../day-utils.js";
-import { filteredRouteDrives, itemMatchesRouteFilter, visibleRoutePath } from "../route-visibility.js";
+import {
+  localDayKey,
+  tripDayNumberForIso,
+  tripDayNumberFromKeys,
+  tripStartIso,
+} from "../day-utils.js";
+import {
+  filteredRouteDrives,
+  itemMatchesRouteFilter,
+  visibleRoutePath,
+} from "../route-visibility.js";
 
-const kmText = (n, digits = 0) => Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: digits });
+const kmText = (n, digits = 0) =>
+  Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: digits });
 const datum = (iso) => {
   const d = iso ? new Date(iso) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+  return d && !Number.isNaN(d.getTime())
+    ? d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : "—";
 };
 const tagKey = (iso) => {
   return localDayKey(iso);
@@ -30,7 +68,12 @@ const tagKey = (iso) => {
 const tagDatum = (key) => {
   const d = key ? new Date(`${key}T12:00:00`) : null;
   return d && !Number.isNaN(d.getTime())
-    ? d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "2-digit" })
+    ? d.toLocaleDateString("de-DE", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      })
     : "Ohne Datum";
 };
 const dauer = (minuten) => {
@@ -105,7 +148,9 @@ export function initTrips({ onOpenDetail, onShowMap }) {
         return;
       }
 
-      const filterChoice = event.target.closest?.("#route-filter-picker button[data-route-drive-filter]");
+      const filterChoice = event.target.closest?.(
+        "#route-filter-picker button[data-route-drive-filter]",
+      );
       if (filterChoice) {
         routeFocus = null;
         setRouteDriveFilter(filterChoice.dataset.routeDriveFilter);
@@ -113,7 +158,9 @@ export function initTrips({ onOpenDetail, onShowMap }) {
         return;
       }
 
-      const driveKindChoice = event.target.closest?.("#drive-kind-picker button[data-drive-kind-choice]");
+      const driveKindChoice = event.target.closest?.(
+        "#drive-kind-picker button[data-drive-kind-choice]",
+      );
       if (driveKindChoice) {
         setFocusedDriveKind(driveKindChoice.dataset.driveKindChoice, driveKindChoice);
         return;
@@ -212,9 +259,7 @@ function renderTripModeTabs() {
   const labels = range
     ? { gesamt: "Gesamt", fahrten: "Reisen", tage: "Tage" }
     : { gesamt: "Gesamt", tage: "Tage", fahrten: "Fahrten" };
-  const order = range
-    ? { gesamt: 1, fahrten: 2, tage: 3 }
-    : { gesamt: 1, tage: 2, fahrten: 3 };
+  const order = range ? { gesamt: 1, fahrten: 2, tage: 3 } : { gesamt: 1, tage: 2, fahrten: 3 };
   $$("#view-reise .segment-tabs button[data-trip-mode]").forEach((button) => {
     const mode = button.dataset.tripMode;
     button.textContent = labels[mode] || mode;
@@ -236,28 +281,42 @@ function renderRangeTripRows() {
   if (!state.rangeTrip) return [];
   const trips = rangeTrips(state.rangeTrip.range);
   return [
-    el("button.trip-picker-row", {
-      "aria-pressed": String(!rangeFocusTripId),
-      on: { click: () => focusRangeTrip("__range") },
-    }, [
-      el("i", { text: "Z" }),
-      el("span", {}, [
-        el("b", { text: "Gesamter Zeitraum" }),
-        el("small", { text: `${datum(state.rangeTrip.range?.from)} – ${datum(state.rangeTrip.range?.to)}` }),
-      ]),
-      el("em", { text: `${kmText(state.rangeTrip.km)} km` }),
-    ]),
-    ...trips.map((reise) => el("button.trip-picker-row", {
-      "aria-pressed": String(rangeFocusTripId === reise.id),
-      on: { click: () => focusRangeTrip(reise.id) },
-    }, [
-      el("i", { style: { background: `hsl(${reise.hue},70%,52%)` } }),
-      el("span", {}, [
-        el("b", { text: reise.name }),
-        el("small", { text: `${datum(reise.start || reise.range?.from)} – ${reise.end || reise.range?.to ? datum(reise.end || reise.range?.to) : "läuft"}` }),
-      ]),
-      el("em", { text: `${kmText(reise.km)} km` }),
-    ])),
+    el(
+      "button.trip-picker-row",
+      {
+        "aria-pressed": String(!rangeFocusTripId),
+        on: { click: () => focusRangeTrip("__range") },
+      },
+      [
+        el("i", { text: "Z" }),
+        el("span", {}, [
+          el("b", { text: "Gesamter Zeitraum" }),
+          el("small", {
+            text: `${datum(state.rangeTrip.range?.from)} – ${datum(state.rangeTrip.range?.to)}`,
+          }),
+        ]),
+        el("em", { text: `${kmText(state.rangeTrip.km)} km` }),
+      ],
+    ),
+    ...trips.map((reise) =>
+      el(
+        "button.trip-picker-row",
+        {
+          "aria-pressed": String(rangeFocusTripId === reise.id),
+          on: { click: () => focusRangeTrip(reise.id) },
+        },
+        [
+          el("i", { style: { background: `hsl(${reise.hue},70%,52%)` } }),
+          el("span", {}, [
+            el("b", { text: reise.name }),
+            el("small", {
+              text: `${datum(reise.start || reise.range?.from)} – ${reise.end || reise.range?.to ? datum(reise.end || reise.range?.to) : "läuft"}`,
+            }),
+          ]),
+          el("em", { text: `${kmText(reise.km)} km` }),
+        ],
+      ),
+    ),
   ];
 }
 
@@ -272,7 +331,11 @@ function renderDriveKindPickerControls() {
 
 export function renderTrips() {
   if (!state.rangeTrip) rangeFocusTripId = null;
-  else if (rangeFocusTripId && !rangeTrips(state.rangeTrip.range).some((t) => t.id === rangeFocusTripId)) rangeFocusTripId = null;
+  else if (
+    rangeFocusTripId &&
+    !rangeTrips(state.rangeTrip.range).some((t) => t.id === rangeFocusTripId)
+  )
+    rangeFocusTripId = null;
   $("#view-reise")?.classList.toggle("range-context", Boolean(state.rangeTrip));
   renderTripModeTabs();
   renderTripList();
@@ -308,7 +371,8 @@ async function mitKnopf(knopf, arbeit) {
 async function neueReise(knopf) {
   if (!isCentral()) {
     startTrip(starterPath());
-    renderTrips(); goMap();
+    renderTrips();
+    goMap();
     toast("Neue Reise gestartet – gute Fahrt!");
     return;
   }
@@ -316,14 +380,17 @@ async function neueReise(knopf) {
     const { id } = await createTrip({ name: "Neue Reise", start_at: new Date().toISOString() });
     await reloadTrips();
     showTripOnMap(id);
-    renderTrips(); goMap();
+    renderTrips();
+    goMap();
     toast("Neue Reise gestartet – gute Fahrt!");
   });
 }
 
 async function reiseBeenden(knopf, danach) {
   if (!isCentral()) {
-    endTrip(); renderTrips(); danach?.();
+    endTrip();
+    renderTrips();
+    danach?.();
     toast("Reise beendet und gespeichert");
     return;
   }
@@ -332,33 +399,40 @@ async function reiseBeenden(knopf, danach) {
   await mitKnopf(knopf, async () => {
     await updateTrip(t.id, { end_at: new Date().toISOString() });
     await reloadTrips();
-    renderTrips(); danach?.();
+    renderTrips();
+    danach?.();
     toast("Reise beendet und gespeichert");
   });
 }
 
 async function reiseFortsetzen(knopf, id, danach) {
   if (!isCentral()) {
-    resumeTrip(id); renderTrips(); danach?.();
+    resumeTrip(id);
+    renderTrips();
+    danach?.();
     return;
   }
   await mitKnopf(knopf, async () => {
     await updateTrip(id, { end_at: null });
     await reloadTrips();
-    renderTrips(); danach?.();
+    renderTrips();
+    danach?.();
   });
 }
 
 async function reiseLoeschen(knopf, id, danach) {
   if (!isCentral()) {
-    deleteTrip(id); renderTrips(); danach?.();
+    deleteTrip(id);
+    renderTrips();
+    danach?.();
     toast("Reise gelöscht");
     return;
   }
   await mitKnopf(knopf, async () => {
     await apiDeleteTrip(id);
     await reloadTrips();
-    renderTrips(); danach?.();
+    renderTrips();
+    danach?.();
     toast("Reise gelöscht");
   });
 }
@@ -375,8 +449,13 @@ function selectedTrip() {
 // Trip and day values are computed once and kept until the data changes
 // (see memo.js); switching views or redrawing no longer recomputes them.
 const werte = createMemo();
-const merkSchluessel = (art, t) => `${art}|${t?.id}|${routeFilter()}|${t?.pathCoarse ? "coarse" : "full"}`;
-const merkBedingung = (t) => ({ revision: dataRevision(), path: t?.path, running: Boolean(t?.live) || isRangeTrip(t) });
+const merkSchluessel = (art, t) =>
+  `${art}|${t?.id}|${routeFilter()}|${t?.pathCoarse ? "coarse" : "full"}`;
+const merkBedingung = (t) => ({
+  revision: dataRevision(),
+  path: t?.path,
+  running: Boolean(t?.live) || isRangeTrip(t),
+});
 
 function tripSummary(t) {
   return werte(merkSchluessel("reise", t), merkBedingung(t), () => {
@@ -395,7 +474,12 @@ function tripForRouteFilter(t) {
   // Wie die Karte: bei laufender Reise bleibt das Ende nach der letzten bekannten Fahrt sichtbar,
   // ein grober Zwischenspeicher-Pfad wird nicht nach Fahrten gefiltert.
   if (t.pathCoarse) return t;
-  return { ...t, path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), { openEnd: Boolean(t.live) }) };
+  return {
+    ...t,
+    path: visibleRoutePath(t.path || [], state.drives, t.id, kartenFilter(), {
+      openEnd: Boolean(t.live),
+    }),
+  };
 }
 
 function routeDrives(t) {
@@ -413,12 +497,16 @@ function routeDrives(t) {
 
 function routePlaces(t) {
   if (isRangeTrip(t)) return tripPlaces(t.id);
-  return tripPlaces(t?.id).filter((p) => itemMatchesRouteFilter(p, state.drives, t?.id, kartenFilter()));
+  return tripPlaces(t?.id).filter((p) =>
+    itemMatchesRouteFilter(p, state.drives, t?.id, kartenFilter()),
+  );
 }
 
 function routeNotes(t) {
   if (isRangeTrip(t)) return tripNotes(t.id);
-  return tripNotes(t?.id).filter((n) => itemMatchesRouteFilter(n, state.drives, t?.id, kartenFilter()));
+  return tripNotes(t?.id).filter((n) =>
+    itemMatchesRouteFilter(n, state.drives, t?.id, kartenFilter()),
+  );
 }
 
 function ensurePathForSegments(t) {
@@ -443,25 +531,42 @@ function renderTripList() {
   const wrap = $("#trip-list");
   if (!wrap) return;
   const t = state.rangeTrip;
-  if (!isRangeTrip(t)) { render(wrap, []); return; }
+  if (!isRangeTrip(t)) {
+    render(wrap, []);
+    return;
+  }
   const trips = rangeTrips(t.range);
   render(wrap, [
     el("section.trip-list-period", {}, [
       el("h3", { text: "Reisen in diesem Zeitraum" }),
       trips.length
-        ? el("div", {}, trips.map((reise) => el("button.trip-list-item", {
-            "aria-pressed": String(rangeFocusTripId === reise.id),
-            on: { click: () => {
-              focusRangeTrip(reise.id);
-            } },
-          }, [
-            el("i", { style: { background: `hsl(${reise.hue},70%,52%)` } }),
-            el("span", {}, [
-              el("b", { text: reise.name }),
-              el("small", { text: `${datum(reise.start || reise.range?.from)} – ${reise.end || reise.range?.to ? datum(reise.end || reise.range?.to) : "läuft"}` }),
-            ]),
-            el("em", { text: `${kmText(reise.km)} km` }),
-          ])))
+        ? el(
+            "div",
+            {},
+            trips.map((reise) =>
+              el(
+                "button.trip-list-item",
+                {
+                  "aria-pressed": String(rangeFocusTripId === reise.id),
+                  on: {
+                    click: () => {
+                      focusRangeTrip(reise.id);
+                    },
+                  },
+                },
+                [
+                  el("i", { style: { background: `hsl(${reise.hue},70%,52%)` } }),
+                  el("span", {}, [
+                    el("b", { text: reise.name }),
+                    el("small", {
+                      text: `${datum(reise.start || reise.range?.from)} – ${reise.end || reise.range?.to ? datum(reise.end || reise.range?.to) : "läuft"}`,
+                    }),
+                  ]),
+                  el("em", { text: `${kmText(reise.km)} km` }),
+                ],
+              ),
+            ),
+          )
         : el("p.sub", { text: "Keine gespeicherte Reise überschneidet diesen Zeitraum." }),
     ]),
   ]);
@@ -469,25 +574,37 @@ function renderTripList() {
 
 function renderRangeFocusBack() {
   if (!state.rangeTrip || !rangeFocusTripId) return null;
-  return el("button.detail-back", {
-    on: { click: () => {
-      rangeFocusTripId = null;
-      routeFocus = null;
-      tripMode = "fahrten";
-      renderTrips();
-    } },
-  }, [icon(ICON.chevronLeft, 17), "Zurück zu Reisen"]);
+  return el(
+    "button.detail-back",
+    {
+      on: {
+        click: () => {
+          rangeFocusTripId = null;
+          routeFocus = null;
+          tripMode = "fahrten";
+          renderTrips();
+        },
+      },
+    },
+    [icon(ICON.chevronLeft, 17), "Zurück zu Reisen"],
+  );
 }
 
 function renderSegments() {
-  $$("#view-reise .segment-tabs button[data-trip-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tripMode === tripMode)));
+  $$("#view-reise .segment-tabs button[data-trip-mode]").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.tripMode === tripMode)),
+  );
   renderRouteFilterControls();
   const wrap = $("#trip-segment");
   const summaryWrap = $("#route-summary-panel");
   const t = selectedTrip();
-  $$("#view-reise .route-filter").forEach((filter) => { filter.hidden = false; });
+  $$("#view-reise .route-filter").forEach((filter) => {
+    filter.hidden = false;
+  });
   if (!wrap || !t) {
-    $$("#view-reise .trip-mode-toolbar").forEach((tabs) => { tabs.hidden = false; });
+    $$("#view-reise .trip-mode-toolbar").forEach((tabs) => {
+      tabs.hidden = false;
+    });
     // Ohne Reise gibt es nichts, unter dem die "Nicht zugeordnet"-Liste
     // sonst hängt (die lebt normalerweise unter der Fahrten-Ansicht einer
     // Reise) — bleibt trotzdem über denselben Filter erreichbar, sonst
@@ -495,17 +612,25 @@ function renderSegments() {
     // existiert (z. B. direkt nach dem Löschen aller Reisen). Nur im
     // Fahrten-Reiter UND nur bei aktivem Filter, wie überall sonst auch.
     if (wrap) {
-      render(wrap, (tripMode === "fahrten" && routeFilter() === "nicht_zugeordnet")
-        ? renderUnassignedDriveSegments() : []);
+      render(
+        wrap,
+        tripMode === "fahrten" && routeFilter() === "nicht_zugeordnet"
+          ? renderUnassignedDriveSegments()
+          : [],
+      );
     }
     if (summaryWrap) render(summaryWrap, []);
     return;
   }
   routeSummaryCache = new Map();
 
-  const detailOffen = routeFocus?.parentId === t.id &&
-    ((tripMode === "tage" && routeFocus.type === "tag") || (tripMode === "fahrten" && routeFocus.type === "fahrt"));
-  $$("#view-reise .trip-mode-toolbar").forEach((tabs) => { tabs.hidden = detailOffen; });
+  const detailOffen =
+    routeFocus?.parentId === t.id &&
+    ((tripMode === "tage" && routeFocus.type === "tag") ||
+      (tripMode === "fahrten" && routeFocus.type === "fahrt"));
+  $$("#view-reise .trip-mode-toolbar").forEach((tabs) => {
+    tabs.hidden = detailOffen;
+  });
 
   if (tripMode === "tage") {
     if (detailOffen) {
@@ -526,7 +651,11 @@ function renderSegments() {
     ensurePathForSegments(t);
     if (state.rangeTrip && rangeFocusTripId && !detailOffen) {
       const summary = tripSummary(t);
-      render(summaryWrap, [renderRangeFocusBack(), renderSummaryFacts(summary, t), renderMapAction(summary, t)]);
+      render(summaryWrap, [
+        renderRangeFocusBack(),
+        renderSummaryFacts(summary, t),
+        renderMapAction(summary, t),
+      ]);
       render(wrap, [renderGesamtActions(t), ...renderGesamtCharts(t)]);
     } else if (detailOffen) {
       render(summaryWrap, [renderRangeFocusBack(), renderRouteDetail(t, "fahrten")]);
@@ -539,23 +668,39 @@ function renderSegments() {
   }
 
   routeFocus = null;
-  $$("#view-reise .trip-mode-toolbar").forEach((tabs) => { tabs.hidden = false; });
+  $$("#view-reise .trip-mode-toolbar").forEach((tabs) => {
+    tabs.hidden = false;
+  });
   render(summaryWrap, [renderRangeFocusBack(), renderSummaryFacts(tripSummary(t), t)]);
   render(wrap, [renderGesamtActions(t), ...renderGesamtCharts(t)]);
 }
 
 /** Kopf der Tages-/Fahrtansicht: dieselbe Pille wie auf der Karte ("Zurück · Tag 3 · ‹ ›"). */
 function detailKopfLeiste(summaries) {
-  const zurueck = () => { routeFocus = null; renderTrips(); };
+  const zurueck = () => {
+    routeFocus = null;
+    renderTrips();
+  };
   const nav = dayNavigation(summaries, routeFocus.id);
   const schritt = (richtung) => {
     const ziel = neighbour(summaries, routeFocus.id, richtung);
-    return el("button.map-focus-step", {
-      type: "button",
-      disabled: !ziel,
-      "aria-label": richtung < 0 ? "Vorheriger Tag" : "Nächster Tag",
-      on: { click: () => { if (ziel) { routeFocus = ziel; renderTrips(); } } },
-    }, [icon(richtung < 0 ? ICON.chevronLeft : ICON.chevronRight, 16)]);
+    return el(
+      "button.map-focus-step",
+      {
+        type: "button",
+        disabled: !ziel,
+        "aria-label": richtung < 0 ? "Vorheriger Tag" : "Nächster Tag",
+        on: {
+          click: () => {
+            if (ziel) {
+              routeFocus = ziel;
+              renderTrips();
+            }
+          },
+        },
+      },
+      [icon(richtung < 0 ? ICON.chevronLeft : ICON.chevronRight, 16)],
+    );
   };
   return el("div.map-focusbar", {}, [
     el("button", { type: "button", text: "Zurück", on: { click: zurueck } }),
@@ -566,26 +711,49 @@ function detailKopfLeiste(summaries) {
 
 function renderRouteDetail(t, listMode) {
   const hatSpur = Boolean(routeFocus?.path?.length);
-  const kopfListe = listMode === "tage" && routeFocus?.type === "tag" ? tageSummariesFor(t)
-    : listMode === "fahrten" && routeFocus?.type === "fahrt" ? fahrtenEintraege(t)
-      : null;
+  const kopfListe =
+    listMode === "tage" && routeFocus?.type === "tag"
+      ? tageSummariesFor(t)
+      : listMode === "fahrten" && routeFocus?.type === "fahrt"
+        ? fahrtenEintraege(t)
+        : null;
   return el("div.route-detail", {}, [
     el("div.detail-nav", {}, [
       kopfListe
         ? detailKopfLeiste(kopfListe)
-        : el("button.detail-back", {
-          on: { click: () => { routeFocus = null; renderTrips(); } },
-        }, [icon(ICON.chevronLeft, 17), listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten"]),
+        : el(
+            "button.detail-back",
+            {
+              on: {
+                click: () => {
+                  routeFocus = null;
+                  renderTrips();
+                },
+              },
+            },
+            [
+              icon(ICON.chevronLeft, 17),
+              listMode === "tage" ? "Zurück zu Tagen" : "Zurück zu Fahrten",
+            ],
+          ),
     ]),
     renderSummaryFacts(routeFocus, t),
     renderMapAction(routeFocus, t),
     // Dieselben Kartenwerkzeuge wie unter Gesamt, hier für nur diesen Tag/
     // diese Fahrt — beide Funktionen nehmen einfach eine Positions-Spur,
     // ganz gleich ob Reise, Tag oder Fahrt (siehe renderGesamtCharts()).
-    ...(hatSpur ? [
-      el("div.gcard", {}, [el("h3", { text: "Höhenprofil" }), elevationProfile(routeFocus.path)]),
-      el("div.gcard", {}, [el("h3", { text: "Geschwindigkeit" }), speedProfile(routeFocus.path)]),
-    ] : []),
+    ...(hatSpur
+      ? [
+          el("div.gcard", {}, [
+            el("h3", { text: "Höhenprofil" }),
+            elevationProfile(routeFocus.path),
+          ]),
+          el("div.gcard", {}, [
+            el("h3", { text: "Geschwindigkeit" }),
+            speedProfile(routeFocus.path),
+          ]),
+        ]
+      : []),
   ]);
 }
 
@@ -595,7 +763,10 @@ async function entferneFahrtAusReise() {
   const drive = routeFocus?.drives?.[0];
   if (!drive?.key) return;
   closeDriveKindPicker();
-  if (!isCentral()) { toast("Nur mit verbundenem Konto möglich"); return; }
+  if (!isCentral()) {
+    toast("Nur mit verbundenem Konto möglich");
+    return;
+  }
   try {
     await assignDrive(drive.key, null);
     await loadDrives();
@@ -610,7 +781,10 @@ async function entferneFahrtAusReise() {
 
 async function setFocusedDriveKind(kind, knopf) {
   if (routeFocus?.type !== "fahrt" || !routeFocus.drives?.length) return;
-  if (kind === "entfernen") { entferneFahrtAusReise(); return; }
+  if (kind === "entfernen") {
+    entferneFahrtAusReise();
+    return;
+  }
   const drive = routeFocus.drives[0];
   const ziel = kind === "abstecher" ? "abstecher" : "etappe";
   if (drive.kind === ziel) {
@@ -646,9 +820,13 @@ function renderMapAction(summary, t) {
   const kannZeigen = summary.type === "reise" || Boolean(summary.path?.length);
   if (!kannZeigen) return null;
   return el("div.trip-actions.route-map-actions", {}, [
-    el("button.btn.grow", {
-      on: { click: () => zeigeSummaryAufKarte(summary, t) },
-    }, [icon(ICON.map, 15), "Auf Karte zeigen"]),
+    el(
+      "button.btn.grow",
+      {
+        on: { click: () => zeigeSummaryAufKarte(summary, t) },
+      },
+      [icon(ICON.map, 15), "Auf Karte zeigen"],
+    ),
   ]);
 }
 
@@ -662,7 +840,10 @@ function zeigeSummaryAufKarte(summary, t) {
   } else if (summary.path?.length) {
     kartenRueckkehrKontext = { tripMode, routeFocus, rangeFocusTripId };
     const adhoc = routeSummaryToTrip(summary, `${t.name} · ${summary.title}`);
-    if (summary.type === "tag" || summary.type === "fahrt") { adhoc.navArt = summary.type; adhoc.navReiseId = t.id; }
+    if (summary.type === "tag" || summary.type === "fahrt") {
+      adhoc.navArt = summary.type;
+      adhoc.navReiseId = t.id;
+    }
     showAdhocOnMap(adhoc);
   }
   goMap();
@@ -696,8 +877,13 @@ export function kartenSchritt(richtung) {
   const ziel = neighbour(summaries, adhoc.id, richtung);
   if (!ziel?.path?.length) return;
   // "Zurück" führt zu dem Eintrag, den man zuletzt auf der Karte gesehen hat.
-  if (kartenRueckkehrKontext?.routeFocus) kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };
-  showAdhocOnMap({ ...routeSummaryToTrip(ziel, `${t.name} · ${ziel.title}`), navArt: adhoc.navArt, navReiseId: adhoc.navReiseId });
+  if (kartenRueckkehrKontext?.routeFocus)
+    kartenRueckkehrKontext = { ...kartenRueckkehrKontext, routeFocus: ziel };
+  showAdhocOnMap({
+    ...routeSummaryToTrip(ziel, `${t.name} · ${ziel.title}`),
+    navArt: adhoc.navArt,
+    navReiseId: adhoc.navReiseId,
+  });
 }
 
 /** Für main.js: erneuter Klick auf den "Reisen"-Tab, während man schon
@@ -725,7 +911,12 @@ export function stelleKartenRueckkehrWieder() {
 
 function renderSummaryFacts(summary, t) {
   const s = summary.stats;
-  const label = summary.type === "reise" ? (isRangeTrip(t) ? "Gesamter Zeitraum" : "Gesamte Reise") : summary.title;
+  const label =
+    summary.type === "reise"
+      ? isRangeTrip(t)
+        ? "Gesamter Zeitraum"
+        : "Gesamte Reise"
+      : summary.title;
   const when = summary.type === "reise" ? datum : zeitpunkt;
   const contextFacts = [];
   if (summary.type === "reise") {
@@ -744,9 +935,15 @@ function renderSummaryFacts(summary, t) {
       ? el("button.trip-fact", { on: { click: onClick } }, content)
       : el("div.trip-fact", {}, content);
   };
-  const driveKindFact = summary.type === "fahrt" && summary.drives?.length
-    ? fact(ICON.list, "Fahrtart", summary.drives[0].kind === "abstecher" ? "Abstecher" : "Etappe", { onClick: openDriveKindPicker })
-    : null;
+  const driveKindFact =
+    summary.type === "fahrt" && summary.drives?.length
+      ? fact(
+          ICON.list,
+          "Fahrtart",
+          summary.drives[0].kind === "abstecher" ? "Abstecher" : "Etappe",
+          { onClick: openDriveKindPicker },
+        )
+      : null;
   return el("section.route-summary", {}, [
     // Tag und Fahrt tragen ihren Namen schon in der Kopfleiste darüber.
     summary.type === "reise" ? el("div.summary-title", {}, [el("b", { text: label })]) : null,
@@ -754,11 +951,25 @@ function renderSummaryFacts(summary, t) {
       driveKindFact,
       fact(ICON.calendar, "von", when(summary.from)),
       fact(ICON.calendar, "bis", summary.to ? when(summary.to) : summary.live ? "läuft" : "—"),
-      fact(ICON.clock, "Zeitraum", summary.type === "reise" ? reiseZeitraumDauer(summary.from, summary.to) : zeitraumDauer(summary.from, summary.to)),
+      fact(
+        ICON.clock,
+        "Zeitraum",
+        summary.type === "reise"
+          ? reiseZeitraumDauer(summary.from, summary.to)
+          : zeitraumDauer(summary.from, summary.to),
+      ),
       ...contextFacts.map(([pfad, label, value]) => fact(pfad, label, value)),
-      fact(ICON.route, summary.type === "reise" ? "Fahrstrecke" : "Strecke", `${kmText(s.distanceKm)} km`),
+      fact(
+        ICON.route,
+        summary.type === "reise" ? "Fahrstrecke" : "Strecke",
+        `${kmText(s.distanceKm)} km`,
+      ),
       fact(ICON.clock, "Fahrzeit", dauer(s.driveMinutes)),
-      fact(ICON.gauge, "Durchschnittsgeschw.", s.averageKmh ? `${kmText(s.averageKmh, 1)} km/h` : "—"),
+      fact(
+        ICON.gauge,
+        "Durchschnittsgeschw.",
+        s.averageKmh ? `${kmText(s.averageKmh, 1)} km/h` : "—",
+      ),
       fact(ICON.gauge, "Höchstgeschw.", s.maxKmh ? `${kmText(s.maxKmh, 0)} km/h` : "—"),
       fact(ICON.mountain, "Höchster Punkt", s.peakM ? `${kmText(s.peakM)} m` : "—"),
     ]),
@@ -782,23 +993,43 @@ function kmBalken(t) {
   const { max, ticks } = niceScale(Math.max(...t.bars, 0));
   const proz = (v) => `${(v / max) * 100}%`;
   const balken = t.bars.map((v, i) => {
-    const knopf = el("button.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""), {
-      type: "button", "aria-pressed": "false", "aria-label": `${t.barLabels[i]}: ${kmText(v)} km`,
-      on: { click: () => {
-        const an = knopf.getAttribute("aria-pressed") !== "true";
-        for (const b of knopf.parentElement.children) b.setAttribute("aria-pressed", "false");
-        knopf.setAttribute("aria-pressed", String(an));
-      } },
-    }, [el("div.col", { style: { height: proz(v) } }, [el("span.wert", { text: `${kmText(v)} km` })])]);
+    const knopf = el(
+      "button.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""),
+      {
+        type: "button",
+        "aria-pressed": "false",
+        "aria-label": `${t.barLabels[i]}: ${kmText(v)} km`,
+        on: {
+          click: () => {
+            const an = knopf.getAttribute("aria-pressed") !== "true";
+            for (const b of knopf.parentElement.children) b.setAttribute("aria-pressed", "false");
+            knopf.setAttribute("aria-pressed", String(an));
+          },
+        },
+      },
+      [
+        el("div.col", { style: { height: proz(v) } }, [
+          el("span.wert", { text: `${kmText(v)} km` }),
+        ]),
+      ],
+    );
     return knopf;
   });
   return el("div.balken", {}, [
-    el("div.balken-achse", {}, ticks.map((v) => el("span", { text: kmText(v), style: { bottom: proz(v) } }))),
+    el(
+      "div.balken-achse",
+      {},
+      ticks.map((v) => el("span", { text: kmText(v), style: { bottom: proz(v) } })),
+    ),
     el("div.balken-flaeche", {}, [
       ...ticks.map((v) => el("i.gitter", { style: { bottom: proz(v) } })),
       el("div.bars", {}, balken),
     ]),
-    el("div.balken-namen", {}, t.barLabels.map((name) => el("small", { text: name }))),
+    el(
+      "div.balken-namen",
+      {},
+      t.barLabels.map((name) => el("small", { text: name })),
+    ),
   ]);
 }
 
@@ -809,12 +1040,23 @@ function renderGesamtActions(t) {
     // beenden, nur um sie umbenennen zu können. Jetzt neben "Beenden".
     return el("div.trip-actions", {}, [
       el("button.btn.grow", { text: "Bearbeiten", on: { click: () => openDetail(t.id) } }),
-      el("button.btn.grow", { text: "Reise beenden", dataset: { busyText: "Wird beendet …" }, on: { click: (e) => reiseBeenden(e.currentTarget) } }),
+      el("button.btn.grow", {
+        text: "Reise beenden",
+        dataset: { busyText: "Wird beendet …" },
+        on: { click: (e) => reiseBeenden(e.currentTarget) },
+      }),
     ]);
   }
   return el("div.trip-actions", {}, [
     el("button.btn.grow", { text: "Bearbeiten", on: { click: () => openDetail(t.id) } }),
-    el("button.btn.grow", { dataset: { busyText: "Wird fortgesetzt …" }, on: { click: (e) => reiseFortsetzen(e.currentTarget, t.id) } }, [icon(ICON.play, 15), "Fortsetzen"]),
+    el(
+      "button.btn.grow",
+      {
+        dataset: { busyText: "Wird fortgesetzt …" },
+        on: { click: (e) => reiseFortsetzen(e.currentTarget, t.id) },
+      },
+      [icon(ICON.play, 15), "Fortsetzen"],
+    ),
   ]);
 }
 
@@ -834,48 +1076,62 @@ function segmentCard({ title, subtitle, summary, variant = "" }) {
   };
   const stats = summary?.stats || {};
   const istFahrt = variant === "drive-card" || summary?.type === "fahrt";
-  return el("button.segment-card", {
-    "aria-pressed": String(routeFocus?.id === summary?.id),
-    class: variant,
-    dataset: { summaryId: rememberSummary(summary) },
-  }, [
-    el("div.thumb", {}, miniRoute(fake, 82, 82)),
-    el("div.segment-body", {}, [
-      variant === "day-card"
-        ? el("div.day-title", {}, [
-          el("b", { text: title }),
-          subtitle ? el("span", { text: `– ${subtitle}` }) : null,
-        ])
-        : istFahrt
-          ? el("span.drive-card-title", {}, [
-            el("b", { text: title }),
-            summary?.drives?.[0]
-              ? el("span.kind-badge" + (summary.drives[0].kind === "abstecher" ? ".abstecher" : ""), {
-                text: summary.drives[0].kind === "abstecher" ? "Abstecher" : "Etappe",
-              })
-              : null,
-          ])
-          : el("b", { text: title }),
-      variant === "day-card" ? null : el("div", { text: subtitle || "" }),
-      variant === "day-card"
-        ? el("div.segment-stats.day-stats", {}, [
-          el("span", { text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} km` }),
-          el("span", { text: stats.driveMinutes ? dauer(stats.driveMinutes) : "—" }),
-        ])
-        : istFahrt
-          ? el("div.segment-stats", {}, [
-            el("span", { text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} km` }),
-            el("span", { text: stats.driveMinutes ? dauer(stats.driveMinutes) : "—" }),
-          ])
-        : el("div.segment-stats", {}, [
-          el("span", { text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} km` }),
-          stats.driveMinutes ? el("span", { text: dauer(stats.driveMinutes) }) : null,
-          stats.maxKmh ? el("span", { text: `${Math.round(stats.maxKmh)} km/h` }) : null,
-          stats.peakM ? el("span", { text: `${Math.round(stats.peakM)} m` }) : null,
-        ]),
-    ]),
-    el("span.chev", {}, icon(ICON.chevronRight, 18)),
-  ]);
+  return el(
+    "button.segment-card",
+    {
+      "aria-pressed": String(routeFocus?.id === summary?.id),
+      class: variant,
+      dataset: { summaryId: rememberSummary(summary) },
+    },
+    [
+      el("div.thumb", {}, miniRoute(fake, 82, 82)),
+      el("div.segment-body", {}, [
+        variant === "day-card"
+          ? el("div.day-title", {}, [
+              el("b", { text: title }),
+              subtitle ? el("span", { text: `– ${subtitle}` }) : null,
+            ])
+          : istFahrt
+            ? el("span.drive-card-title", {}, [
+                el("b", { text: title }),
+                summary?.drives?.[0]
+                  ? el(
+                      "span.kind-badge" +
+                        (summary.drives[0].kind === "abstecher" ? ".abstecher" : ""),
+                      {
+                        text: summary.drives[0].kind === "abstecher" ? "Abstecher" : "Etappe",
+                      },
+                    )
+                  : null,
+              ])
+            : el("b", { text: title }),
+        variant === "day-card" ? null : el("div", { text: subtitle || "" }),
+        variant === "day-card"
+          ? el("div.segment-stats.day-stats", {}, [
+              el("span", {
+                text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} km`,
+              }),
+              el("span", { text: stats.driveMinutes ? dauer(stats.driveMinutes) : "—" }),
+            ])
+          : istFahrt
+            ? el("div.segment-stats", {}, [
+                el("span", {
+                  text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} km`,
+                }),
+                el("span", { text: stats.driveMinutes ? dauer(stats.driveMinutes) : "—" }),
+              ])
+            : el("div.segment-stats", {}, [
+                el("span", {
+                  text: `${Number(stats.distanceKm || 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} km`,
+                }),
+                stats.driveMinutes ? el("span", { text: dauer(stats.driveMinutes) }) : null,
+                stats.maxKmh ? el("span", { text: `${Math.round(stats.maxKmh)} km/h` }) : null,
+                stats.peakM ? el("span", { text: `${Math.round(stats.peakM)} m` }) : null,
+              ]),
+      ]),
+      el("span.chev", {}, icon(ICON.chevronRight, 18)),
+    ],
+  );
 }
 
 /** Tages-Zusammenfassungen einer Reise samt Vorschau-Spur (für Liste und Vor/Zurück). */
@@ -883,11 +1139,13 @@ function tageSummariesFor(t) {
   const routeTrip = tripForRouteFilter(t);
   const fahrten = routeDrives(t);
   ensureDrivePreviewPaths(t, fahrten);
-  const summaries = werte(merkSchluessel("tage", t), merkBedingung(t), () => summarizeTripDays(routeTrip, {
-    drives: fahrten,
-    places: routePlaces(t),
-    notes: routeNotes(t),
-  }));
+  const summaries = werte(merkSchluessel("tage", t), merkBedingung(t), () =>
+    summarizeTripDays(routeTrip, {
+      drives: fahrten,
+      places: routePlaces(t),
+      notes: routeNotes(t),
+    }),
+  );
   return summaries.map((summary) => {
     const preview = summary.path?.length ? summary.path : dayPreviewPath(summary.drives || [], t);
     return preview.length ? { ...summary, path: preview } : summary;
@@ -897,19 +1155,27 @@ function tageSummariesFor(t) {
 function renderDaySegments(t) {
   if (!t.path?.length) ensurePathForSegments(t);
   const summaries = tageSummariesFor(t);
-  if (!summaries.length) return el("div.callout", { text: "Für diese Reise gibt es noch keine Tagesdaten." });
-  return summaries.map((visibleSummary) => segmentCard({
-    title: visibleSummary.title,
-    subtitle: tagSubtitle(visibleSummary.path, visibleSummary.from),
-    summary: visibleSummary,
-    variant: "day-card",
-  }));
+  if (!summaries.length)
+    return el("div.callout", { text: "Für diese Reise gibt es noch keine Tagesdaten." });
+  return summaries.map((visibleSummary) =>
+    segmentCard({
+      title: visibleSummary.title,
+      subtitle: tagSubtitle(visibleSummary.path, visibleSummary.from),
+      summary: visibleSummary,
+      variant: "day-card",
+    }),
+  );
 }
 
 function tagSubtitle(path, fallbackIso = null) {
-  const d = path[0]?.time ? new Date(path[0].time) : (fallbackIso ? new Date(fallbackIso) : null);
+  const d = path[0]?.time ? new Date(path[0].time) : fallbackIso ? new Date(fallbackIso) : null;
   return d && !Number.isNaN(d.getTime())
-    ? d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "2-digit" })
+    ? d.toLocaleDateString("de-DE", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      })
     : "";
 }
 
@@ -924,7 +1190,9 @@ function renderUnassignedDriveSegments() {
     return [el("div.callout", { text: "Aktuell sind alle Fahrten einer Reise zugeordnet." })];
   }
   return [
-    el("div.callout", { text: "Diese Fahrten liegen außerhalb jeder Reise oder wurden manuell als Alltag markiert." }),
+    el("div.callout", {
+      text: "Diese Fahrten liegen außerhalb jeder Reise oder wurden manuell als Alltag markiert.",
+    }),
     ...alltag.map((d) => driveRow(d)),
   ];
 }
@@ -937,22 +1205,35 @@ function renderDriveSegments(t) {
   const alleFahrten = state.drives
     .filter((d) => d.tripId === t.id)
     .sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")));
-  const fahrten = routeDrives(t).sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")));
+  const fahrten = routeDrives(t).sort((a, b) =>
+    String(a.from || "").localeCompare(String(b.from || "")),
+  );
   const groups = groupDriveActivitiesByDay(routeTrip, fahrten);
   const nodes = [];
 
   if (!state.config.demo && !state.drives.length && !groups.length) {
-    nodes.push(el("div.callout", {
-      text: state.config.device
-        ? "Für die letzten 30 Tage meldet der Tracker keine Fahrten."
-        : "Keine Geräte-ID hinterlegt — trag sie unter Mehr in den Einstellungen ein.",
-    }));
+    nodes.push(
+      el("div.callout", {
+        text: state.config.device
+          ? "Für die letzten 30 Tage meldet der Tracker keine Fahrten."
+          : "Keine Geräte-ID hinterlegt — trag sie unter Mehr in den Einstellungen ein.",
+      }),
+    );
   } else if (!groups.length) {
-    nodes.push(el("div.callout", { text: routeFilter() === "abstecher"
-      ? "Für diese Reise sind keine Versorgungsfahrten markiert."
-      : "Für diese Reise sind noch keine Fahrten erkannt oder zugeordnet." }));
+    nodes.push(
+      el("div.callout", {
+        text:
+          routeFilter() === "abstecher"
+            ? "Für diese Reise sind keine Versorgungsfahrten markiert."
+            : "Für diese Reise sind noch keine Fahrten erkannt oder zugeordnet.",
+      }),
+    );
   } else {
-    nodes.push(...groups.map(([key, group], index, entries) => driveDayGroup(t, key, group, index, entries.length)));
+    nodes.push(
+      ...groups.map(([key, group], index, entries) =>
+        driveDayGroup(t, key, group, index, entries.length),
+      ),
+    );
     ensureDrivePreviewPaths(t, alleFahrten);
   }
   return nodes;
@@ -986,17 +1267,25 @@ function groupDriveActivitiesByDay(t, drives) {
 /** Kurzname einer Fahrt für Kopfleiste und Karte: "Tag 2 · 14:32". */
 const fahrtTitel = (iso, t) => {
   const tag = tripDayNumberForIso(iso, t);
-  return [Number.isFinite(tag) ? `Tag ${tag}` : null, uhrzeit(iso)].filter(Boolean).join(" · ") || "Fahrt";
+  return (
+    [Number.isFinite(tag) ? `Tag ${tag}` : null, uhrzeit(iso)].filter(Boolean).join(" · ") ||
+    "Fahrt"
+  );
 };
 
 /** Zusammenfassungen für Fahrten (Detailansicht und Vor/Zurück). */
-const fahrtZusammenfassung = (drive, t) => ({ ...summarizeDrive(drive, { path: drivePreviewPath(drive, t) }), title: fahrtTitel(drive.from, t) });
+const fahrtZusammenfassung = (drive, t) => ({
+  ...summarizeDrive(drive, { path: drivePreviewPath(drive, t) }),
+  title: fahrtTitel(drive.from, t),
+});
 const spurZusammenfassung = (summary, t) => ({ ...summary, title: fahrtTitel(summary.from, t) });
 
 /** Alle Fahrten einer Reise, die ein Detail öffnen, in zeitlicher Reihenfolge (über Tagesgrenzen). */
 function fahrtenEintraege(t) {
   const routeTrip = tripForRouteFilter(t);
-  const fahrten = routeDrives(t).sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")));
+  const fahrten = routeDrives(t).sort((a, b) =>
+    String(a.from || "").localeCompare(String(b.from || "")),
+  );
   const eintraege = [];
   for (const [, group] of groupDriveActivitiesByDay(routeTrip, fahrten)) {
     eintraege.push(...group.drives.map((d) => fahrtZusammenfassung(d, t)));
@@ -1012,32 +1301,42 @@ function driveDayGroup(t, key, group, index, count) {
   const entries = group.drives.length + group.tracks.length;
   const openKey = `${t.id}:${routeFilter()}:${key}`;
   const istOffen = driveDayOpen.has(openKey) ? driveDayOpen.get(openKey) : index === count - 1;
-  return el("details.drive-day", {
-    open: istOffen,
-    on: { toggle: (event) => driveDayOpen.set(openKey, event.currentTarget.open) },
-  }, [
-    el("summary.drive-day-head", {}, [
-      el("span.drive-day-num", { text: `Tag ${day}` }),
-      el("h3", { text: tagDatum(key) }),
-      el("span.drive-day-count", {
-        text: `${entries} ${entries === 1 ? "Fahrt" : "Fahrten"}`,
-      }),
-    ]),
-    el("div.drive-day-list", {}, [
-      ...group.drives.map((d) => segmentCard({
-        title: `Fahrt ${kurzDatumZeit(d.from)}`,
-        subtitle: [kurzeAdresse(d.startAddress), kurzeAdresse(d.endAddress)].filter(Boolean).join(" → "),
-        summary: fahrtZusammenfassung(d, t),
-        variant: "drive-card",
-      })),
-      ...group.tracks.map((summary) => segmentCard({
-        title: `Fahrt ${kurzDatumZeit(summary.from)}`,
-        subtitle: "aus Live-Spur, noch nicht im Fahrtbericht",
-        summary: spurZusammenfassung(summary, t),
-        variant: "drive-card",
-      })),
-    ]),
-  ]);
+  return el(
+    "details.drive-day",
+    {
+      open: istOffen,
+      on: { toggle: (event) => driveDayOpen.set(openKey, event.currentTarget.open) },
+    },
+    [
+      el("summary.drive-day-head", {}, [
+        el("span.drive-day-num", { text: `Tag ${day}` }),
+        el("h3", { text: tagDatum(key) }),
+        el("span.drive-day-count", {
+          text: `${entries} ${entries === 1 ? "Fahrt" : "Fahrten"}`,
+        }),
+      ]),
+      el("div.drive-day-list", {}, [
+        ...group.drives.map((d) =>
+          segmentCard({
+            title: `Fahrt ${kurzDatumZeit(d.from)}`,
+            subtitle: [kurzeAdresse(d.startAddress), kurzeAdresse(d.endAddress)]
+              .filter(Boolean)
+              .join(" → "),
+            summary: fahrtZusammenfassung(d, t),
+            variant: "drive-card",
+          }),
+        ),
+        ...group.tracks.map((summary) =>
+          segmentCard({
+            title: `Fahrt ${kurzDatumZeit(summary.from)}`,
+            subtitle: "aus Live-Spur, noch nicht im Fahrtbericht",
+            summary: spurZusammenfassung(summary, t),
+            variant: "drive-card",
+          }),
+        ),
+      ]),
+    ],
+  );
 }
 
 function drivePreviewPath(drive, t) {
@@ -1079,19 +1378,33 @@ function ensureDrivePreviewPaths(t, drives) {
 
 const zeitpunkt = (iso) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 };
 
 const uhrzeit = (iso) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 };
 
 const kurzDatumZeit = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ""
-    : d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 };
 
 const kurzeAdresse = (text) => (text || "").split(",").slice(0, 2).join(",").trim();
@@ -1141,9 +1454,20 @@ async function erweitereReiseFallsNoetig(zielTrip, drive) {
 
 function zuordnungsWahl(drive) {
   const select = el("select.assign-sel", { title: "Fahrt einer Reise zuordnen" }, [
-    el("option", { value: "", disabled: true, selected: !drive.tripId && !drive.manual, text: "→ Reise …" }),
-    ...state.trips.map((t) => el("option", { value: t.id, selected: t.id === drive.tripId, text: t.name })),
-    el("option", { value: "__alltag", selected: drive.manual && !drive.tripId, text: "Alltagsfahrt" }),
+    el("option", {
+      value: "",
+      disabled: true,
+      selected: !drive.tripId && !drive.manual,
+      text: "→ Reise …",
+    }),
+    ...state.trips.map((t) =>
+      el("option", { value: t.id, selected: t.id === drive.tripId, text: t.name }),
+    ),
+    el("option", {
+      value: "__alltag",
+      selected: drive.manual && !drive.tripId,
+      text: "Alltagsfahrt",
+    }),
     ...(drive.manual ? [el("option", { value: "__auto", text: "automatisch (Zeitraum)" })] : []),
   ]);
 
@@ -1154,11 +1478,15 @@ function zuordnungsWahl(drive) {
     try {
       await assignDrive(drive.key, ziel);
       if (ziel && ziel !== "auto") await erweitereReiseFallsNoetig(trip(ziel), drive);
-      await loadDrives();          // löst „drives“ aus → Listen zeichnen neu
+      await loadDrives(); // löst „drives“ aus → Listen zeichnen neu
       detailNeuZeichnen();
-      toast(ziel === null ? "Als Alltagsfahrt gemerkt"
-        : ziel === "auto" ? "Wieder automatisch zugeordnet"
-        : `Fahrt der Reise „${trip(ziel)?.name || "…"}“ zugeordnet`);
+      toast(
+        ziel === null
+          ? "Als Alltagsfahrt gemerkt"
+          : ziel === "auto"
+            ? "Wieder automatisch zugeordnet"
+            : `Fahrt der Reise „${trip(ziel)?.name || "…"}“ zugeordnet`,
+      );
     } catch (err) {
       toast(err.message || "Zuordnung fehlgeschlagen");
       select.disabled = false;
@@ -1195,7 +1523,10 @@ async function zeigeFahrtAufKarte(drive, knopf) {
   toast("Fahrt wird geladen …");
   try {
     const path = await drivePath(drive);
-    if (!path.length) { toast("Für diese Fahrt liegen keine Positionen vor"); return; }
+    if (!path.length) {
+      toast("Für diese Fahrt liegen keine Positionen vor");
+      return;
+    }
     const summary = summarizeDrive(drive, { path });
     showAdhocOnMap(routeSummaryToTrip(summary, `Fahrt ${zeitpunkt(drive.from)}`));
     goMap();
@@ -1208,30 +1539,54 @@ async function zeigeFahrtAufKarte(drive, knopf) {
 
 /** Eine Fahrt als Zeile — Antippen (wie bei Stopps & Orte) zeigt die Spur auf der Karte. */
 function driveRow(drive) {
-  const strecke = [kurzeAdresse(drive.startAddress), kurzeAdresse(drive.endAddress)].filter(Boolean).join(" → ");
-  return el("div.daily", {
-    role: "button", tabindex: "0", title: "Fahrt auf der Karte zeigen", style: { cursor: "pointer" },
-    on: {
-      click: () => zeigeFahrtAufKarte(drive),
-      keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); zeigeFahrtAufKarte(drive); } },
+  const strecke = [kurzeAdresse(drive.startAddress), kurzeAdresse(drive.endAddress)]
+    .filter(Boolean)
+    .join(" → ");
+  return el(
+    "div.daily",
+    {
+      role: "button",
+      tabindex: "0",
+      title: "Fahrt auf der Karte zeigen",
+      style: { cursor: "pointer" },
+      on: {
+        click: () => zeigeFahrtAufKarte(drive),
+        keydown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            zeigeFahrtAufKarte(drive);
+          }
+        },
+      },
     },
-  }, [
-    el("div.di", {}, [
-      el("b", { text: `${zeitpunkt(drive.from)} · ${drive.minutes} min` }),
-      el("div", { text: strecke || "Fahrt" }),
-    ]),
-    el("span.dkm", { text: `${drive.km.toFixed(1)} km` }),
-    drive.weather ? el("span.dweather", { text: weatherLine(drive.weather) }) : null,
-    // Eigene Bedienelemente dürfen den Zeilen-Klick nicht auslösen.
-    el("div.dacts", { on: {
-      click: (e) => e.stopPropagation(),
-      keydown: (e) => e.stopPropagation(),
-    } }, [
-      el("button.tc-map", { on: { click: (e) => zeigeFahrtAufKarte(drive, e.currentTarget) } }, [icon(ICON.map, 13), "Auf Karte"]),
-      fahrtArtWahl(drive),
-      zuordnungsWahl(drive),
-    ]),
-  ]);
+    [
+      el("div.di", {}, [
+        el("b", { text: `${zeitpunkt(drive.from)} · ${drive.minutes} min` }),
+        el("div", { text: strecke || "Fahrt" }),
+      ]),
+      el("span.dkm", { text: `${drive.km.toFixed(1)} km` }),
+      drive.weather ? el("span.dweather", { text: weatherLine(drive.weather) }) : null,
+      // Eigene Bedienelemente dürfen den Zeilen-Klick nicht auslösen.
+      el(
+        "div.dacts",
+        {
+          on: {
+            click: (e) => e.stopPropagation(),
+            keydown: (e) => e.stopPropagation(),
+          },
+        },
+        [
+          el(
+            "button.tc-map",
+            { on: { click: (e) => zeigeFahrtAufKarte(drive, e.currentTarget) } },
+            [icon(ICON.map, 13), "Auf Karte"],
+          ),
+          fahrtArtWahl(drive),
+          zuordnungsWahl(drive),
+        ],
+      ),
+    ],
+  );
 }
 
 /* ---------- Detailansicht einer Reise ---------- */
@@ -1259,8 +1614,17 @@ export function renderTripDetail(id, handlers) {
   const nameSave = el("button.name-save#trip-name-save", { text: "✓ Speichern" });
 
   // Zeitraum bearbeiten (N13) — nur wo eine Datenbank die Reise führt.
-  const startInput = dateField({ id: "trip-start", value: t.start ? t.start.slice(0, 10) : "", title: "Start der Reise" });
-  const endInput = dateField({ id: "trip-end", value: t.end ? t.end.slice(0, 10) : "", title: "Ende der Reise", emptyText: "Läuft weiter" });
+  const startInput = dateField({
+    id: "trip-start",
+    value: t.start ? t.start.slice(0, 10) : "",
+    title: "Start der Reise",
+  });
+  const endInput = dateField({
+    id: "trip-end",
+    value: t.end ? t.end.slice(0, 10) : "",
+    title: "Ende der Reise",
+    emptyText: "Läuft weiter",
+  });
   const rangeSave = el("button.name-save#trip-range-save", { text: "✓ Speichern" });
 
   const isActive = id === state.activeTripId;
@@ -1275,51 +1639,94 @@ export function renderTripDetail(id, handlers) {
       el("h3", { text: "Reise bearbeiten" }),
       el("div.field", { style: { marginBottom: "12px" } }, [
         el("label", { text: "Reisename" }),
-        el("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, [nameInput, nameSave]),
-      ]),
-      ...(isCentral() ? [el("div.field", { style: { marginBottom: "12px" } }, [
-        el("label", { text: "Zeitraum" }),
         el("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, [
-          startInput, el("span", { text: "–", style: { color: "var(--ink-faint)" } }), endInput, rangeSave,
+          nameInput,
+          nameSave,
         ]),
-        el("p.sub", { text: "Leeres Ende = Reise läuft weiter. Fahrten ordnen sich dem neuen Zeitraum automatisch zu." }),
-      ])] : []),
+      ]),
+      ...(isCentral()
+        ? [
+            el("div.field", { style: { marginBottom: "12px" } }, [
+              el("label", { text: "Zeitraum" }),
+              el("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, [
+                startInput,
+                el("span", { text: "–", style: { color: "var(--ink-faint)" } }),
+                endInput,
+                rangeSave,
+              ]),
+              el("p.sub", {
+                text: "Leeres Ende = Reise läuft weiter. Fahrten ordnen sich dem neuen Zeitraum automatisch zu.",
+              }),
+            ]),
+          ]
+        : []),
       isActive
-        ? el("button.btn", { text: "Reise beenden", dataset: { busyText: "Wird beendet …" }, style: { width: "100%" },
-            on: { click: (e) => reiseBeenden(e.currentTarget, () => renderTripDetail(id, handlers)) } })
-        : el("button.btn", { dataset: { busyText: "Wird fortgesetzt …" }, style: { width: "100%" },
-            on: { click: (e) => reiseFortsetzen(e.currentTarget, id, () => renderTripDetail(id, handlers)) } },
-            [icon(ICON.play, 15), "Fortsetzen"]),
+        ? el("button.btn", {
+            text: "Reise beenden",
+            dataset: { busyText: "Wird beendet …" },
+            style: { width: "100%" },
+            on: {
+              click: (e) => reiseBeenden(e.currentTarget, () => renderTripDetail(id, handlers)),
+            },
+          })
+        : el(
+            "button.btn",
+            {
+              dataset: { busyText: "Wird fortgesetzt …" },
+              style: { width: "100%" },
+              on: {
+                click: (e) =>
+                  reiseFortsetzen(e.currentTarget, id, () => renderTripDetail(id, handlers)),
+              },
+            },
+            [icon(ICON.play, 15), "Fortsetzen"],
+          ),
       el("button.btn", {
-        text: "Reise löschen", style: { width: "100%", marginTop: "8px", color: "var(--crit)", borderColor: "color-mix(in srgb, var(--crit) 40%, var(--line))" },
+        text: "Reise löschen",
+        style: {
+          width: "100%",
+          marginTop: "8px",
+          color: "var(--crit)",
+          borderColor: "color-mix(in srgb, var(--crit) 40%, var(--line))",
+        },
         on: { click: (e) => reiseLoeschen(e.currentTarget, id, onClose) },
       }),
     ]),
   ]);
 
-  const nameEdit = wireInlineEdit(nameInput, nameSave, () => t.name, async (value) => {
-    const vorher = t.name;
-    t.name = value;
-    $("#sheet-title").textContent = value;
-    renderTrips();
-    emit("trips");
-    if (!isCentral()) return;
-    try {
-      await updateTrip(id, { name: value });
-    } catch (err) {
-      t.name = vorher;             // Der Server hat das letzte Wort.
-      $("#sheet-title").textContent = vorher;
+  const nameEdit = wireInlineEdit(
+    nameInput,
+    nameSave,
+    () => t.name,
+    async (value) => {
+      const vorher = t.name;
+      t.name = value;
+      $("#sheet-title").textContent = value;
       renderTrips();
-      toast(err.message || "Name konnte nicht gespeichert werden");
-    }
-  });
+      emit("trips");
+      if (!isCentral()) return;
+      try {
+        await updateTrip(id, { name: value });
+      } catch (err) {
+        t.name = vorher; // Der Server hat das letzte Wort.
+        $("#sheet-title").textContent = vorher;
+        renderTrips();
+        toast(err.message || "Name konnte nicht gespeichert werden");
+      }
+    },
+  );
 
-  const zeitraumEdit = isCentral() ? wireZeitraumEdit({ t, id, handlers, startInput, endInput, rangeSave }) : null;
+  const zeitraumEdit = isCentral()
+    ? wireZeitraumEdit({ t, id, handlers, startInput, endInput, rangeSave })
+    : null;
 
   // Beide Felder zusammen — die Sheet-Leiste kennt nur ein Edit-Objekt.
   const edit = {
     isDirty: () => nameEdit.isDirty() || Boolean(zeitraumEdit?.isDirty()),
-    commit: () => { nameEdit.commit(); zeitraumEdit?.commit(); },
+    commit: () => {
+      nameEdit.commit();
+      zeitraumEdit?.commit();
+    },
   };
 
   // Zeichnet sich die Ansicht neu, gilt der neue Eingabestand — sonst hinge
@@ -1334,7 +1741,15 @@ function mitUhrzeitVon(vorherigeISO, neuesDatum) {
   const alt = vorherigeISO ? new Date(vorherigeISO) : null;
   const gueltig = alt && !Number.isNaN(alt.getTime());
   const [jahr, monat, tag] = neuesDatum.split("-").map(Number);
-  return new Date(Date.UTC(jahr, monat - 1, tag, gueltig ? alt.getUTCHours() : 12, gueltig ? alt.getUTCMinutes() : 0)).toISOString();
+  return new Date(
+    Date.UTC(
+      jahr,
+      monat - 1,
+      tag,
+      gueltig ? alt.getUTCHours() : 12,
+      gueltig ? alt.getUTCMinutes() : 0,
+    ),
+  ).toISOString();
 }
 
 /** Start-/Enddatum einer Reise bearbeiten (N13) — explizites Speichern wie überall sonst. */

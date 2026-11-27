@@ -11,12 +11,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  crc16, parseImeiPacket, parseAvlPacket, CODEC8, CODEC8_EXTENDED,
+  crc16,
+  parseImeiPacket,
+  parseAvlPacket,
+  CODEC8,
+  CODEC8_EXTENDED,
 } from "./teltonika-codec.js";
 
 function encodeIoElement(id, value, idBytes, lenBytes) {
   const buf = Buffer.alloc(idBytes + lenBytes);
-  if (idBytes === 2) buf.writeUInt16BE(id, 0); else buf.writeUInt8(id, 0);
+  if (idBytes === 2) buf.writeUInt16BE(id, 0);
+  else buf.writeUInt8(id, 0);
   if (lenBytes === 1) buf.writeUInt8(value, idBytes);
   else if (lenBytes === 2) buf.writeUInt16BE(value, idBytes);
   else if (lenBytes === 4) buf.writeUInt32BE(value, idBytes);
@@ -46,7 +51,8 @@ function encodeAvlRecord(r, codecId) {
 
   const schreibZaehler = (n) => {
     const b = Buffer.alloc(countBytes);
-    if (countBytes === 2) b.writeUInt16BE(n, 0); else b.writeUInt8(n, 0);
+    if (countBytes === 2) b.writeUInt16BE(n, 0);
+    else b.writeUInt8(n, 0);
     return b;
   };
 
@@ -88,10 +94,7 @@ test("crc16 ist deterministisch und reagiert auf jedes veränderte Byte", () => 
 
 test("parseImeiPacket liest Länge + ASCII-IMEI korrekt, meldet fehlende Daten als null", () => {
   const imei = "352094081234567";
-  const buf = Buffer.concat([
-    Buffer.from([0x00, imei.length]),
-    Buffer.from(imei, "ascii"),
-  ]);
+  const buf = Buffer.concat([Buffer.from([0x00, imei.length]), Buffer.from(imei, "ascii")]);
   assert.equal(parseImeiPacket(buf.subarray(0, 1)), null); // nicht mal Länge da
   assert.equal(parseImeiPacket(buf.subarray(0, buf.length - 3)), null); // IMEI unvollständig
   const ergebnis = parseImeiPacket(buf);
@@ -101,10 +104,16 @@ test("parseImeiPacket liest Länge + ASCII-IMEI korrekt, meldet fehlende Daten a
 
 test("Codec8: ein Datensatz mit Ignition+Movement geht per Rundlauf unverändert durch", () => {
   const eingabe = {
-    at: 1755350000000, priority: 1,
-    lat: 52.1234567, lon: 7.7654321,
-    altitude: 123, course: 270, sats: 9, speedKmh: 42,
-    ignition: true, motion: false,
+    at: 1755350000000,
+    priority: 1,
+    lat: 52.1234567,
+    lon: 7.7654321,
+    altitude: 123,
+    course: 270,
+    sats: 9,
+    speedKmh: 42,
+    ignition: true,
+    motion: false,
   };
   const paket = encodeAvlPacket(CODEC8, [eingabe]);
   const ergebnis = parseAvlPacket(paket);
@@ -125,7 +134,13 @@ test("Codec8: ein Datensatz mit Ignition+Movement geht per Rundlauf unverändert
 });
 
 test("Codec8: negative Koordinaten (südliche/westliche Halbkugel) und negative Höhe bleiben korrekt", () => {
-  const eingabe = { at: 1755350000000, lat: -33.865143, lon: -63.987654, altitude: -15, speedKmh: 0 };
+  const eingabe = {
+    at: 1755350000000,
+    lat: -33.865143,
+    lon: -63.987654,
+    altitude: -15,
+    speedKmh: 0,
+  };
   const paket = encodeAvlPacket(CODEC8, [eingabe]);
   const { records } = parseAvlPacket(paket);
   assert.ok(Math.abs(records[0].lat - eingabe.lat) < 1e-6);
@@ -143,11 +158,21 @@ test("Codec8: mehrere Datensätze in einem Paket (gepuffert-und-nachgeliefert, w
   const { records, bytesRead } = parseAvlPacket(paket);
   assert.equal(bytesRead, paket.length);
   assert.equal(records.length, 3);
-  assert.deepEqual(records.map((r) => r.at), eingaben.map((e) => e.at));
+  assert.deepEqual(
+    records.map((r) => r.at),
+    eingaben.map((e) => e.at),
+  );
 });
 
 test("Codec8 Extended: 2-Byte IO-IDs/Zähler werden korrekt gelesen (nicht mit Codec8 verwechselt)", () => {
-  const eingabe = { at: 1755350000000, lat: 48.137154, lon: 11.576124, ignition: true, motion: true, speedKmh: 5 };
+  const eingabe = {
+    at: 1755350000000,
+    lat: 48.137154,
+    lon: 11.576124,
+    ignition: true,
+    motion: true,
+    speedKmh: 5,
+  };
   const paket = encodeAvlPacket(CODEC8_EXTENDED, [eingabe]);
   const ergebnis = parseAvlPacket(paket);
   assert.equal(ergebnis.codecId, CODEC8_EXTENDED);

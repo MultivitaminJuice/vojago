@@ -17,8 +17,12 @@ export function findGaps(segments, { minSeconds = 40, minMeters = 500 } = {}) {
       const b = segment[i];
       const seconds = (Date.parse(b.time || "") - Date.parse(a.time || "")) / 1000;
       if (!(seconds >= minSeconds)) continue;
-      const meters = Math.hypot((b.lat - a.lat) * METERS_PER_DEGREE, (b.lon - a.lon) * METERS_PER_DEGREE * Math.cos((a.lat * Math.PI) / 180));
-      if (meters >= minMeters) out.push({ from: a, to: b, seconds: Math.round(seconds), meters: Math.round(meters) });
+      const meters = Math.hypot(
+        (b.lat - a.lat) * METERS_PER_DEGREE,
+        (b.lon - a.lon) * METERS_PER_DEGREE * Math.cos((a.lat * Math.PI) / 180),
+      );
+      if (meters >= minMeters)
+        out.push({ from: a, to: b, seconds: Math.round(seconds), meters: Math.round(meters) });
     }
   }
   return out;

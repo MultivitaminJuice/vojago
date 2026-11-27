@@ -17,20 +17,20 @@ export const ROUTE_DRIVE_FILTERS = ["etappe", "abstecher", "alle", "nicht_zugeor
 export const MAP_METRICS = ["none", "trip", "day", "speed", "elev", "dist"];
 
 export const state = {
-  trips: [],          // { id, name, dates, live, km, nights, peak, hue, path, bars, barLabels }
-  places: [],         // visit and place flattened: { id, ortId, tripId|null (computed), catId, title, note, stars, date, at, lon, lat, source, hue }
-  notes: [],          // { id, tripId|null (computed), besuchId|null, text, at, lon, lat, source }
-  photos: [],         // { id, besuchId|null, noteId|null, tagebuchId|null, takenAt, lat, lon, width, height }
-  diary: [],          // { id, tripId, dayKey, blocks, author, createdAt, updatedAt } — one entry per trip and day
+  trips: [], // { id, name, dates, live, km, nights, peak, hue, path, bars, barLabels }
+  places: [], // visit and place flattened: { id, ortId, tripId|null (computed), catId, title, note, stars, date, at, lon, lat, source, hue }
+  notes: [], // { id, tripId|null (computed), besuchId|null, text, at, lon, lat, source }
+  photos: [], // { id, besuchId|null, noteId|null, tagebuchId|null, takenAt, lat, lon, width, height }
+  diary: [], // { id, tripId, dayKey, blocks, author, createdAt, updatedAt } — one entry per trip and day
   livePosition: null, // { lon, lat, at, speed } — the vehicle's last report
-  drives: [],         // drives from the server: { id, from, to, km, minutes, startAddress, endAddress, tripId, kind }
-  adhocTrip: null,    // a single drive currently shown on the map
-  rangeTrip: null,    // temporary time span: map and statistics across several trips
+  drives: [], // drives from the server: { id, from, to, km, minutes, startAddress, endAddress, tripId, kind }
+  adhocTrip: null, // a single drive currently shown on the map
+  rangeTrip: null, // temporary time span: map and statistics across several trips
   driveAssignments: {}, // drive key -> trip id (null = explicitly everyday)
-  driveKinds: {},     // drive key -> etappe | abstecher
-  driveWeather: {},   // drive key -> weather at the start (cache)
-  categories: {},     // id -> { name, color }
-  vehicles: [],       // { name, device }
+  driveKinds: {}, // drive key -> etappe | abstecher
+  driveWeather: {}, // drive key -> weather at the start (cache)
+  categories: {}, // id -> { name, color }
+  vehicles: [], // { name, device }
   activeVehicle: 0,
   showVehicleName: true,
   alarmTypes: [],
@@ -45,8 +45,8 @@ export const state = {
 
   // View state
   activeTripId: null, // the running trip
-  mapTripId: null,    // the trip shown on the map
-  metric: "day",      // see MAP_METRICS above
+  mapTripId: null, // the trip shown on the map
+  metric: "day", // see MAP_METRICS above
   routeDriveFilter: "etappe", // see ROUTE_DRIVE_FILTERS above
   layers: { nights: true, places: true, notes: true, km: false },
   filters: { text: "", cats: {}, trip: "", source: "", ref: "none", radius: 0 },
@@ -56,9 +56,16 @@ export const state = {
   // default was wrong for a freshly installed PWA (empty localStorage): a user
   // who was really signed in first saw the built-in demo trip (seen 16 August 2026).
   // mapStyle values "farbig" / "dezent" are stored and stay German.
-  config: { device: "", demo: false, theme: "auto", terrain: false, mapStyle: "farbig", markGaps: false },
-  account: null,     // { username, email, emailVerified, isAdmin } when signed in
-  guest: null,       // { scope, allTrips, label, token } when opened through a sharing link (never together with account)
+  config: {
+    device: "",
+    demo: false,
+    theme: "auto",
+    terrain: false,
+    mapStyle: "farbig",
+    markGaps: false,
+  },
+  account: null, // { username, email, emailVerified, isAdmin } when signed in
+  guest: null, // { scope, allTrips, label, token } when opened through a sharing link (never together with account)
 };
 
 export function subscribe(fn) {
@@ -68,7 +75,18 @@ export function subscribe(fn) {
 
 // Counts every change of the data that trip and day values are computed from.
 // Views use it to keep computed values until something actually changed.
-const DATA_TOPICS = new Set(["*", "trips", "tripPath", "drives", "notes", "places", "photos", "vehicles", "routeDriveFilter", "config"]);
+const DATA_TOPICS = new Set([
+  "*",
+  "trips",
+  "tripPath",
+  "drives",
+  "notes",
+  "places",
+  "photos",
+  "vehicles",
+  "routeDriveFilter",
+  "config",
+]);
 let revision = 0;
 export const dataRevision = () => revision;
 
@@ -82,7 +100,8 @@ export function emit(topic = "*") {
 
 export const trip = (id) => state.trips.find((t) => t.id === id) || null;
 export const activeTrip = () => trip(state.activeTripId);
-export const mapTrip = () => state.adhocTrip || state.rangeTrip || trip(state.mapTripId) || state.trips[0] || null;
+export const mapTrip = () =>
+  state.adhocTrip || state.rangeTrip || trip(state.mapTripId) || state.trips[0] || null;
 
 /**
  * The trip whose logbook is shown. Deliberately WITHOUT `adhocTrip`: showing a
@@ -113,7 +132,9 @@ export function rangeTrips(range = state.rangeTrip?.range) {
       const rangeTo = Date.parse(range.to || new Date().toISOString());
       return Number.isFinite(from) && Number.isFinite(to) && to >= rangeFrom && from <= rangeTo;
     })
-    .sort((a, b) => String(b.range?.from || b.start || "").localeCompare(String(a.range?.from || a.start || "")));
+    .sort((a, b) =>
+      String(b.range?.from || b.start || "").localeCompare(String(a.range?.from || a.start || "")),
+    );
 }
 
 /** Show a single drive on the map (without making it a trip). */
@@ -147,15 +168,23 @@ export function tripPlaces(tripId) {
 /** Notes of a trip, in time order. */
 export const tripNotes = (tripId) =>
   tripId === state.rangeTrip?.id
-    ? state.notes.filter((n) => inIsoRange(n.at, state.rangeTrip.range)).sort((a, b) => String(a.at).localeCompare(String(b.at)))
-    : state.notes.filter((n) => n.tripId === tripId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    ? state.notes
+        .filter((n) => inIsoRange(n.at, state.rangeTrip.range))
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+    : state.notes
+        .filter((n) => n.tripId === tripId)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
 /** Photos of a visit or a note, by time taken. `placeId` means the visit id
  * (besuchId), as everywhere in the UI. */
 export const placePhotos = (placeId) =>
-  state.photos.filter((p) => p.besuchId === placeId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
+  state.photos
+    .filter((p) => p.besuchId === placeId)
+    .sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
 export const notePhotos = (noteId) =>
-  state.photos.filter((p) => p.noteId === noteId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
+  state.photos
+    .filter((p) => p.noteId === noteId)
+    .sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
 
 export function upsertPhoto(photo) {
   const i = state.photos.findIndex((p) => p.id === photo.id);
@@ -172,12 +201,17 @@ export function removePhoto(id) {
 
 /** Photos of a diary entry, by time taken. */
 export const diaryPhotos = (entryId) =>
-  state.photos.filter((p) => p.tagebuchId === entryId).sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
+  state.photos
+    .filter((p) => p.tagebuchId === entryId)
+    .sort((a, b) => String(a.takenAt).localeCompare(String(b.takenAt)));
 
-export const diaryEntryFor = (tripId, dayKey) => state.diary.find((e) => e.tripId === tripId && e.dayKey === dayKey) || null;
+export const diaryEntryFor = (tripId, dayKey) =>
+  state.diary.find((e) => e.tripId === tripId && e.dayKey === dayKey) || null;
 
 export function upsertDiaryEntry(entry) {
-  const i = state.diary.findIndex((e) => e.id === entry.id || (e.tripId === entry.tripId && e.dayKey === entry.dayKey));
+  const i = state.diary.findIndex(
+    (e) => e.id === entry.id || (e.tripId === entry.tripId && e.dayKey === entry.dayKey),
+  );
   if (i >= 0) state.diary[i] = { ...state.diary[i], ...entry };
   else state.diary.push(entry);
   emit("notes");
@@ -206,7 +240,11 @@ export function removeNote(id) {
 export const nightsOf = (tripId) =>
   state.places
     .filter((p) => p.tripId === tripId && p.catId === "uebernachtung")
-    .sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")) || String(a.id).localeCompare(String(b.id)));
+    .sort(
+      (a, b) =>
+        String(a.at || "").localeCompare(String(b.at || "")) ||
+        String(a.id).localeCompare(String(b.id)),
+    );
 
 /**
  * Running number of an overnight stay within its trip — sorted by time and
@@ -222,7 +260,10 @@ export function nightNumber(place) {
 
 /** Sum of the nights actually spent on a trip (not the number of stops). */
 export const nightsCount = (tripId) =>
-  nightsOf(tripId).reduce((sum, p) => sum + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1), 0);
+  nightsOf(tripId).reduce(
+    (sum, p) => sum + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1),
+    0,
+  );
 
 export function placeCounts() {
   const counts = {};
@@ -297,8 +338,17 @@ export function resumeTrip(id) {
 export function startTrip(path) {
   const id = newId("trip");
   state.trips.unshift({
-    id, name: "Neue Reise", dates: "seit heute · Tag 1 · unterwegs", live: true,
-    km: 0, nights: 0, peak: 0, hue: 15, path, bars: [0], barLabels: ["Tag 1"],
+    id,
+    name: "Neue Reise",
+    dates: "seit heute · Tag 1 · unterwegs",
+    live: true,
+    km: 0,
+    nights: 0,
+    peak: 0,
+    hue: 15,
+    path,
+    bars: [0],
+    barLabels: ["Tag 1"],
   });
   state.activeTripId = id;
   state.mapTripId = id;
@@ -311,7 +361,8 @@ export function deleteTrip(id) {
   const i = state.trips.findIndex((t) => t.id === id);
   if (i >= 0) state.trips.splice(i, 1);
   for (const p of state.places) if (p.tripId === id) p.tripId = null;
-  if (state.mapTripId === id) state.mapTripId = state.activeTripId || (state.trips[0] && state.trips[0].id) || null;
+  if (state.mapTripId === id)
+    state.mapTripId = state.activeTripId || (state.trips[0] && state.trips[0].id) || null;
   emit("trips");
 }
 
@@ -327,29 +378,40 @@ const LOCAL_KEY = "vojago.local";
  */
 export function saveLocalData() {
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify({
-      categories: state.categories,
-      vehicles: state.vehicles,
-      activeVehicle: state.activeVehicle,
-      showVehicleName: state.showVehicleName,
-      metric: state.metric,
-      routeDriveFilter: state.routeDriveFilter,
-      layers: state.layers,
-    }));
-  } catch { /* storage full or blocked */ }
+    localStorage.setItem(
+      LOCAL_KEY,
+      JSON.stringify({
+        categories: state.categories,
+        vehicles: state.vehicles,
+        activeVehicle: state.activeVehicle,
+        showVehicleName: state.showVehicleName,
+        metric: state.metric,
+        routeDriveFilter: state.routeDriveFilter,
+        layers: state.layers,
+      }),
+    );
+  } catch {
+    /* storage full or blocked */
+  }
 }
 
 /** Lay the stored state over the loaded defaults. */
 export function applyLocalData() {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null"); } catch { return; }
+  try {
+    saved = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+  } catch {
+    return;
+  }
   if (!saved) return;
   if (saved.categories && Object.keys(saved.categories).length) state.categories = saved.categories;
   if (Array.isArray(saved.vehicles) && saved.vehicles.length) state.vehicles = saved.vehicles;
-  if (Number.isInteger(saved.activeVehicle)) state.activeVehicle = Math.min(saved.activeVehicle, state.vehicles.length - 1);
+  if (Number.isInteger(saved.activeVehicle))
+    state.activeVehicle = Math.min(saved.activeVehicle, state.vehicles.length - 1);
   if (typeof saved.showVehicleName === "boolean") state.showVehicleName = saved.showVehicleName;
   if (MAP_METRICS.includes(saved.metric)) state.metric = saved.metric;
-  if (ROUTE_DRIVE_FILTERS.includes(saved.routeDriveFilter)) state.routeDriveFilter = saved.routeDriveFilter;
+  if (ROUTE_DRIVE_FILTERS.includes(saved.routeDriveFilter))
+    state.routeDriveFilter = saved.routeDriveFilter;
   if (saved.layers && typeof saved.layers === "object") Object.assign(state.layers, saved.layers);
 }
 
@@ -365,7 +427,9 @@ export const collectPreferences = () => ({
   categories: state.categories,
   showVehicleName: state.showVehicleName,
   metric: MAP_METRICS.includes(state.metric) ? state.metric : "day",
-  routeDriveFilter: ROUTE_DRIVE_FILTERS.includes(state.routeDriveFilter) ? state.routeDriveFilter : "etappe",
+  routeDriveFilter: ROUTE_DRIVE_FILTERS.includes(state.routeDriveFilter)
+    ? state.routeDriveFilter
+    : "etappe",
   layers: state.layers,
 });
 
@@ -374,17 +438,26 @@ export function applyPreferences(prefs) {
   if (prefs.categories && Object.keys(prefs.categories).length) state.categories = prefs.categories;
   if (typeof prefs.showVehicleName === "boolean") state.showVehicleName = prefs.showVehicleName;
   if (MAP_METRICS.includes(prefs.metric)) state.metric = prefs.metric;
-  if (ROUTE_DRIVE_FILTERS.includes(prefs.routeDriveFilter)) state.routeDriveFilter = prefs.routeDriveFilter;
+  if (ROUTE_DRIVE_FILTERS.includes(prefs.routeDriveFilter))
+    state.routeDriveFilter = prefs.routeDriveFilter;
   if (prefs.layers && typeof prefs.layers === "object") Object.assign(state.layers, prefs.layers);
 }
 
 /** Reset to factory state (reachable in the settings). */
 export function forgetLocalData() {
-  try { localStorage.removeItem(LOCAL_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(LOCAL_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 // Config keys used before the code moved to English; stored values are taken over once.
-const OLD_CONFIG_KEYS = { gelaende: "terrain", kartenstil: "mapStyle", lueckenMarkieren: "markGaps" };
+const OLD_CONFIG_KEYS = {
+  gelaende: "terrain",
+  kartenstil: "mapStyle",
+  lueckenMarkieren: "markGaps",
+};
 
 /** Config as stored on the device, with the old German keys renamed. */
 export function migrateConfig(stored) {
@@ -401,10 +474,16 @@ export function migrateConfig(stored) {
 export function loadConfig() {
   try {
     Object.assign(state.config, migrateConfig(JSON.parse(localStorage.getItem(CFG_KEY) || "{}")));
-  } catch { /* ignore invalid data */ }
+  } catch {
+    /* ignore invalid data */
+  }
 }
 
 export function saveConfig() {
-  try { localStorage.setItem(CFG_KEY, JSON.stringify(state.config)); } catch { /* storage full or blocked */ }
+  try {
+    localStorage.setItem(CFG_KEY, JSON.stringify(state.config));
+  } catch {
+    /* storage full or blocked */
+  }
   emit("config");
 }

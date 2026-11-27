@@ -13,12 +13,14 @@ export function distanceKm(lon1, lat1, lon2, lat2) {
 }
 
 const crValue = (p0, p1, p2, p3, t, key) => {
-  const t2 = t * t, t3 = t2 * t;
-  return 0.5 * (
-    2 * p1[key] +
-    (-p0[key] + p2[key]) * t +
-    (2 * p0[key] - 5 * p1[key] + 4 * p2[key] - p3[key]) * t2 +
-    (-p0[key] + 3 * p1[key] - 3 * p2[key] + p3[key]) * t3
+  const t2 = t * t,
+    t3 = t2 * t;
+  return (
+    0.5 *
+    (2 * p1[key] +
+      (-p0[key] + p2[key]) * t +
+      (2 * p0[key] - 5 * p1[key] + 4 * p2[key] - p3[key]) * t2 +
+      (-p0[key] + 3 * p1[key] - 3 * p2[key] + p3[key]) * t3)
   );
 };
 
@@ -77,7 +79,10 @@ const STANDING_MAX_KMH = 3;
 export function smoothStandingNoise(waypoints) {
   let anchor = null;
   return waypoints.map((w) => {
-    if ((w.spd || 0) > STANDING_MAX_KMH) { anchor = null; return w; }
+    if ((w.spd || 0) > STANDING_MAX_KMH) {
+      anchor = null;
+      return w;
+    }
     if (anchor && distanceKm(anchor.lon, anchor.lat, w.lon, w.lat) * 1000 <= STANDING_RADIUS_M) {
       return { ...w, lat: anchor.lat, lon: anchor.lon };
     }
@@ -98,7 +103,8 @@ export function bounds(path) {
 }
 
 export function elevationRange(path) {
-  let min = Infinity, max = -Infinity;
+  let min = Infinity,
+    max = -Infinity;
   for (const p of path) {
     if (p.elev < min) min = p.elev;
     if (p.elev > max) max = p.elev;
@@ -111,7 +117,8 @@ export function elevationRange(path) {
 export function pointAtKm(path, km) {
   for (let i = 1; i < path.length; i++) {
     if (path[i].cum >= km) {
-      const a = path[i - 1], b = path[i];
+      const a = path[i - 1],
+        b = path[i];
       const f = b.cum > a.cum ? (km - a.cum) / (b.cum - a.cum) : 0;
       return { lon: a.lon + (b.lon - a.lon) * f, lat: a.lat + (b.lat - a.lat) * f };
     }
@@ -151,23 +158,34 @@ export function simplify(points, toleranceM = 3) {
   const stack = [[0, n - 1]];
   while (stack.length) {
     const [a, b] = stack.pop();
-    const ax = X(points[a]), ay = Y(points[a]);
-    const dx = X(points[b]) - ax, dy = Y(points[b]) - ay;
+    const ax = X(points[a]),
+      ay = Y(points[a]);
+    const dx = X(points[b]) - ax,
+      dy = Y(points[b]) - ay;
     const length2 = dx * dx + dy * dy;
-    let max = 0, idx = -1;
+    let max = 0,
+      idx = -1;
     for (let i = a + 1; i < b; i++) {
-      const px = X(points[i]) - ax, py = Y(points[i]) - ay;
+      const px = X(points[i]) - ax,
+        py = Y(points[i]) - ay;
       const t = length2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / length2)) : 0;
       const distance = Math.hypot(px - t * dx, py - t * dy);
-      if (distance > max) { max = distance; idx = i; }
+      if (distance > max) {
+        max = distance;
+        idx = i;
+      }
     }
-    if (max > toleranceM && idx > 0) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+    if (max > toleranceM && idx > 0) {
+      keep[idx] = 1;
+      stack.push([a, idx], [idx, b]);
+    }
   }
   return points.filter((_, i) => keep[i]);
 }
 
 /** Metres per screen pixel at a zoom level (MapLibre, 512 px tiles) on a latitude. */
-export const metersPerPixel = (zoom, lat) => (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+export const metersPerPixel = (zoom, lat) =>
+  (78271.517 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 
 /**
  * All passes of the route at a tap position. When the same road was driven
@@ -191,15 +209,21 @@ export function routeHits(path, lon, lat, toleranceM, gapMs = 300_000) {
     const distance2 = dx * dx + dy * dy;
     if (distance2 > limit) continue;
     const time = Date.parse(path[i].time || "");
-    const samePass = current && (Number.isFinite(time) && Number.isFinite(current.lastTime)
-      ? time - current.lastTime <= gapMs
-      : i - current.lastIndex <= 30);
+    const samePass =
+      current &&
+      (Number.isFinite(time) && Number.isFinite(current.lastTime)
+        ? time - current.lastTime <= gapMs
+        : i - current.lastIndex <= 30);
     if (!samePass) {
       current = { point: path[i], index: i, distance2, lastIndex: i, lastTime: time };
       passes.push(current);
       continue;
     }
-    if (distance2 < current.distance2) { current.point = path[i]; current.index = i; current.distance2 = distance2; }
+    if (distance2 < current.distance2) {
+      current.point = path[i];
+      current.index = i;
+      current.distance2 = distance2;
+    }
     current.lastIndex = i;
     current.lastTime = time;
   }
@@ -218,5 +242,7 @@ export function sameSpot(hits, maxM = 100) {
   const anchor = hits.reduce((b, t) => (t.distanceM < b.distanceM ? t : b)).point;
   const mLat = 111_320;
   const mLon = 111_320 * Math.cos((anchor.lat * Math.PI) / 180);
-  return hits.filter((t) => Math.hypot((t.point.lon - anchor.lon) * mLon, (t.point.lat - anchor.lat) * mLat) <= maxM);
+  return hits.filter(
+    (t) => Math.hypot((t.point.lon - anchor.lon) * mLon, (t.point.lat - anchor.lat) * mLat) <= maxM,
+  );
 }

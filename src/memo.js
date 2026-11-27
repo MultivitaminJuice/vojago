@@ -5,9 +5,19 @@
 // their duration grows with the clock.
 export function createMemo() {
   const entries = new Map();
-  return function remember(key, { revision, path, running = false, maxAgeMs = 60_000, now = Date.now() }, compute) {
+  return function remember(
+    key,
+    { revision, path, running = false, maxAgeMs = 60_000, now = Date.now() },
+    compute,
+  ) {
     const old = entries.get(key);
-    if (old && old.revision === revision && old.path === path && (!running || now - old.time < maxAgeMs)) return old.value;
+    if (
+      old &&
+      old.revision === revision &&
+      old.path === path &&
+      (!running || now - old.time < maxAgeMs)
+    )
+      return old.value;
     const value = compute();
     entries.set(key, { revision, path, time: now, value });
     if (entries.size > 200) entries.delete(entries.keys().next().value);

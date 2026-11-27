@@ -18,12 +18,16 @@ function kmFromStart(place) {
   const path = t?.path;
   const targetMs = Date.parse(place.at || "");
   if (!path?.length || !Number.isFinite(targetMs)) return null;
-  let best = null, bestGap = Infinity;
+  let best = null,
+    bestGap = Infinity;
   for (const p of path) {
     const pMs = Date.parse(p.time || "");
     if (!Number.isFinite(pMs)) continue;
     const d = Math.abs(pMs - targetMs);
-    if (d < bestGap) { bestGap = d; best = p; }
+    if (d < bestGap) {
+      bestGap = d;
+      best = p;
+    }
   }
   return best ? Math.round(best.cum) : null;
 }
@@ -32,7 +36,13 @@ const dateTime = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ""
-    : d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 };
 
 let current = null;
@@ -48,9 +58,13 @@ export function initPlaceEditor({ onChange, onUndoOffer, onShowOnMap: showOnMap 
   offerUndo = onUndoOffer;
   onShowOnMap = showOnMap || null;
   render($("#ef-show-map"), [icon(ICON.map, 15), "Auf Karte zeigen"]);
-  $("#ef-show-map").addEventListener("click", () => { if (current) onShowOnMap?.(current); });
+  $("#ef-show-map").addEventListener("click", () => {
+    if (current) onShowOnMap?.(current);
+  });
   photoGallery = wirePhotoGallery({
-    galleryId: "ef-photos", inputId: "ef-photo-input", addBtnId: "ef-photo-add",
+    galleryId: "ef-photos",
+    inputId: "ef-photo-input",
+    addBtnId: "ef-photo-add",
   });
 
   $("#ef-stars").addEventListener("click", (e) => {
@@ -59,8 +73,14 @@ export function initPlaceEditor({ onChange, onUndoOffer, onShowOnMap: showOnMap 
     drawStars();
   });
 
-  $("#ef-nights-minus").addEventListener("click", () => { draft.nights = Math.max(1, draft.nights - 1); drawNights(); });
-  $("#ef-nights-plus").addEventListener("click", () => { draft.nights = Math.min(60, draft.nights + 1); drawNights(); });
+  $("#ef-nights-minus").addEventListener("click", () => {
+    draft.nights = Math.max(1, draft.nights - 1);
+    drawNights();
+  });
+  $("#ef-nights-plus").addEventListener("click", () => {
+    draft.nights = Math.min(60, draft.nights + 1);
+    drawNights();
+  });
 
   $("#edit-save").addEventListener("click", () => save());
   $("#edit-delete").addEventListener("click", async () => {
@@ -83,7 +103,13 @@ export function openPlaceEditor(place) {
   current = place;
   const nights = Number.isInteger(place.nights) && place.nights > 0 ? place.nights : 1;
   draft = { catId: place.catId, stars: place.stars, nights };
-  snapshot = { title: place.title, note: place.note, stars: place.stars, catId: place.catId, nights };
+  snapshot = {
+    title: place.title,
+    note: place.note,
+    stars: place.stars,
+    catId: place.catId,
+    nights,
+  };
 
   $("#ef-title").value = place.title;
   $("#ef-note").value = place.note;
@@ -103,7 +129,9 @@ export function openPlaceEditor(place) {
   const km = kmFromStart(place);
   render($("#ef-meta"), [
     el("span", { text: (place.isNew ? "neu · " : "") + tripName }),
-    km != null ? el("span", { text: `${km} km ab Start`, style: { color: "var(--ink-faint)" } }) : null,
+    km != null
+      ? el("span", { text: `${km} km ab Start`, style: { color: "var(--ink-faint)" } })
+      : null,
   ]);
 
   // How often was I here — across all trips, real identity through ortId.
@@ -114,9 +142,16 @@ export function openPlaceEditor(place) {
   const nightsNote = visitInfo?.totalNights
     ? `, insgesamt ${visitInfo.totalNights} ${visitInfo.totalNights === 1 ? "Nacht" : "Nächte"}`
     : "";
-  render($("#ef-visits"), repeated ? [el("span", {
-    text: `📍 schon ${visitInfo.visits}× hier${nightsNote}`,
-  })] : []);
+  render(
+    $("#ef-visits"),
+    repeated
+      ? [
+          el("span", {
+            text: `📍 schon ${visitInfo.visits}× hier${nightsNote}`,
+          }),
+        ]
+      : [],
+  );
   $("#ef-visits").hidden = !repeated;
 
   // Date and time, position and weather in one line, in this order (requested
@@ -139,7 +174,10 @@ export function openPlaceEditor(place) {
   ]);
   $("#ef-weather").hidden = false;
 
-  photoGallery?.update(place.isNew ? null : { besuchId: place.id }, place.isNew ? [] : placePhotos(place.id));
+  photoGallery?.update(
+    place.isNew ? null : { besuchId: place.id },
+    place.isNew ? [] : placePhotos(place.id),
+  );
 }
 
 async function copyCoordinates(place) {
@@ -153,21 +191,34 @@ async function copyCoordinates(place) {
 }
 
 export function renderCategoryPicker() {
-  render($("#ef-cats"), Object.entries(state.categories).map(([id, cat]) => {
-    const btn = el("button", {
-      dataset: { cat: id },
-      "aria-pressed": String(id === draft.catId),
-      on: { click: () => {
-        draft.catId = id;
-        Array.from($("#ef-cats").children).forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.cat === id)));
-        drawNights();
-      } },
-    }, [el("i", { style: { background: cat.color } }), cat.name]);
-    return btn;
-  }));
+  render(
+    $("#ef-cats"),
+    Object.entries(state.categories).map(([id, cat]) => {
+      const btn = el(
+        "button",
+        {
+          dataset: { cat: id },
+          "aria-pressed": String(id === draft.catId),
+          on: {
+            click: () => {
+              draft.catId = id;
+              Array.from($("#ef-cats").children).forEach((c) =>
+                c.setAttribute("aria-pressed", String(c.dataset.cat === id)),
+              );
+              drawNights();
+            },
+          },
+        },
+        [el("i", { style: { background: cat.color } }), cat.name],
+      );
+      return btn;
+    }),
+  );
 }
 
-const drawStars = () => { $("#ef-stars").textContent = "★".repeat(draft.stars) + "☆".repeat(5 - draft.stars); };
+const drawStars = () => {
+  $("#ef-stars").textContent = "★".repeat(draft.stars) + "☆".repeat(5 - draft.stars);
+};
 
 /** The number of nights only applies to overnight stays — otherwise the field stays hidden. */
 function drawNights() {
@@ -179,11 +230,13 @@ function drawNights() {
 export function isDirty() {
   if (!current) return false;
   if (current.isNew) return true;
-  return $("#ef-title").value !== snapshot.title
-      || $("#ef-note").value !== snapshot.note
-      || draft.stars !== snapshot.stars
-      || draft.catId !== snapshot.catId
-      || (draft.catId === "uebernachtung" && draft.nights !== snapshot.nights);
+  return (
+    $("#ef-title").value !== snapshot.title ||
+    $("#ef-note").value !== snapshot.note ||
+    draft.stars !== snapshot.stars ||
+    draft.catId !== snapshot.catId ||
+    (draft.catId === "uebernachtung" && draft.nights !== snapshot.nights)
+  );
 }
 
 export function save() {
@@ -213,4 +266,6 @@ export function save() {
   });
 }
 
-export const clearEditor = () => { current = null; };
+export const clearEditor = () => {
+  current = null;
+};

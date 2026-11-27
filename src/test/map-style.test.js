@@ -13,12 +13,21 @@ test("tilePaint: dark mode darkens the light tile, light mode leaves it unchange
 test("hillshadePaint: both modes give all four values", () => {
   for (const dark of [true, false]) {
     const p = hillshadePaint(dark);
-    for (const k of ["hillshade-exaggeration", "hillshade-shadow-color", "hillshade-highlight-color", "hillshade-accent-color"]) assert.ok(k in p);
+    for (const k of [
+      "hillshade-exaggeration",
+      "hillshade-shadow-color",
+      "hillshade-highlight-color",
+      "hillshade-accent-color",
+    ])
+      assert.ok(k in p);
   }
 });
 
 test("tileUrl: farbig = Voyager, dezent = Positron, anything unknown falls back to farbig", () => {
-  assert.match(tileUrl("farbig", "K"), /\/rastertiles\/voyager\/\{z\}\/\{x\}\/\{y\}@2x\.png\?key=K$/);
+  assert.match(
+    tileUrl("farbig", "K"),
+    /\/rastertiles\/voyager\/\{z\}\/\{x\}\/\{y\}@2x\.png\?key=K$/,
+  );
   assert.match(tileUrl("dezent", "K"), /\/light_all\//);
   assert.equal(validMapStyle("blau"), "farbig");
   assert.equal(validMapStyle(undefined), "farbig");

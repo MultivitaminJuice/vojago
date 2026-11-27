@@ -8,7 +8,9 @@ const QUALITY = 0.82;
 export async function compressPhoto(file, { maxDim = MAX_DIM, quality = QUALITY } = {}) {
   // `imageOrientation: "from-image"` applies the EXIF rotation — otherwise
   // portrait photos lie sideways in some browsers.
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => createImageBitmap(file));
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() =>
+    createImageBitmap(file),
+  );
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -21,7 +23,11 @@ export async function compressPhoto(file, { maxDim = MAX_DIM, quality = QUALITY 
   bitmap.close?.();
 
   const blob = await new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Bild konnte nicht verarbeitet werden"))), "image/jpeg", quality);
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Bild konnte nicht verarbeitet werden"))),
+      "image/jpeg",
+      quality,
+    );
   });
   return { blob, width, height };
 }

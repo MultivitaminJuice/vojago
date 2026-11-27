@@ -43,12 +43,14 @@ export function tripDayNumberFromKeys(key, startKey) {
 }
 
 export function tripDayNumberForIso(iso, tripOrStartIso) {
-  const startIso = typeof tripOrStartIso === "string" ? tripOrStartIso : tripStartIso(tripOrStartIso);
+  const startIso =
+    typeof tripOrStartIso === "string" ? tripOrStartIso : tripStartIso(tripOrStartIso);
   return tripDayNumberFromKeys(localDayKey(iso), localDayKey(startIso));
 }
 
 export function renumberPathByTripStart(path, trip) {
-  if (!Array.isArray(path) || !path.length || !tripStartIso(trip)) return Array.isArray(path) ? path : [];
+  if (!Array.isArray(path) || !path.length || !tripStartIso(trip))
+    return Array.isArray(path) ? path : [];
   return path.map((point) => {
     const day = tripDayNumberForIso(point.time, trip);
     return Number.isFinite(day) ? { ...point, day } : point;

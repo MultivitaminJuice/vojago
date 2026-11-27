@@ -29,12 +29,17 @@ after(() => {
 const DEVICE = "d1";
 
 beforeEach(() => {
-  db.exec("DELETE FROM positions; DELETE FROM vehicles; DELETE FROM trips; DELETE FROM besuche; DELETE FROM orte; DELETE FROM ignored_stops; DELETE FROM auto_vorlaeufig;");
-  db.prepare("INSERT INTO vehicles (id, name, traccar_device_id, active) VALUES ('v1', 'Camper', ?, 1)").run(DEVICE);
+  db.exec(
+    "DELETE FROM positions; DELETE FROM vehicles; DELETE FROM trips; DELETE FROM besuche; DELETE FROM orte; DELETE FROM ignored_stops; DELETE FROM auto_vorlaeufig;",
+  );
+  db.prepare(
+    "INSERT INTO vehicles (id, name, traccar_device_id, active) VALUES ('v1', 'Camper', ?, 1)",
+  ).run(DEVICE);
   // Eine durchgehend laufende Reise, die den gesamten Testzeitraum abdeckt
   // — findeReiseId() (auto-import.js) soll jeden Testzeitpunkt zuordnen.
-  db.prepare("INSERT INTO trips (id, name, start_at, end_at) VALUES ('t1', 'Testreise', ?, NULL)")
-    .run(new Date(Date.now() - 25 * 86400_000).toISOString());
+  db.prepare(
+    "INSERT INTO trips (id, name, start_at, end_at) VALUES ('t1', 'Testreise', ?, NULL)",
+  ).run(new Date(Date.now() - 25 * 86400_000).toISOString());
 });
 
 // Kein Netzwerk in Tests — geocode()/wetter() sind austauschbar (siehe
@@ -43,7 +48,10 @@ beforeEach(() => {
 // Aufenthalte mit festem Datenende; ohne das würde die anschließende Stille
 // bis "jetzt" (Tage später) als weiterlaufender Stand gewertet.
 const KEIN_NETZ = {
-  geocode: async () => null, wetter: async () => { throw new Error("kein Netz in Tests"); },
+  geocode: async () => null,
+  wetter: async () => {
+    throw new Error("kein Netz in Tests");
+  },
   offenerStand: false,
 };
 
@@ -61,15 +69,17 @@ function zeitpunkt(tageZurueck, stunde, minute = 0) {
 function einfuegen(rows) {
   const stmt = db.prepare(
     `INSERT INTO positions (device_id, at, lat, lon, speed_kmh, protocol, created_at)
-     VALUES (?, ?, ?, ?, ?, 'osmand', ?)`
+     VALUES (?, ?, ?, ?, ?, 'osmand', ?)`,
   );
   for (const r of rows) stmt.run(DEVICE, r.at, r.lat, r.lon, r.speed ?? 0, Date.now());
 }
 
 function besucheMitKategorie(catId) {
-  return db.prepare(
-    "SELECT b.*, o.category_id, o.title, o.lat, o.lon FROM besuche b JOIN orte o ON o.id = b.ort_id WHERE o.category_id = ?"
-  ).all(catId);
+  return db
+    .prepare(
+      "SELECT b.*, o.category_id, o.title, o.lat, o.lon FROM besuche b JOIN orte o ON o.id = b.ort_id WHERE o.category_id = ?",
+    )
+    .all(catId);
 }
 
 test("eine echte Übernachtung (22 bis 7 Uhr) wird als Übernachtung angelegt", async () => {
@@ -93,7 +103,8 @@ test("eine echte Übernachtung (22 bis 7 Uhr) wird als Übernachtung angelegt", 
 test("ein kurzer Tagesstopp (30 Minuten, mittags) wird als Stopp angelegt, nicht als Übernachtung", async () => {
   const basis = zeitpunkt(2, 14, 0).getTime();
   const punkte = [];
-  for (let m = 0; m <= 30; m += 5) punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 0; m <= 30; m += 5)
+    punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   einfuegen(punkte);
 
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
@@ -112,11 +123,13 @@ test("ein kurzer Tagesstopp (30 Minuten, mittags) wird als Stopp angelegt, nicht
 test("ein kurzer GPS-Ausrutscher zwischen zwei Standzeiten am selben Fleck erzeugt nur EINEN Stopp", async () => {
   const basis = zeitpunkt(2, 14, 0).getTime();
   const punkte = [];
-  for (let m = 0; m <= 25; m += 5) punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 0; m <= 25; m += 5)
+    punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   // Kurzer Ausrutscher: ~65 m weg, hohe Geschwindigkeit, nur Sekunden lang.
   punkte.push({ at: basis + 25.5 * 60_000, lat: 51.9506, lon: 6.05, speed: 20 });
   punkte.push({ at: basis + 25.65 * 60_000, lat: 51.95, lon: 6.05, speed: 20 });
-  for (let m = 26; m <= 51; m += 5) punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 26; m <= 51; m += 5)
+    punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   einfuegen(punkte);
 
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
@@ -127,7 +140,8 @@ test("ein kurzer GPS-Ausrutscher zwischen zwei Standzeiten am selben Fleck erzeu
 test("zwei Stopps am selben Ort, mit einer echten Zwischenfahrt Stunden auseinander, bleiben getrennt", async () => {
   const ersterBasis = zeitpunkt(3, 10, 0).getTime();
   const punkte = [];
-  for (let m = 0; m <= 25; m += 5) punkte.push({ at: ersterBasis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 0; m <= 25; m += 5)
+    punkte.push({ at: ersterBasis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   einfuegen(punkte);
   await fuehreAutoImportAus(KEIN_NETZ);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM besuche").get().n, 1);
@@ -139,14 +153,15 @@ test("zwei Stopps am selben Ort, mit einer echten Zwischenfahrt Stunden auseinan
   const fahrtStart = ersterBasis + 30 * 60_000;
   einfuegen([
     { at: fahrtStart, lat: 51.955, lon: 6.06, speed: 40 },
-    { at: fahrtStart + 5 * 60_000, lat: 51.97, lon: 6.10, speed: 45 },
+    { at: fahrtStart + 5 * 60_000, lat: 51.97, lon: 6.1, speed: 45 },
   ]);
 
   // Derselbe Ort, aber erst 6 Stunden nach dem ersten Stopp — ein echter,
   // eigenständiger zweiter Besuch, keine Fortsetzung.
   const zweiterBasis = ersterBasis + 6 * 3600_000;
   const punkte2 = [];
-  for (let m = 0; m <= 25; m += 5) punkte2.push({ at: zweiterBasis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 0; m <= 25; m += 5)
+    punkte2.push({ at: zweiterBasis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   einfuegen(punkte2);
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
   assert.equal(ergebnis.erstellt, 1, "der zweite, spaete Besuch muss neu angelegt werden");
@@ -178,7 +193,11 @@ test("zweimaliger Durchlauf über dieselben Daten legt nichts doppelt an", async
   assert.equal(nachErstem, 1);
 
   const zweiterDurchlauf = await fuehreAutoImportAus(KEIN_NETZ);
-  assert.equal(zweiterDurchlauf.erstellt, 0, "beim zweiten Durchlauf darf nichts neu angelegt werden");
+  assert.equal(
+    zweiterDurchlauf.erstellt,
+    0,
+    "beim zweiten Durchlauf darf nichts neu angelegt werden",
+  );
   assert.equal(db.prepare("SELECT COUNT(*) n FROM besuche").get().n, nachErstem, "keine Dopplung");
 });
 
@@ -189,7 +208,9 @@ test("ein verworfener Stopp (ignored_stops) wird nicht erneut vorgeschlagen", as
     { at: start.getTime(), lat: 51.9, lon: 6.0, speed: 1 },
     { at: ende.getTime(), lat: 51.9001, lon: 6.0001, speed: 1 },
   ]);
-  db.prepare("INSERT INTO ignored_stops (stop_key) VALUES (?)").run(`${DEVICE}|${start.toISOString()}`);
+  db.prepare("INSERT INTO ignored_stops (stop_key) VALUES (?)").run(
+    `${DEVICE}|${start.toISOString()}`,
+  );
 
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
   assert.equal(ergebnis.erstellt, 0);
@@ -241,7 +262,11 @@ test("Stille nach zügiger Anfahrt wird über Nacht als Übernachtung erkannt, o
   const besuche = besucheMitKategorie("uebernachtung");
   assert.equal(besuche.length, 1);
   assert.equal(besuche[0].nights, 1);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM auto_vorlaeufig").get().n, 1, "als vorläufig vermerkt");
+  assert.equal(
+    db.prepare("SELECT COUNT(*) n FROM auto_vorlaeufig").get().n,
+    1,
+    "als vorläufig vermerkt",
+  );
 });
 
 test("Stille von nur 10 Minuten nach der letzten Meldung erzeugt noch nichts, nach 30 Minuten einen Stopp", async () => {
@@ -292,7 +317,11 @@ test("zeigen später eintreffende Daten, dass das Fahrzeug während der Stille w
   const ergebnis = await fuehreAutoImportAus({ ...OFFEN, jetzt: zeitpunkt(1, 7, 4).getTime() });
   assert.equal(ergebnis.entfernt, 1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM besuche").get().n, 0);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM orte").get().n, 0, "auch der nur dafür angelegte Ort");
+  assert.equal(
+    db.prepare("SELECT COUNT(*) n FROM orte").get().n,
+    0,
+    "auch der nur dafür angelegte Ort",
+  );
   assert.equal(db.prepare("SELECT COUNT(*) n FROM auto_vorlaeufig").get().n, 0);
 });
 
@@ -313,7 +342,9 @@ test("ein vom Nutzer bearbeiteter vorläufiger Eintrag bleibt auch dann, wenn er
 
 test("naechsterSchwellenzeitpunkt: nach 15 Uhr Stand ab 14 Uhr kommt die Übernachtung um Mitternacht", () => {
   const start = zeitpunkt(2, 14, 0);
-  const t = new Date(naechsterSchwellenzeitpunkt(start.toISOString(), zeitpunkt(2, 15, 0).getTime()));
+  const t = new Date(
+    naechsterSchwellenzeitpunkt(start.toISOString(), zeitpunkt(2, 15, 0).getTime()),
+  );
   assert.equal(t.getHours(), 0);
   assert.ok(t.getMinutes() <= 5);
 });
@@ -351,7 +382,9 @@ function ankunftUndNacht(tage = 3) {
 // Reise und wuchs auf 12 Nächte.
 test("endet die Reise kurz nach der Ankunft, zählt nur der Teil in der Reise: Stopp statt Übernachtung", async () => {
   const an = ankunftUndNacht();
-  db.prepare("UPDATE trips SET end_at = ? WHERE id = 't1'").run(new Date(an + 28 * 60_000).toISOString());
+  db.prepare("UPDATE trips SET end_at = ? WHERE id = 't1'").run(
+    new Date(an + 28 * 60_000).toISOString(),
+  );
 
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
   assert.equal(ergebnis.erstellt, 1);
@@ -380,7 +413,8 @@ test("ein kurzer Stopp ohne Reise wird weiterhin angelegt", async () => {
   db.exec("DELETE FROM trips");
   const basis = zeitpunkt(2, 14, 0).getTime();
   const punkte = [];
-  for (let m = 0; m <= 30; m += 5) punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
+  for (let m = 0; m <= 30; m += 5)
+    punkte.push({ at: basis + m * 60_000, lat: 51.95, lon: 6.05, speed: 0 });
   einfuegen(punkte);
 
   const ergebnis = await fuehreAutoImportAus(KEIN_NETZ);
@@ -394,7 +428,9 @@ test("ein offener Stand, der durch das Reiseende zum Alltag wird, verliert seine
   assert.equal(besucheMitKategorie("uebernachtung").length, 1);
 
   // Die Reise wird beendet, bevor der Stand zur Nacht wurde.
-  db.prepare("UPDATE trips SET end_at = ? WHERE id = 't1'").run(new Date(t + 30 * 60_000).toISOString());
+  db.prepare("UPDATE trips SET end_at = ? WHERE id = 't1'").run(
+    new Date(t + 30 * 60_000).toISOString(),
+  );
   const ergebnis = await fuehreAutoImportAus({ ...OFFEN, jetzt: zeitpunkt(1, 8, 5).getTime() });
   assert.equal(ergebnis.entfernt, 1);
   assert.equal(besucheMitKategorie("uebernachtung").length, 0);
