@@ -8,6 +8,7 @@ import { distanceKm } from "../geo.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
 
+/** @type {(...args: any[]) => void} */
 let openEditor = () => {};
 let mapCenter = () => ({ lng: 10.4, lat: 47.5 });
 
@@ -57,6 +58,7 @@ export function resetPlaceFilters() {
   renderPlaces();
 }
 
+/** @param {string | number} [emptyValue] @param {(v: string) => any} [cast] */
 function wireSelect(sel, key, emptyValue = "", cast = String) {
   const node = $(sel);
   node.addEventListener("change", () => {

@@ -1,5 +1,5 @@
 // Ansicht „Reisen": laufende Reise, frühere Reisen, Alltagsfahrten.
-import { el, render, icon, toast, $, $$ } from "../dom.js";
+import { el, render, icon, toast, $, $$, closestTarget } from "../dom.js";
 import { ICON } from "../icons.js";
 import {
   state,
@@ -96,6 +96,7 @@ const reiseZeitraumDauer = (start, ende) => {
   if (Number.isFinite(tage) && tage > 1) return `${tage} Tage`;
   return zeitraumDauer(start, ende);
 };
+/** @type {(...args: any[]) => void} */
 let openDetail = () => {};
 let goMap = () => {};
 let tripMode = "gesamt";
@@ -122,7 +123,7 @@ export function initTrips({ onOpenDetail, onShowMap }) {
 
   if (!segmentTabsWired) {
     document.addEventListener("click", (event) => {
-      const btn = event.target.closest?.("#view-reise .segment-tabs button[data-trip-mode]");
+      const btn = closestTarget(event, "#view-reise .segment-tabs button[data-trip-mode]");
       if (!btn) return;
       if (state.rangeTrip && btn.dataset.tripMode === "fahrten") rangeFocusTripId = null;
       tripMode = btn.dataset.tripMode;
@@ -132,23 +133,24 @@ export function initTrips({ onOpenDetail, onShowMap }) {
       renderTrips();
     });
     document.addEventListener("click", (event) => {
-      if (event.target.closest?.("#route-filter-close")) {
+      if (closestTarget(event, "#route-filter-close")) {
         closeRouteFilterPicker();
         return;
       }
-      if (event.target.closest?.("#drive-kind-close")) {
+      if (closestTarget(event, "#drive-kind-close")) {
         closeDriveKindPicker();
         return;
       }
 
-      const filterButton = event.target.closest?.("#route-filter-btn");
+      const filterButton = closestTarget(event, "#route-filter-btn");
       if (filterButton) {
         if (state.rangeTrip) toast("Darstellung folgt");
         else openRouteFilterPicker();
         return;
       }
 
-      const filterChoice = event.target.closest?.(
+      const filterChoice = closestTarget(
+        event,
         "#route-filter-picker button[data-route-drive-filter]",
       );
       if (filterChoice) {
@@ -158,7 +160,8 @@ export function initTrips({ onOpenDetail, onShowMap }) {
         return;
       }
 
-      const driveKindChoice = event.target.closest?.(
+      const driveKindChoice = closestTarget(
+        event,
         "#drive-kind-picker button[data-drive-kind-choice]",
       );
       if (driveKindChoice) {
@@ -170,7 +173,7 @@ export function initTrips({ onOpenDetail, onShowMap }) {
       if (event.target === $("#drive-kind-picker")) closeDriveKindPicker();
     });
     document.addEventListener("click", (event) => {
-      const card = event.target.closest?.(".segment-card[data-summary-id]");
+      const card = closestTarget(event, ".segment-card[data-summary-id]");
       if (!card) return;
       const summary = routeSummaryCache.get(card.dataset.summaryId);
       if (!summary) return;
@@ -1453,23 +1456,25 @@ async function erweitereReiseFallsNoetig(zielTrip, drive) {
 }
 
 function zuordnungsWahl(drive) {
-  const select = el("select.assign-sel", { title: "Fahrt einer Reise zuordnen" }, [
-    el("option", {
-      value: "",
-      disabled: true,
-      selected: !drive.tripId && !drive.manual,
-      text: "→ Reise …",
-    }),
-    ...state.trips.map((t) =>
-      el("option", { value: t.id, selected: t.id === drive.tripId, text: t.name }),
-    ),
-    el("option", {
-      value: "__alltag",
-      selected: drive.manual && !drive.tripId,
-      text: "Alltagsfahrt",
-    }),
-    ...(drive.manual ? [el("option", { value: "__auto", text: "automatisch (Zeitraum)" })] : []),
-  ]);
+  const select = /** @type {HTMLSelectElement} */ (
+    el("select.assign-sel", { title: "Fahrt einer Reise zuordnen" }, [
+      el("option", {
+        value: "",
+        disabled: true,
+        selected: !drive.tripId && !drive.manual,
+        text: "→ Reise …",
+      }),
+      ...state.trips.map((t) =>
+        el("option", { value: t.id, selected: t.id === drive.tripId, text: t.name }),
+      ),
+      el("option", {
+        value: "__alltag",
+        selected: drive.manual && !drive.tripId,
+        text: "Alltagsfahrt",
+      }),
+      ...(drive.manual ? [el("option", { value: "__auto", text: "automatisch (Zeitraum)" })] : []),
+    ])
+  );
 
   select.addEventListener("change", async () => {
     const wahl = select.value;
@@ -1496,10 +1501,12 @@ function zuordnungsWahl(drive) {
 }
 
 function fahrtArtWahl(drive) {
-  const select = el("select.assign-sel.drive-kind", { title: "Fahrtart wählen" }, [
-    el("option", { value: "etappe", selected: drive.kind !== "abstecher", text: "Etappe" }),
-    el("option", { value: "abstecher", selected: drive.kind === "abstecher", text: "Abstecher" }),
-  ]);
+  const select = /** @type {HTMLSelectElement} */ (
+    el("select.assign-sel.drive-kind", { title: "Fahrtart wählen" }, [
+      el("option", { value: "etappe", selected: drive.kind !== "abstecher", text: "Etappe" }),
+      el("option", { value: "abstecher", selected: drive.kind === "abstecher", text: "Abstecher" }),
+    ])
+  );
   select.addEventListener("change", async () => {
     const kind = select.value === "abstecher" ? "abstecher" : "etappe";
     const vorher = drive.kind === "abstecher" ? "abstecher" : "etappe";

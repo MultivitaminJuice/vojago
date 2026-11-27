@@ -207,11 +207,13 @@ function draw() {
   rows = [];
   blocks.forEach((b, i) => {
     if (b.t === "text") {
-      const field = el("textarea.tag-text", {
-        rows: i === 0 ? 3 : 1,
-        "aria-label": i === 0 ? "Was war heute los?" : "Weiter erzählen",
-        placeholder: i === 0 ? "Was war los? Wo wart ihr, was habt ihr gesehen?" : "Weiter …",
-      });
+      const field = /** @type {HTMLTextAreaElement} */ (
+        el("textarea.tag-text", {
+          rows: i === 0 ? 3 : 1,
+          "aria-label": i === 0 ? "Was war heute los?" : "Weiter erzählen",
+          placeholder: i === 0 ? "Was war los? Wo wart ihr, was habt ihr gesehen?" : "Weiter …",
+        })
+      );
       field.value = b.text;
       const rememberSpot = () => {
         activeSpot = { block: b, offset: field.selectionStart ?? field.value.length };

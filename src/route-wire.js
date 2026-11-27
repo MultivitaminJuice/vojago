@@ -4,7 +4,7 @@
 // one into the other, and passes the older object list through unchanged.
 const KNOTS_PER_KMH = 1 / 1.852;
 
-/** @returns {Array<{latitude:number, longitude:number, altitude:number, speed:number, fixTime:string}>} */
+/** @returns {Array<{latitude:number, longitude:number, altitude:number, speed:number, fixTime:string}> & { stand?: { total: number, lastAt: string | null } }} */
 export function decodeRoute(data) {
   if (Array.isArray(data)) return data;
   if (!data || !Array.isArray(data.points)) return [];

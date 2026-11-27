@@ -406,6 +406,7 @@ export async function loadGuard() {
   renderGuard();
 }
 
+/** @param {{ onShowOnMap?: (...args: any[]) => void }} [handlers] */
 export function initGuard({ onShowOnMap } = {}) {
   $("#guard-show-map")?.addEventListener("click", () => {
     if (state.guardAnchor) onShowOnMap?.(state.guardAnchor.lat, state.guardAnchor.lon);

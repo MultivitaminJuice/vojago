@@ -7,7 +7,10 @@ import { toast } from "../dom.js";
 const mapLink = (lat, lon) =>
   `https://www.openstreetmap.org/?mlat=${lat.toFixed(5)}&mlon=${lon.toFixed(5)}#map=15/${lat.toFixed(5)}/${lon.toFixed(5)}`;
 
-/** Hands the content to the device's share menu or to the clipboard. */
+/**
+ * Hands the content to the device's share menu or to the clipboard.
+ * @param {{ title?: string, text: string, url?: string }} content
+ */
 async function share({ title, text, url }) {
   if (navigator.share) {
     try {

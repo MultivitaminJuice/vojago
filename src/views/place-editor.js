@@ -46,6 +46,7 @@ const dateTime = (iso) => {
 let current = null;
 let snapshot = null;
 let draft = { catId: "stellplatz", stars: 5, nights: 1 };
+/** @type {(...args: any[]) => void} */
 let afterChange = () => {};
 let offerUndo = null;
 let onShowOnMap = null;

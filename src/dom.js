@@ -5,6 +5,17 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 /**
+ * Closest element matching `sel` from an event's target, or null (e.g. for delegated clicks).
+ * @param {Event} event
+ * @param {string} sel
+ * @returns {HTMLElement | null}
+ */
+export const closestTarget = (event, sel) =>
+  event.target instanceof Element
+    ? /** @type {HTMLElement | null} */ (event.target.closest(sel))
+    : null;
+
+/**
  * Build an element.
  * @param {string} tag  e.g. "div.card.wide" or "button#save"
  * @param {object} [attrs] attributes; `text` sets textContent, `style` takes an object,

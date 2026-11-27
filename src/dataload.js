@@ -660,6 +660,7 @@ function pathLoaded() {
   if (status.error === WEAK_CONNECTION_HINT) setStatus({ error: null });
 }
 
+/** @param {{ from?: string, to?: string, label?: string }} [range] */
 export async function buildRangeTrip({ from, to, label = "Zeitraum" } = {}) {
   if (!state.config.device || !from) return null;
   const end = to || new Date().toISOString();

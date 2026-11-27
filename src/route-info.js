@@ -7,6 +7,7 @@ const clockTime = (ms) =>
     second: "2-digit",
   });
 
+/** @param {{ success?: any, failure?: any, fromCache?: any }} [log] */
 export function routeInfoRows({ success, failure, fromCache } = {}, clock = clockTime) {
   const rows = [];
   if (success) {

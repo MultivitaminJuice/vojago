@@ -370,11 +370,13 @@ async function renderUsersList() {
         },
       );
       if (!passwordOpen) return userRow;
-      const pwInput = el("input", {
-        type: "password",
-        placeholder: "Neues Passwort (mind. 10 Zeichen)",
-        autocomplete: "new-password",
-      });
+      const pwInput = /** @type {HTMLInputElement} */ (
+        el("input", {
+          type: "password",
+          placeholder: "Neues Passwort (mind. 10 Zeichen)",
+          autocomplete: "new-password",
+        })
+      );
       const setPassword = el("button.btn.primary", {
         text: "Setzen",
         on: {

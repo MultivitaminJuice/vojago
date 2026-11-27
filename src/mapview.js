@@ -53,7 +53,9 @@ const ATTRIBUTION =
 
 let map = null;
 let markers = [];
+/** @type {(...args: any[]) => void} */
 let onPlaceClick = () => {};
+/** @type {(...args: any[]) => void} */
 let onNoteClick = () => {};
 let ready = false;
 
@@ -63,6 +65,7 @@ const isDark = () => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 };
 
+/** @param {{ onPlaceSelect?: (...args: any[]) => void, onNoteSelect?: (...args: any[]) => void }} [handlers] */
 export function initMap({ onPlaceSelect, onNoteSelect } = {}) {
   onPlaceClick = onPlaceSelect || (() => {});
   onNoteClick = onNoteSelect || (() => {});
@@ -720,6 +723,7 @@ function drawLiveOnly({ fit = false } = {}) {
  * is computed locally).
  */
 function gradientFor(path, metric, ctx) {
+  /** @type {any[]} MapLibre expression */
   const expr = ["interpolate", ["linear"], ["line-progress"]];
   const maxStops = 150;
   const step = Math.max(1, Math.ceil(path.length / maxStops));
@@ -902,6 +906,11 @@ export const center = () => (ready ? map.getCenter() : { lng: 10.4, lat: 47.5 })
 
 /** Centre on a single point, e.g. "Auf Karte zeigen" from the place editor —
  * unlike fitTrip() (whole trip/route) this is exactly one spot, no bounds. */
+/**
+ * @param {number} lat
+ * @param {number} lon
+ * @param {{ zoom?: number }} [options]
+ */
 export function focusOn(lat, lon, { zoom } = {}) {
   if (!ready || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
   map.flyTo({ center: [lon, lat], zoom: zoom ?? Math.max(map.getZoom(), 15), duration: 600 });

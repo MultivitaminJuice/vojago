@@ -126,7 +126,8 @@ document.addEventListener(
   (e) => {
     const jetzt = Date.now();
     // Doppeltipp zoomt sonst die Seite — auf der Karte übernimmt MapLibre.
-    if (jetzt - letzteBeruehrung < 350 && !e.target.closest(".maparea")) e.preventDefault();
+    if (jetzt - letzteBeruehrung < 350 && !(/** @type {Element} */ (e.target).closest(".maparea")))
+      e.preventDefault();
     letzteBeruehrung = jetzt;
   },
   { passive: false },

@@ -98,8 +98,11 @@ function cardClick(oeffneEditor, photoMap) {
   return () => showPhotos(tripSlides, photoSlideIndex.get(photoMap[0].id) ?? 0);
 }
 
+/** @type {(...args: any[]) => void} */
 let openPlace = () => {};
+/** @type {(...args: any[]) => void} */
 let openNote = () => {};
+/** @type {(...args: any[]) => void} */
 let openDay = () => {};
 const logFilters = new Set(["night", "place", "note"]);
 const trackRequested = new Map();
@@ -404,30 +407,32 @@ function routeCard(day, hasStory, line, tripId, withoutEntry) {
     .filter(Boolean)
     .join(" · ");
   const storageKey = `${tripId}|${day.key}`;
-  const card = el(
-    "details.jt-karte",
-    {
-      open:
-        loadOpenSet().has(storageKey) ||
-        (withoutEntry && !loadOpenSet(ROUTE_CLOSED_KEY).has(storageKey)),
-    },
-    [
-      el("summary.jt-karte-kopf", {}, [
-        el("span", { text: drawing ? "Strecke" : "Verlauf" }),
-        summary ? el("span.jt-leise.jt-karte-kurz", { text: summary }) : null,
-      ]),
-      drawing,
-      info
-        ? el("div.jt-wetter", {}, [
-            weather
-              ? el("span", { text: [weather.symbol, weather.temp].filter(Boolean).join(" ") })
-              : null,
-            weather?.text ? el("span.jt-leise", { text: weather.text }) : null,
-            line ? el("span.jt-leise.jt-strecke", { text: line }) : null,
-          ])
-        : null,
-      timeline,
-    ],
+  const card = /** @type {HTMLDetailsElement} */ (
+    el(
+      "details.jt-karte",
+      {
+        open:
+          loadOpenSet().has(storageKey) ||
+          (withoutEntry && !loadOpenSet(ROUTE_CLOSED_KEY).has(storageKey)),
+      },
+      [
+        el("summary.jt-karte-kopf", {}, [
+          el("span", { text: drawing ? "Strecke" : "Verlauf" }),
+          summary ? el("span.jt-leise.jt-karte-kurz", { text: summary }) : null,
+        ]),
+        drawing,
+        info
+          ? el("div.jt-wetter", {}, [
+              weather
+                ? el("span", { text: [weather.symbol, weather.temp].filter(Boolean).join(" ") })
+                : null,
+              weather?.text ? el("span.jt-leise", { text: weather.text }) : null,
+              line ? el("span.jt-leise.jt-strecke", { text: line }) : null,
+            ])
+          : null,
+        timeline,
+      ],
+    )
   );
   card.addEventListener("toggle", () => {
     // Without an entry the route is open by itself — then we remember what was closed.
@@ -485,12 +490,14 @@ function remark(place) {
     } else render(wrap, []);
   };
   const writeButton = () => {
-    const field = el("textarea.jt-anm-feld", {
-      rows: 2,
-      maxlength: 600,
-      placeholder: "z. B. schöne Aussicht, schwierige Anfahrt, kostet zu viel",
-      "aria-label": "Anmerkung zum Stellplatz",
-    });
+    const field = /** @type {HTMLTextAreaElement} */ (
+      el("textarea.jt-anm-feld", {
+        rows: 2,
+        maxlength: 600,
+        placeholder: "z. B. schöne Aussicht, schwierige Anfahrt, kostet zu viel",
+        "aria-label": "Anmerkung zum Stellplatz",
+      })
+    );
     field.value = place.note || "";
     const saveRemark = async (e) => {
       const button = e.currentTarget;
@@ -574,24 +581,26 @@ function placeCard(entry) {
     }),
   ]);
   const meta = [stars(place.stars), visitText(place)].filter(Boolean);
-  const card = el(
-    `details.jt-platz${night ? ".jt-stellplatz" : ""}`,
-    { open: loadOpenSet(PLACE_OPEN_KEY).has(place.id) },
-    [
-      heading,
-      meta.length
-        ? el(
-            "div.jt-meta",
-            {},
-            meta.map((m) =>
-              el("span", { text: m, style: m.startsWith("★") ? { color: "var(--accent)" } : {} }),
-            ),
-          )
-        : null,
-      remark(place),
-      photoCollage(photoMap, placeCaption(place)),
-      detailsBlock(place),
-    ],
+  const card = /** @type {HTMLDetailsElement} */ (
+    el(
+      `details.jt-platz${night ? ".jt-stellplatz" : ""}`,
+      { open: loadOpenSet(PLACE_OPEN_KEY).has(place.id) },
+      [
+        heading,
+        meta.length
+          ? el(
+              "div.jt-meta",
+              {},
+              meta.map((m) =>
+                el("span", { text: m, style: m.startsWith("★") ? { color: "var(--accent)" } : {} }),
+              ),
+            )
+          : null,
+        remark(place),
+        photoCollage(photoMap, placeCaption(place)),
+        detailsBlock(place),
+      ],
+    )
   );
   card.addEventListener("toggle", (e) => {
     // Only the card's own collapsing, not that of the "Details" inside it.
@@ -624,20 +633,22 @@ function noteQuote(note) {
   const summary = (noteHasOwnTitle(note) ? noteTitle(note) : String(note.text || ""))
     .trim()
     .replace(/\s+/g, " ");
-  const card = el("details.jt-notiz", { open: loadOpenSet(NOTE_OPEN_KEY).has(note.id) }, [
-    el("summary.jt-ph", {}, [
-      el("span.jt-n-kurz", { text: summary || "Notiz" }),
-      el("span.jt-leise", { text: timeLabel(note.at) }),
-    ]),
-    el("div.jt-n-inhalt", { on: { click: cardClick(() => openNote(note), photoMap) } }, [
-      noteHasOwnTitle(note) ? el("b", { text: noteTitle(note) }) : null,
-      el("p", { text: note.text }),
-      photoCollage(photoMap, noteCaption(note)),
-      linkedPlace
-        ? el("div.jt-meta", {}, [el("span", { text: `bei ${linkedPlace.title}` })])
-        : null,
-    ]),
-  ]);
+  const card = /** @type {HTMLDetailsElement} */ (
+    el("details.jt-notiz", { open: loadOpenSet(NOTE_OPEN_KEY).has(note.id) }, [
+      el("summary.jt-ph", {}, [
+        el("span.jt-n-kurz", { text: summary || "Notiz" }),
+        el("span.jt-leise", { text: timeLabel(note.at) }),
+      ]),
+      el("div.jt-n-inhalt", { on: { click: cardClick(() => openNote(note), photoMap) } }, [
+        noteHasOwnTitle(note) ? el("b", { text: noteTitle(note) }) : null,
+        el("p", { text: note.text }),
+        photoCollage(photoMap, noteCaption(note)),
+        linkedPlace
+          ? el("div.jt-meta", {}, [el("span", { text: `bei ${linkedPlace.title}` })])
+          : null,
+      ]),
+    ])
+  );
   card.addEventListener("toggle", () => {
     const openSet = loadOpenSet(NOTE_OPEN_KEY);
     if (card.open) openSet.add(note.id);

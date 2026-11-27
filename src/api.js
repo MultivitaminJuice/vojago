@@ -8,6 +8,7 @@ async function request(path, options = {}) {
   // phone in a dead spot gets neither an answer nor an error) and overlap with
   // the next refresh. After the timeout it is aborted with a clear error; the
   // app keeps its last good state.
+  /** @type {RequestInit & { timeoutMs?: number }} */
   const { timeoutMs, ...fetchOptions } = options;
   const abort = timeoutMs ? new AbortController() : null;
   const timer = abort ? setTimeout(() => abort.abort(), timeoutMs) : null;
@@ -33,6 +34,7 @@ async function request(path, options = {}) {
       } catch {
         text = await res.text().catch(() => "");
       }
+      /** @type {Error & { status?: number, notSignedIn?: boolean }} */
       const error = new Error(text ? text.slice(0, 200) : `${res.status} ${res.statusText}`);
       error.status = res.status;
       if (res.status === 401) error.notSignedIn = true;
@@ -253,7 +255,10 @@ export const route = (deviceId, from, to, { timeoutMs = 120_000 } = {}) =>
 export const devices = () => request("/api/devices");
 
 /* ---------- Sharing trips ---------- */
-/** Creates a sharing link. Without `tripId` it means "all trips". */
+/**
+ * Creates a sharing link. Without `tripId` it means "all trips".
+ * @param {{ tripId?: string, scope?: string, label?: string, expiresInDays?: number }} [options]
+ */
 export const createShare = ({ tripId, scope, label, expiresInDays } = {}) =>
   request("/api/shares", {
     method: "POST",

@@ -20,6 +20,8 @@ import {
 /**
  * Month calendar. `mode: "range"` picks start and end, `"day"` exactly one day.
  * `onChange({ from, to })` is called on every tap on a day.
+ * @param {{ mode?: "range" | "day", selection?: { from?: string | null, to?: string | null },
+ *   onChange?: (picked: { from: string | null, to: string | null }) => void, now?: () => Date }} [options]
  */
 export function calendar({
   mode = "range",
@@ -161,6 +163,8 @@ export function calendar({
 /**
  * Dialog for picking a single date. Resolves with `{ value }` (a day, or null
  * for "empty"), or `undefined` when cancelled.
+ * @param {{ title?: string, value?: string, emptyText?: string }} [options]
+ * @returns {Promise<{ value: string | null } | undefined>}
  */
 export function dateDialog({ title, value = "", emptyText = "" } = {}) {
   return new Promise((done) => {
@@ -220,9 +224,9 @@ export function dateDialog({ title, value = "", emptyText = "" } = {}) {
     );
     document.addEventListener("keydown", onKey, true);
     screen.appendChild(overlay);
-    overlay
-      .querySelector(".cal-day.role-single, .cal-day.today, .cal-day")
-      ?.focus({ preventScroll: true });
+    /** @type {HTMLElement | null} */ (
+      overlay.querySelector(".cal-day.role-single, .cal-day.today, .cal-day")
+    )?.focus({ preventScroll: true });
   });
 }
 
@@ -238,10 +242,12 @@ export function dateField({
   emptyText = "",
   placeholder = "Datum wählen",
 } = {}) {
-  const button = el(`button.date-field${id ? `#${id}` : ""}`, {
-    type: "button",
-    "aria-haspopup": "dialog",
-  });
+  const button = /** @type {HTMLButtonElement} */ (
+    el(`button.date-field${id ? `#${id}` : ""}`, {
+      type: "button",
+      "aria-haspopup": "dialog",
+    })
+  );
   let current = "";
   const show = () => {
     button.textContent = current ? dateText(current) : emptyText || placeholder;

@@ -180,7 +180,7 @@ async function sendeBestaetigungsmail(request, env, { userId, email }) {
  * dem Kontoinhaber selbst je Zugriff auf die Datenbank hat. Sobald
  * Mailversand konfiguriert wird, greift die echte Bestätigung wieder ganz
  * normal.
- * @returns {boolean} ob die Adresse jetzt schon als verifiziert gilt
+ * @returns {Promise<boolean>} ob die Adresse jetzt schon als verifiziert gilt
  */
 async function bestaetigeOderSendeMail(request, env, { userId, email }) {
   if (!env.RESEND_API_KEY) {
@@ -307,6 +307,11 @@ async function holeLokaleGeraete(env) {
 
 /** Single access point for position data, so the routes below do not need to
  * know how each kind is derived from the `positions` table. */
+/**
+ * @param {any} env
+ * @param {string} art
+ * @param {{ deviceId?: string, from?: string, to?: string }} [range]
+ */
 async function positionsQuelle(env, art, { deviceId, from, to } = {}) {
   switch (art) {
     case "positions": {
