@@ -1,0 +1,3 @@
+# Formatting-only commits, skipped by git blame (ADR-001).
+# Use: git config blame.ignoreRevsFile .git-blame-ignore-revs
+91b9ba268861d8b9c970cf82f579fc51406d1656

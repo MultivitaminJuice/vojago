@@ -21,10 +21,10 @@ Project docs: `README.md` (architecture, running locally), `docs/working-princip
 | Unit + integration tests | `npm test` (`api/test`, `src/test`) | verified 2026-11-27: 239/239 |
 | Backend tests | `npm --prefix app-backend test` · `npm --prefix tracker-backend test` | verified 2026-11-27: 9/9, 63/63 |
 | Build PWA | `npm run build` → `public/` (`scripts/build-site.mjs`; map key via `CARTO_API_KEY` env) | verified 2026-11-27 (exit 0, two CSS warnings at `src/styles.css:802`) |
-| Smoke tests | `npm run test:smoke` (build + Playwright, `smoke/`, static server on port 4173) | runs in CI; locally failed 2026-11-27 because the Playwright browser build is missing (`npx playwright install chromium` needed) |
+| Smoke tests | `npm run test:smoke` (build + Playwright, `smoke/`, static server on port 4173); `smoke/areas.smoke.test.js` checks every tab and runs axe | verified 2026-11-27: 8/8 (needs `npx playwright install chromium` once per machine) |
 | Dev server | `npm run dev` → http://127.0.0.1:4173 (also `.claude/launch.json`, config `vojago`) | not run |
 | Privacy scan | `npm run check:sensitive` (also runs in the git hooks) | not run |
-| Lint / format / type check | none yet — see Exceptions and backlog (`MNT-1`, `TYP-1`, D6) | – |
+| Format, lint, type check | `npm run check` (all three, also in CI) · `npm run format` (write) · `npm run lint` · `npm run typecheck` — Biome and `tsc --checkJs`, see ADR-001 | verified 2026-11-27: no findings |
 | Deploy | `docker compose up -d --build` with `docker-compose.yml` (README § Architecture), only on the user's explicit go-ahead | not verified; host-specific notes live in `local/` and are not read |
 
 Before "done": `docs/working-principles.md` § Tests, GitHub, deploy, plus
@@ -82,9 +82,11 @@ Before "done": `docs/working-principles.md` § Tests, GitHub, deploy, plus
 | `TOK-COL-3` [C] | Project accent `#ae5913` with white text (`#ffffff`), the same in light and dark theme; accent only as a fill, never as text; links in text colour with underline. | `ES/ux-ui/design-tokens.md` TOK-COL-3, fixed 2026-11-27 |
 | `NAM-1` | UI texts are German; code, comments, docs and commits are English. *(This is the rule itself, listed for clarity.)* | `docs/working-principles.md`, `ES/global/coding-standards.md` |
 
-No other exception is decided. Open points that need a decision by the user before they
-become an exception: stored German enum values and table names, JavaScript
-type checking (D6: JSDoc + `tsc --checkJs`).
+Proposed, not yet accepted: ADR-001 checks all files with `tsc --checkJs` at once but without
+`strict`, instead of file by file as in ES-ADR-007.
+
+No other exception is decided. Open point that needs a decision by the user before it
+becomes an exception: stored German enum values and table names.
 
 ## Never
 

@@ -127,10 +127,12 @@ change to what is kept.
 
 Before calling something finished:
 
-1. `npm test` (plus `npm --prefix app-backend test` and
-   `npm --prefix tracker-backend test` when those changed)
+1. `npm run check` (format, lint, type check) and `npm test` (plus
+   `npm --prefix app-backend test` and `npm --prefix tracker-backend test` when
+   those changed)
 2. `npm run build`
-3. `npm run test:smoke` (runs in CI; needs the Playwright browser locally)
+3. `npm run test:smoke` (needs the Playwright browser locally:
+   `npx playwright install chromium`)
 4. check the change in the browser, at phone width as well
 5. update [`concept.md`](concept.md), this file or the README when behaviour
    or open points change
