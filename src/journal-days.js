@@ -1,95 +1,95 @@
-// Logbuch: die Reise als Folge von Tagen (Kapiteln). Rein rechnend, ohne DOM —
-// journal.js zeichnet daraus Kopf, Gedankenstütze, Stellplatz-Karten und Notizen.
+// Logbook: the trip as a sequence of days (chapters). Pure computation, no DOM —
+// journal.js draws the heading, the reminders, place cards and notes from it.
 import { localDayKey, tripDayNumberFromKeys } from "./day-utils.js";
 
-export const kurzeAdresse = (text) => (text || "").split(",").slice(0, 2).join(",").trim();
+export const shortAddress = (text) => (text || "").split(",").slice(0, 2).join(",").trim();
 
-/** Wetter eines Tages aus den Wettern seiner Besuche: Spanne und häufigster Zustand. */
-export function tagesWetter(wetterListe) {
-  const w = (wetterListe || []).filter((x) => x && Number.isFinite(Number(x.temp)));
+/** Weather of a day from the weather of its visits: the range and the most frequent condition. */
+export function dayWeather(weatherList) {
+  const w = (weatherList || []).filter((x) => x && Number.isFinite(Number(x.temp)));
   if (!w.length) return null;
   const temps = w.map((x) => Number(x.temp));
   const min = Math.round(Math.min(...temps));
   const max = Math.round(Math.max(...temps));
-  const zaehler = new Map();
+  const counter = new Map();
   for (const x of w) {
     if (!x.text) continue;
-    const e = zaehler.get(x.text) || { n: 0, symbol: x.symbol || "" };
+    const e = counter.get(x.text) || { n: 0, symbol: x.symbol || "" };
     e.n += 1;
-    zaehler.set(x.text, e);
+    counter.set(x.text, e);
   }
-  const [text, e] = [...zaehler.entries()].sort((a, b) => b[1].n - a[1].n)[0] || ["", { symbol: "" }];
+  const [text, e] = [...counter.entries()].sort((a, b) => b[1].n - a[1].n)[0] || ["", { symbol: "" }];
   return { temp: min === max ? `${min}°` : `${min} bis ${max}°`, text, symbol: e.symbol };
 }
 
-/** Die Ereignisse eines Tages in zeitlicher Folge: Start, Stopps, Übernachtung. */
-export function tagesVerlauf(eintraege, fahrten) {
-  const verlauf = [];
-  const erste = [...fahrten].sort((a, b) => String(a.from).localeCompare(String(b.from)))[0];
-  if (erste?.from) verlauf.push({ zeit: erste.from, art: "start", titel: kurzeAdresse(erste.startAddress) });
-  for (const e of eintraege) {
+/** The events of a day in time order: start, stops, overnight stay. kind: "start" | "stop" | "night". */
+export function dayTimeline(entries, drives) {
+  const timeline = [];
+  const first = [...drives].sort((a, b) => String(a.from).localeCompare(String(b.from)))[0];
+  if (first?.from) timeline.push({ time: first.from, kind: "start", title: shortAddress(first.startAddress) });
+  for (const e of entries) {
     if (e.kind !== "place") continue;
-    verlauf.push({
-      zeit: e.at || e.data.at || "",
-      art: e.data.catId === "uebernachtung" ? "nacht" : "stopp",
-      titel: e.data.title || "",
-      ortId: e.data.id,
+    timeline.push({
+      time: e.at || e.data.at || "",
+      kind: e.data.catId === "uebernachtung" ? "night" : "stop",
+      title: e.data.title || "",
+      placeId: e.data.id,
     });
   }
-  return verlauf.sort((a, b) => String(a.zeit).localeCompare(String(b.zeit)));
+  return timeline.sort((a, b) => String(a.time).localeCompare(String(b.time)));
 }
 
 /**
- * Tage der Reise mit allem, was dazugehört. `eintraege`: flache Liste aus
- * journal.js ({ kind: "place" | "night-continuation" | "note", at, data }),
- * `fahrten`: Fahrten der Reise, `path`: Spur mit `day`-Nummer je Punkt.
- * `zusatzTage`: Tage, die auch ohne Besuch/Fahrt/Spur ein Kapitel bekommen
- * (z. B. weil dort ein Tagebucheintrag steht).
- * Tage ohne jeden Inhalt (keine Einträge, keine Fahrt, keine Spur) entfallen.
+ * Days of the trip with everything that belongs to them. `entries`: flat list
+ * from journal.js ({ kind: "place" | "night-continuation" | "note", at, data }),
+ * `drives`: drives of the trip, `path`: track with a `day` number per point.
+ * `extraDays`: days that get a chapter even without visit, drive or track (e.g.
+ * because a diary entry exists). Days without any content are dropped.
+ * Returns [{ key, number, entries, notes, points, km, from, to, weather, timeline }].
  */
-export function tageDerReise({ startIso, eintraege, fahrten, path, zusatzTage = [] }) {
-  const tage = new Map();
-  const tag = (key) => {
-    if (!tage.has(key)) tage.set(key, { key, eintraege: [], fahrten: [], punkte: [] });
-    return tage.get(key);
+export function tripDays({ startIso, entries, drives, path, extraDays = [] }) {
+  const days = new Map();
+  const day = (key) => {
+    if (!days.has(key)) days.set(key, { key, entries: [], drives: [], points: [] });
+    return days.get(key);
   };
-  for (const e of eintraege) { const k = localDayKey(e.at); if (k) tag(k).eintraege.push(e); }
-  for (const f of fahrten) { const k = localDayKey(f.from); if (k) tag(k).fahrten.push(f); }
-  const extra = new Set(zusatzTage);
-  for (const k of extra) tag(k);
+  for (const e of entries) { const k = localDayKey(e.at); if (k) day(k).entries.push(e); }
+  for (const d of drives) { const k = localDayKey(d.from); if (k) day(k).drives.push(d); }
+  const extra = new Set(extraDays);
+  for (const k of extra) day(k);
 
-  // Spur: Punkte tragen ihre Tagesnummer; der Schlüssel kommt vom ersten Punkt des Tages.
-  const nachNummer = new Map();
+  // Track: points carry their day number; the key comes from the first point of the day.
+  const byNumber = new Map();
   for (const p of path || []) {
-    if (!nachNummer.has(p.day)) nachNummer.set(p.day, []);
-    nachNummer.get(p.day).push(p);
+    if (!byNumber.has(p.day)) byNumber.set(p.day, []);
+    byNumber.get(p.day).push(p);
   }
-  for (const punkte of nachNummer.values()) {
-    const k = localDayKey(punkte[0]?.time);
-    if (k && punkte.length >= 2) tag(k).punkte = punkte;
+  for (const points of byNumber.values()) {
+    const k = localDayKey(points[0]?.time);
+    if (k && points.length >= 2) day(k).points = points;
   }
 
   const startKey = localDayKey(startIso);
-  return [...tage.values()]
-    .filter((t) => t.eintraege.length || t.fahrten.length || t.punkte.length >= 2 || extra.has(t.key))
+  return [...days.values()]
+    .filter((t) => t.entries.length || t.drives.length || t.points.length >= 2 || extra.has(t.key))
     .sort((a, b) => a.key.localeCompare(b.key))
     .map((t, i) => {
-      const orte = t.eintraege.filter((e) => e.kind === "place");
-      const notizen = t.eintraege.filter((e) => e.kind === "note");
-      const kmFahrten = t.fahrten.reduce((s, f) => s + (Number(f.km) || 0), 0);
-      const kmSpur = t.punkte.length >= 2 ? t.punkte.at(-1).cum - t.punkte[0].cum : 0;
-      const sortiert = [...t.fahrten].sort((a, b) => String(a.from).localeCompare(String(b.from)));
+      const places = t.entries.filter((e) => e.kind === "place");
+      const notes = t.entries.filter((e) => e.kind === "note");
+      const kmDrives = t.drives.reduce((s, d) => s + (Number(d.km) || 0), 0);
+      const kmTrack = t.points.length >= 2 ? t.points.at(-1).cum - t.points[0].cum : 0;
+      const sorted = [...t.drives].sort((a, b) => String(a.from).localeCompare(String(b.from)));
       return {
         key: t.key,
-        nummer: tripDayNumberFromKeys(t.key, startKey) || i + 1,
-        eintraege: t.eintraege,
-        notizen,
-        punkte: t.punkte,
-        km: Math.round((t.fahrten.length ? kmFahrten : kmSpur) * 10) / 10,
-        von: kurzeAdresse(sortiert[0]?.startAddress),
-        nach: kurzeAdresse(sortiert.at(-1)?.endAddress),
-        wetter: tagesWetter([...orte.map((e) => e.data.weather), ...notizen.map((e) => e.data.weather)]),
-        verlauf: tagesVerlauf(t.eintraege, t.fahrten),
+        number: tripDayNumberFromKeys(t.key, startKey) || i + 1,
+        entries: t.entries,
+        notes,
+        points: t.points,
+        km: Math.round((t.drives.length ? kmDrives : kmTrack) * 10) / 10,
+        from: shortAddress(sorted[0]?.startAddress),
+        to: shortAddress(sorted.at(-1)?.endAddress),
+        weather: dayWeather([...places.map((e) => e.data.weather), ...notes.map((e) => e.data.weather)]),
+        timeline: dayTimeline(t.entries, t.drives),
       };
     });
 }
