@@ -112,9 +112,10 @@ function meldeWechsel(art, atMs, mitPush) {
     schreibeAlarm.run("geofence", "warn", nachricht, zeitpunkt);
     if (mitPush) sendePushAnAlle("Wache", nachricht); // Diebstahlschutz — hier zählt Zeitnähe, deshalb sofort
   } else {
+    // Logged only, no push notification. The log entry must stay:
+    // it resets the state to "inside", so the next departure is reported again.
     const nachricht = "Fahrzeug hat den überwachten Bereich wieder betreten";
     schreibeAlarm.run("geofence", "ok", nachricht, zeitpunkt);
-    if (mitPush) sendePushAnAlle("Wache", nachricht);
   }
 }
 

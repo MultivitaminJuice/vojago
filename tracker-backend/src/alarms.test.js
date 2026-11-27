@@ -70,6 +70,23 @@ test("Rückkehr in den überwachten Bereich wird als informativer Eintrag protok
   assert.match(eintraege[1].message, /betreten/);
 });
 
+test("every departure is reported again after a return in between", async () => {
+  setzeAnker(52.000, 7.000, 200);
+  await anfrage("d1", 52.000, 7.000, 1700000000); // inside
+  await anfrage("d1", 52.010, 7.000, 1700000060); // out
+  await anfrage("d1", 52.011, 7.000, 1700000120); // stays out -> "verlassen"
+  await anfrage("d1", 52.000, 7.000, 1700000180); // in
+  await anfrage("d1", 52.0001, 7.000, 1700000240); // stays in -> "wieder betreten"
+  await anfrage("d1", 52.010, 7.000, 1700000300); // out
+  await anfrage("d1", 52.011, 7.000, 1700000360); // stays out -> "verlassen" again
+
+  const eintraege = db.prepare("SELECT message FROM alarm_log ORDER BY id").all().map((e) => e.message);
+  assert.equal(eintraege.length, 3);
+  assert.match(eintraege[0], /verlassen/);
+  assert.match(eintraege[1], /wieder betreten/);
+  assert.match(eintraege[2], /verlassen/);
+});
+
 test("Rückkehr ohne vorher gemeldetes Verlassen (z. B. nach neuem Scharfschalten) wird nicht gemeldet", async () => {
   setzeAnker(52.000, 7.000, 200);
   await anfrage("d1", 52.010, 7.000, 1700000000); // draußen
