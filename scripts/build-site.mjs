@@ -90,7 +90,7 @@ writeFileSync(
   new URL("manifest.webmanifest", out),
   JSON.stringify(
     {
-      name: APP_NAME + " — Explore & Track",
+      name: `${APP_NAME} — Explore & Track`,
       short_name: APP_NAME,
       description: APP_DESC,
       start_url: "/",

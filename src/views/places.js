@@ -92,7 +92,7 @@ export function buildFilterOptions() {
     option("none", "Umkreis: aus"),
     option("center", "ab 📍 Kartenmitte"),
     option("camper", "ab 🚐 Camper"),
-    ...state.places.map((p) => option("p:" + p.id, "ab: " + p.title)),
+    ...state.places.map((p) => option(`p:${p.id}`, `ab: ${p.title}`)),
   ]);
   refSelect.value = Array.from(refSelect.options).some((o) => o.value === previous)
     ? previous
@@ -139,7 +139,7 @@ export function renderCategoryChips() {
     $("#catchips"),
     Object.entries(state.categories).map(([id, cat]) => {
       const chip = el(
-        "button.chip" + (state.filters.cats[id] ? ".active" : ""),
+        `button.chip${state.filters.cats[id] ? ".active" : ""}`,
         {
           dataset: { cat: id },
           on: {

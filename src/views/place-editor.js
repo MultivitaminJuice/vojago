@@ -8,8 +8,6 @@ import { storePlace, dropPlace, weatherLine } from "../store.js";
 import { wirePhotoGallery } from "../ui/photo-gallery.js";
 import { isConfigured } from "../api.js";
 
-const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
-
 /** How far into the trip's route was this visit? Takes the route point nearest
  * in time (if the route is loaded — otherwise it is loaded lazily, see
  * ensureTripPath()) and reads its distance. */
@@ -202,9 +200,9 @@ export function renderCategoryPicker() {
           on: {
             click: () => {
               draft.catId = id;
-              Array.from($("#ef-cats").children).forEach((c) =>
-                c.setAttribute("aria-pressed", String(c.dataset.cat === id)),
-              );
+              Array.from($("#ef-cats").children).forEach((c) => {
+                c.setAttribute("aria-pressed", String(c.dataset.cat === id));
+              });
               drawNights();
             },
           },

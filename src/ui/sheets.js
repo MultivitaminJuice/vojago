@@ -3,8 +3,8 @@
 import { $ } from "../dom.js";
 
 export function createSheet({ id, confirmId, isDirty = () => false, onSave, onClose }) {
-  const sheet = $("#" + id);
-  const bar = confirmId ? $("#" + confirmId) : null;
+  const sheet = $(`#${id}`);
+  const bar = confirmId ? $(`#${confirmId}`) : null;
 
   const close = () => {
     bar?.classList.remove("show");

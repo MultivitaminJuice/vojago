@@ -19,8 +19,8 @@ function zeile(p) {
     <td>${formatZeit(p.at)}</td>
     <td>${escapeHtml(p.device_id)}</td>
     <td><a href="${kartenLink}" target="_blank" rel="noopener">${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</a></td>
-    <td>${p.speed_kmh != null ? p.speed_kmh.toFixed(1) + " km/h" : "—"}</td>
-    <td>${p.altitude != null ? p.altitude.toFixed(0) + " m" : "—"}</td>
+    <td>${p.speed_kmh != null ? `${p.speed_kmh.toFixed(1)} km/h` : "—"}</td>
+    <td>${p.altitude != null ? `${p.altitude.toFixed(0)} m` : "—"}</td>
     <td>${escapeHtml(p.protocol)}</td>
     <td>${formatZeit(p.created_at)}</td>
   </tr>`;

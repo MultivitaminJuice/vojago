@@ -252,11 +252,11 @@ function entferneAutoBesuchWennUnberuehrt(besuch) {
   const ort = db
     .prepare("SELECT title, address, note, rating, category_id FROM orte WHERE id = ?")
     .get(besuch.ort_id);
-  if (!b || b.kind !== "auto" || !ort) return false;
+  if (b?.kind !== "auto" || !ort) return false;
   if (!["uebernachtung", "stopp"].includes(ort.category_id)) return false;
   const titelAutomatisch =
     PLATZHALTER_TITEL.includes(ort.title) || (ort.address && ort.title === ort.address);
-  if (!titelAutomatisch || (ort.note && ort.note.trim()) || ort.rating != null) return false;
+  if (!titelAutomatisch || ort.note?.trim() || ort.rating != null) return false;
   for (const tabelle of ["notes", "photos"]) {
     try {
       if (db.prepare(`SELECT 1 FROM ${tabelle} WHERE besuch_id = ? LIMIT 1`).get(besuch.id))

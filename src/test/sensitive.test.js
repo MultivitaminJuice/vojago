@@ -36,9 +36,10 @@ test("Sperrliste: der Lookbehind lässt anonymisierte (gespiegelte/verschobene) 
 test("allgemeine Regeln: Schlüssel und Tokens werden erkannt", () => {
   const regeln = ALLGEMEINE_REGELN;
   assert.equal(findeTreffer("-----BEGIN " + "PRIVATE KEY-----", regeln).length, 1);
-  assert.equal(findeTreffer("token ghp_" + "a".repeat(30), regeln).length, 1);
-  assert.equal(findeTreffer("VAPID_PRIVATE_KEY=" + "A".repeat(30), regeln).length, 1);
+  assert.equal(findeTreffer(`token ghp_${"a".repeat(30)}`, regeln).length, 1);
+  assert.equal(findeTreffer(`VAPID_PRIVATE_KEY=${"A".repeat(30)}`, regeln).length, 1);
   assert.equal(
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell placeholder, deliberately not a template
     findeTreffer("VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}", regeln).length,
     0,
     "Platzhalter ist kein Geheimnis",

@@ -210,7 +210,7 @@ async function renderSharesList() {
               text: "Kopieren",
               title: "Link erneut in die Zwischenablage kopieren",
               on: {
-                click: async (e) => {
+                click: async (_e) => {
                   const link = `${location.origin}/share/${s.token}`;
                   try {
                     await navigator.clipboard.writeText(link);
@@ -536,34 +536,34 @@ export function initSettings({ onCategoriesChange, onSourceChange }) {
 
   const showTheme = () => {
     const current = validTheme(state.config.theme);
-    $$("#theme-tabs [data-theme-wahl]").forEach((b) =>
-      b.setAttribute("aria-pressed", String(b.dataset.themeWahl === current)),
-    );
+    $$("#theme-tabs [data-theme-wahl]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.themeWahl === current));
+    });
   };
-  $$("#theme-tabs [data-theme-wahl]").forEach((b) =>
+  $$("#theme-tabs [data-theme-wahl]").forEach((b) => {
     b.addEventListener("click", () => {
       state.config.theme = validTheme(b.dataset.themeWahl);
       applyTheme(state.config.theme);
       saveConfig();
       showTheme();
-    }),
-  );
+    });
+  });
   showTheme();
 
   const showMapStyle = () => {
     const current = validMapStyle(state.config.mapStyle);
-    $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) =>
-      b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === current)),
-    );
+    $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.kartenstilWahl === current));
+    });
   };
-  $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) =>
+  $$("#mapstyle-tabs [data-kartenstil-wahl]").forEach((b) => {
     b.addEventListener("click", () => {
       state.config.mapStyle = validMapStyle(b.dataset.kartenstilWahl);
       saveConfig();
       mapview.setMapStyle(state.config.mapStyle);
       showMapStyle();
-    }),
-  );
+    });
+  });
   showMapStyle();
 
   const gapsSwitch = $("#cfg-luecken");
@@ -822,7 +822,7 @@ export function renderVehicles() {
     const deviceSave = el("button.name-save", { text: "✓" });
     const row = el("div.set-row", {}, [
       el(
-        "button.iconbtn" + (index === state.activeVehicle ? ".active" : ""),
+        `button.iconbtn${index === state.activeVehicle ? ".active" : ""}`,
         {
           title: "Aktiv setzen",
           on: {
@@ -985,7 +985,9 @@ export function renderCategories() {
         });
         btn.addEventListener("click", () => {
           newCatColor = color;
-          Array.from(swatches.children).forEach((c) => c.setAttribute("aria-pressed", "false"));
+          Array.from(swatches.children).forEach((c) => {
+            c.setAttribute("aria-pressed", "false");
+          });
           btn.setAttribute("aria-pressed", "true");
         });
         return btn;

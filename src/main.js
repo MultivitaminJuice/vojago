@@ -243,7 +243,9 @@ function go(name) {
   // in den Orte-Editor nicht mehr gemeint — sonst würde ein späteres
   // "Auf Karte zeigen" eines anderen Orts plötzlich hierher zurückführen.
   if (name !== "map") placeRueckkehrKontext = null;
-  tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === name)));
+  tabs.forEach((t) => {
+    t.setAttribute("aria-selected", String(t.dataset.view === name));
+  });
   for (const [key, node] of Object.entries(views)) node.classList.toggle("active", key === name);
   // Jede .view scrollt unabhängig (position:absolute + eigenes overflow-y)
   // und merkt sich ihre Scroll-Position, solange sie nur ausgeblendet statt
@@ -286,7 +288,9 @@ function go(name) {
   }
   if (name === "mehr") showMorePanel("wache");
 }
-tabs.forEach((t) => t.addEventListener("click", () => go(t.dataset.view)));
+tabs.forEach((t) => {
+  t.addEventListener("click", () => go(t.dataset.view));
+});
 
 /** Sperrt einen Tab für die Gast-Ansicht: bleibt an seinem Platz, wirkt aber
  * inaktiv (kein Klick, gedimmt); `ohneBeschriftung` entfernt zusätzlich den
@@ -376,13 +380,13 @@ $("#sheet-back").addEventListener("click", tripSheet.requestClose);
 $("#edit-back").addEventListener("click", editSheet.requestClose);
 $("#note-back").addEventListener("click", noteSheet.requestClose);
 $("#tag-back").addEventListener("click", tagSheet.requestClose);
-$$("[data-share]").forEach((b) =>
+$$("[data-share]").forEach((b) => {
   b.addEventListener("click", () => {
     const t = currentTripId ? trip(currentTripId) : null;
     if (!t) return;
     shareTrip(t, { nights: nightsOf(t.id).length, places: tripPlaces(t.id).length });
-  }),
-);
+  });
+});
 
 function openTripDetail(id) {
   // Gast-Ansicht: keine bearbeitbare Detail-Ansicht, nur auf der Karte
@@ -436,7 +440,7 @@ $(".places-fold")?.addEventListener("toggle", (event) => {
 
 initPlaceEditor({
   onUndoOffer: (msg, restore) => offerUndo(msg, restore),
-  onChange: ({ closed }) => {
+  onChange: () => {
     editSheet.close();
     renderLogbookPlacesIfOpen();
     renderTrips();
@@ -571,9 +575,9 @@ function showMorePanel(name) {
   const aktuell = moreTabs.find((b) => b.getAttribute("aria-pressed") === "true")?.dataset
     .morePanel;
   if (aktuell && aktuell !== name && !mayLeave()) return;
-  moreTabs.forEach((btn) =>
-    btn.setAttribute("aria-pressed", String(btn.dataset.morePanel === name)),
-  );
+  moreTabs.forEach((btn) => {
+    btn.setAttribute("aria-pressed", String(btn.dataset.morePanel === name));
+  });
   morePanels.forEach((panel) => {
     panel.hidden = panel.dataset.morePanel !== name;
   });
@@ -581,9 +585,9 @@ function showMorePanel(name) {
   // sähe man neue Zonen-Ereignisse erst nach einem vollen Neuladen der App.
   if (name === "wache") loadGuard();
 }
-moreTabs.forEach((btn) =>
-  btn.addEventListener("click", () => showMorePanel(btn.dataset.morePanel)),
-);
+moreTabs.forEach((btn) => {
+  btn.addEventListener("click", () => showMorePanel(btn.dataset.morePanel));
+});
 showMorePanel("wache");
 const oeffneEinstellungen = () => {
   go("mehr");
@@ -591,7 +595,7 @@ const oeffneEinstellungen = () => {
 };
 
 const contextButtons = ["trip-context-map", "trip-context-reise", "trip-context-logbuch"]
-  .map((id) => $("#" + id))
+  .map((id) => $(`#${id}`))
   .filter(Boolean);
 const tripPicker = $("#trip-picker");
 const tripPickerList = $("#trip-picker-list");
@@ -911,7 +915,9 @@ $("#map-focus-back")?.addEventListener("click", () => {
   if (ziel) showTripOnMap(ziel);
 });
 
-contextButtons.forEach((button) => button.addEventListener("click", openTripPicker));
+contextButtons.forEach((button) => {
+  button.addEventListener("click", openTripPicker);
+});
 $("#trip-picker-close")?.addEventListener("click", closeTripPicker);
 tripPicker?.addEventListener("click", (e) => {
   if (e.target === tripPicker) closeTripPicker();
@@ -1066,7 +1072,7 @@ for (const [id, key] of [
   ["lc-notes", "notes"],
   ["lc-km", "km"],
 ]) {
-  const sw = $("#" + id);
+  const sw = $(`#${id}`);
   sw.addEventListener("click", () => {
     const on = sw.getAttribute("aria-checked") !== "true";
     sw.setAttribute("aria-checked", String(on));
@@ -1093,7 +1099,7 @@ function renderLayerSwitches() {
     ["lc-notes", "notes"],
     ["lc-km", "km"],
   ]) {
-    const sw = $("#" + id);
+    const sw = $(`#${id}`);
     if (sw) sw.setAttribute("aria-checked", String(Boolean(state.layers[key])));
   }
 }
@@ -1175,7 +1181,7 @@ $("#vehline").addEventListener("click", (e) => {
 
 // N3 — Marke ist die Startseite: aktuelle Reise auf der Karte, ganz eingepasst
 $("#home-btn").addEventListener("click", () => {
-  const ziel = state.activeTripId || (state.trips[0] && state.trips[0].id);
+  const ziel = state.activeTripId || state.trips[0]?.id;
   if (ziel && ziel !== state.mapTripId) showTripOnMap(ziel);
   else mapview.fitTrip();
   go("reise");
@@ -1478,7 +1484,7 @@ $("#gate-eye").addEventListener("click", () => {
 
 $("#gate-submit").addEventListener("click", gateAbsenden);
 for (const feld of ["gate-user", "gate-password", "gate-repeat", "gate-email"]) {
-  $("#" + feld).addEventListener("keydown", (e) => {
+  $(`#${feld}`).addEventListener("keydown", (e) => {
     if (e.key === "Enter") gateAbsenden();
   });
 }
@@ -1554,7 +1560,7 @@ if (resetToken) {
   }
   $("#reset-submit").addEventListener("click", resetAbsenden);
   for (const feld of ["reset-password", "reset-repeat"]) {
-    $("#" + feld).addEventListener("keydown", (e) => {
+    $(`#${feld}`).addEventListener("keydown", (e) => {
       if (e.key === "Enter") resetAbsenden();
     });
   }

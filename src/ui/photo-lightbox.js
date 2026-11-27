@@ -51,7 +51,7 @@ function draw() {
  */
 function fitWidth() {
   if (overlay.hidden || !img.naturalWidth) return;
-  infoBox.style.maxWidth = img.getBoundingClientRect().width + 2 * STAGE_PAD_X + "px";
+  infoBox.style.maxWidth = `${img.getBoundingClientRect().width + 2 * STAGE_PAD_X}px`;
 }
 
 function step(delta) {

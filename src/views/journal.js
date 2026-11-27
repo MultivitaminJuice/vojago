@@ -98,33 +98,10 @@ function cardClick(oeffneEditor, photoMap) {
   return () => showPhotos(tripSlides, photoSlideIndex.get(photoMap[0].id) ?? 0);
 }
 
-function photoStrip(photoMap) {
-  if (!photoMap.length) return null;
-  return el(
-    "div.j-photos",
-    {},
-    photoMap.map((f) =>
-      el("img", {
-        src: imageUrl(f.id),
-        loading: "lazy",
-        alt: "",
-        // Do not also open the place or note — tapping the image should only show it
-        // large, not open anything for editing.
-        on: {
-          click: (e) => {
-            e.stopPropagation();
-            showPhotos(tripSlides, photoSlideIndex.get(f.id) ?? 0);
-          },
-        },
-      }),
-    ),
-  );
-}
-
 let openPlace = () => {};
 let openNote = () => {};
 let openDay = () => {};
-let logFilters = new Set(["night", "place", "note"]);
+const logFilters = new Set(["night", "place", "note"]);
 const trackRequested = new Map();
 
 export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
@@ -162,10 +139,8 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
   });
 }
 
-const dayKey = localDayKey;
-
 const dayLabel = (key) => {
-  const d = new Date(key + "T12:00:00");
+  const d = new Date(`${key}T12:00:00`);
   return Number.isNaN(d.getTime())
     ? "Ohne Datum"
     : d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
@@ -207,17 +182,6 @@ function entriesOf(trip) {
   }
   for (const n of tripNotes(trip.id)) entries.push({ kind: "note", at: n.at || "", data: n });
   return entries.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-}
-
-/** Nach Tagen gruppieren, Reihenfolge bleibt chronologisch. */
-function groupByDay(entries) {
-  const days = new Map();
-  for (const e of entries) {
-    const key = dayKey(e.at);
-    if (!days.has(key)) days.set(key, []);
-    days.get(key).push(e);
-  }
-  return [...days.entries()];
 }
 
 function matchesLogFilter(entry) {
@@ -915,7 +879,9 @@ function layOutDays(container) {
     return;
   }
   const columns = Array.from({ length: n }, () => el("div.jt-spalte"));
-  dayNodes.forEach((day, i) => columns[i % n].append(day));
+  dayNodes.forEach((day, i) => {
+    columns[i % n].append(day);
+  });
   container.append(el("div.jt-spalten", {}, columns));
 }
 

@@ -21,8 +21,8 @@ import { showPhotos } from "./photo-lightbox.js";
  *   commitPending(ref: {noteId?:string,besuchId?:string}): Promise<void>}}
  */
 export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
-  const input = $("#" + inputId);
-  const addBtn = $("#" + addBtnId);
+  const input = $(`#${inputId}`);
+  const addBtn = $(`#${addBtnId}`);
   let ref = null; // { noteId } | { besuchId } | null while not saved
   let photos = [];
   let pending = []; // { localId, blob, url, width, height } — chosen locally, not uploaded yet
@@ -33,7 +33,7 @@ export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
   }
 
   function draw() {
-    const box = $("#" + galleryId);
+    const box = $(`#${galleryId}`);
     if (!box) return;
     const slides = photos.map((p) => ({ url: photoUrl(p.id) }));
     render(box, [
@@ -110,7 +110,7 @@ export function wirePhotoGallery({ galleryId, inputId, addBtnId }) {
       return;
     }
 
-    const box = $("#" + galleryId);
+    const box = $(`#${galleryId}`);
     const placeholder = el("div.photo-thumb.uploading");
     box?.appendChild(placeholder);
     try {

@@ -136,8 +136,7 @@ export const removePhotoFromBlocks = (blocks, id) =>
 export function textSplitPoints(text) {
   const out = [];
   const re = /[ \t]*\n[ \t\n]*/g;
-  let m;
-  while ((m = re.exec(text || ""))) {
+  for (const m of (text || "").matchAll(re)) {
     const from = m.index;
     const to = m.index + m[0].length;
     if (from > 0 && to < text.length) out.push({ from, to });

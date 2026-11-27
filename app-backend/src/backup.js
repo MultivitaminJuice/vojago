@@ -10,7 +10,7 @@ import { gzipSync } from "node:zlib";
 const BLOCK = 512;
 
 function octal(value, length) {
-  return value.toString(8).padStart(length - 1, "0") + "\0";
+  return `${value.toString(8).padStart(length - 1, "0")}\0`;
 }
 
 /** One tar header (ustar). Names longer than 100 bytes use the prefix field. */
@@ -38,7 +38,7 @@ function header(name, size, mtimeSeconds) {
   buf.write(prefix, 345, 155, "utf8");
   let sum = 0;
   for (const byte of buf) sum += byte;
-  buf.write(sum.toString(8).padStart(6, "0") + "\0 ", 148, 8, "ascii");
+  buf.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148, 8, "ascii");
   return buf;
 }
 
@@ -100,7 +100,7 @@ export async function createBackup({ db, photosDir, now = new Date() }) {
     const entries = [
       {
         name: "manifest.json",
-        data: Buffer.from(JSON.stringify(manifest, null, 2) + "\n"),
+        data: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`),
         mtime: now,
       },
       { name: "vojago.db", data: readFileSync(dbKopie), mtime: now },

@@ -71,7 +71,7 @@ export function isHexColor(v) {
 /** Prüft ein optionales, client-vergebenes `id`-Feld beim Anlegen. */
 function validateOptionalId(body, errors, { max = 100 } = {}) {
   if (body && "id" in body && body.id != null && !isValidId(body.id, max)) {
-    errors.push("id ist ungültig (nur Buchstaben, Ziffern, - und _, max. " + max + " Zeichen)");
+    errors.push(`id ist ungültig (nur Buchstaben, Ziffern, - und _, max. ${max} Zeichen)`);
   }
 }
 
@@ -82,7 +82,7 @@ function validateOptionalId(body, errors, { max = 100 } = {}) {
  */
 export function validateOrt(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("lat")) {
     if (!isFiniteNumber(body?.lat) || body.lat < -90 || body.lat > 90)
@@ -116,7 +116,7 @@ export function validateOrt(body, { partial = false } = {}) {
  */
 export function validateBesuch(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("ort_id")) {
     if (!isValidId(body?.ort_id)) errors.push("ort_id fehlt oder ist ungültig");
@@ -185,7 +185,7 @@ export function validateTagebuch(body) {
 
 export function validateNote(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("title")) {
     if (typeof body?.title !== "string" || !body.title.trim()) errors.push("title fehlt");
@@ -223,7 +223,7 @@ export function validateNote(body, { partial = false } = {}) {
 /** Prüft eine neue oder geänderte Reise. */
 export function validateTrip(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
   const isDate = (v) => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
   if (!partial && has("name") && !isText(body.name, 120)) errors.push("name zu lang (max. 120)");
@@ -252,7 +252,7 @@ export function validateTrip(body, { partial = false } = {}) {
 /** Prüft eine neue oder geänderte Kategorie. */
 export function validateCategory(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("name")) {
     if (typeof body?.name !== "string" || !body.name.trim()) errors.push("name fehlt");
@@ -275,7 +275,7 @@ export function validateCategory(body, { partial = false } = {}) {
 /** Prüft ein neues oder geändertes Fahrzeug. */
 export function validateVehicle(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("name")) {
     if (typeof body?.name !== "string" || !body.name.trim()) errors.push("name fehlt");

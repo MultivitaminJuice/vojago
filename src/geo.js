@@ -129,7 +129,7 @@ export function pointAtKm(path, km) {
 /** A sensible spacing for kilometre markers (about seven of them). */
 export function kmMarkerStep(total) {
   const raw = total / 7;
-  const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+  const p = 10 ** Math.floor(Math.log10(Math.max(raw, 1)));
   const n = raw / p;
   return Math.max(10, (n >= 5 ? 5 : n >= 2 ? 2 : 1) * p);
 }

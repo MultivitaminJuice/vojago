@@ -591,9 +591,9 @@ function renderRangeFocusBack() {
 }
 
 function renderSegments() {
-  $$("#view-reise .segment-tabs button[data-trip-mode]").forEach((b) =>
-    b.setAttribute("aria-pressed", String(b.dataset.tripMode === tripMode)),
-  );
+  $$("#view-reise .segment-tabs button[data-trip-mode]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.tripMode === tripMode));
+  });
   renderRouteFilterControls();
   const wrap = $("#trip-segment");
   const summaryWrap = $("#route-summary-panel");
@@ -779,7 +779,7 @@ async function entferneFahrtAusReise() {
   }
 }
 
-async function setFocusedDriveKind(kind, knopf) {
+async function setFocusedDriveKind(kind, _knopf) {
   if (routeFocus?.type !== "fahrt" || !routeFocus.drives?.length) return;
   if (kind === "entfernen") {
     entferneFahrtAusReise();
@@ -994,7 +994,7 @@ function kmBalken(t) {
   const proz = (v) => `${(v / max) * 100}%`;
   const balken = t.bars.map((v, i) => {
     const knopf = el(
-      "button.b" + (t.live && i === t.bars.length - 1 ? ".hl" : ""),
+      `button.b${t.live && i === t.bars.length - 1 ? ".hl" : ""}`,
       {
         type: "button",
         "aria-pressed": "false",

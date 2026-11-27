@@ -225,7 +225,7 @@ test("eine länger werdende Übernachtung (zweiter Durchlauf, spätere Abreise) 
     { at: erstesEnde.getTime(), lat: 51.9001, lon: 6.0001, speed: 1 },
   ]);
   await fuehreAutoImportAus(KEIN_NETZ);
-  let besuch = besucheMitKategorie("uebernachtung")[0];
+  const besuch = besucheMitKategorie("uebernachtung")[0];
   assert.equal(besuch.nights, 1);
 
   // Tatsächlich noch eine weitere Nacht geblieben — derselbe stop_key

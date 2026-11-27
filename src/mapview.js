@@ -226,7 +226,7 @@ export function setGaps(on) {
 
 /** Switch terrain shading on or off (layer menu). */
 export function setTerrain(on) {
-  if (!map || !map.getLayer("hillshade")) return;
+  if (!map?.getLayer("hillshade")) return;
   map.setLayoutProperty("hillshade", "visibility", on ? "visible" : "none");
 }
 
@@ -511,7 +511,7 @@ function circlePolygon(lat, lon, radiusM, steps = 64) {
 }
 
 function applyGuardZone() {
-  if (!map || !map.isStyleLoaded()) return;
+  if (!map?.isStyleLoaded()) return;
   const data = guardZone
     ? circlePolygon(guardZone.lat, guardZone.lon, guardZone.radiusM)
     : { type: "FeatureCollection", features: [] };
@@ -590,7 +590,7 @@ function drawNow(options = {}) {
   const t = mapTrip();
   // No trip (or no route for it yet)? Then the map simply shows where the vehicle
   // is — the most useful view without a trip.
-  if (!t || !t.path?.length) {
+  if (!t?.path?.length) {
     drawLiveOnly({ fit });
     return;
   }
@@ -656,7 +656,9 @@ function drawLiveOnly({ fit = false } = {}) {
   map.getSource("route-repeated")?.setData({ type: "FeatureCollection", features: [] });
   map.getSource("route-gaps")?.setData({ type: "FeatureCollection", features: [] });
   tipGaps = [];
-  markers.forEach((m) => m.remove());
+  markers.forEach((m) => {
+    m.remove();
+  });
   markers = [];
 
   const box = $("#legend");
@@ -724,7 +726,7 @@ function gradientFor(path, metric, ctx) {
   const segStart = path[0]?.cum ?? 0;
   const segSpan = Math.max((path[path.length - 1]?.cum ?? 0) - segStart, 1e-6);
   let lastProgress = -1;
-  const add = (p, index, forcedProgress = null) => {
+  const add = (p, _index, forcedProgress = null) => {
     const raw = forcedProgress ?? (p.cum - segStart) / segSpan;
     const progress = Math.min(1, Math.max(0, raw));
     if (progress <= lastProgress && progress < 1) return;
@@ -747,7 +749,9 @@ function marker(node, lon, lat) {
 }
 
 function drawMarkers(t, totalKm, visiblePath = t.path) {
-  markers.forEach((m) => m.remove());
+  markers.forEach((m) => {
+    m.remove();
+  });
   markers = [];
   const realTrip = state.trips.some((trip) => trip.id === t?.id);
   const routeFilter = realTrip ? state.routeDriveFilter : "alle";
@@ -866,7 +870,7 @@ function drawLegend(legend) {
 export function fitTrip() {
   const t = mapTrip();
   if (!ready) return;
-  if (!t || !t.path?.length) {
+  if (!t?.path?.length) {
     drawLiveOnly({ fit: true });
     return;
   }

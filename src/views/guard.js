@@ -36,7 +36,7 @@ const MAX_POSITION_AGE_ARMING_MS = 10 * 60_000;
 
 const displayTime = (sqliteDate) => {
   if (!sqliteDate) return "";
-  const d = new Date(sqliteDate.replace(" ", "T") + "Z");
+  const d = new Date(`${sqliteDate.replace(" ", "T")}Z`);
   if (Number.isNaN(d.getTime())) return sqliteDate;
   return d.toLocaleString("de-DE", {
     day: "2-digit",

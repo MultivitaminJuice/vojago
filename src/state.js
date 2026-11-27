@@ -252,7 +252,7 @@ export const nightsOf = (tripId) =>
  * earlier stay is added or one is deleted, without renumbering anything.
  */
 export function nightNumber(place) {
-  if (!place || place.catId !== "uebernachtung") return null;
+  if (place?.catId !== "uebernachtung") return null;
   const order = nightsOf(place.tripId);
   const index = order.findIndex((p) => p.id === place.id);
   return index >= 0 ? index + 1 : null;
@@ -319,7 +319,7 @@ export function endTrip() {
   const t = activeTrip();
   if (!t) return;
   t.live = false;
-  t.dates = t.dates.replace(/^seit /, "").replace(/ · unterwegs$/, "") + " (beendet)";
+  t.dates = `${t.dates.replace(/^seit /, "").replace(/ · unterwegs$/, "")} (beendet)`;
   state.activeTripId = null;
   emit("trips");
 }
@@ -361,8 +361,7 @@ export function deleteTrip(id) {
   const i = state.trips.findIndex((t) => t.id === id);
   if (i >= 0) state.trips.splice(i, 1);
   for (const p of state.places) if (p.tripId === id) p.tripId = null;
-  if (state.mapTripId === id)
-    state.mapTripId = state.activeTripId || (state.trips[0] && state.trips[0].id) || null;
+  if (state.mapTripId === id) state.mapTripId = state.activeTripId || state.trips[0]?.id || null;
   emit("trips");
 }
 

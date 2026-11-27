@@ -779,7 +779,7 @@ export async function loadDrives({ days = 30, from = null, to = null, silent = f
         const to = t.endTime || t.end_time || t.to || t.end || null;
         const key = driveKey(t.deviceId, from);
         const tripByTime = tripOverlapping(from, to);
-        const assignedByHand = Object.prototype.hasOwnProperty.call(state.driveAssignments, key);
+        const assignedByHand = Object.hasOwn(state.driveAssignments, key);
         const startLat = Number(t.startLat ?? t.startLatitude);
         const startLon = Number(t.startLon ?? t.startLongitude);
         return [
@@ -1116,7 +1116,7 @@ export async function loadData() {
     if (vehicles?.length) {
       state.vehicles = vehicles.map(toVehicle);
       const activeIndex = vehicles.findIndex((v) => v.active);
-      state.activeVehicle = activeIndex >= 0 ? activeIndex : 0;
+      state.activeVehicle = Math.max(activeIndex, 0);
       state.config.device = state.vehicles[state.activeVehicle]?.device || "";
       saveConfig();
     }

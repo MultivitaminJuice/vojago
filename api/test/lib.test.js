@@ -204,7 +204,7 @@ test("Sitzung: Schlüssel ist zufällig, in der Ablage steht nur der Abdruck", a
 test("Cookie: gesetzt mit Schutzmerkmalen, gelöscht mit Ablauf null", () => {
   const gesetzt = sessionCookie("abc");
   for (const merkmal of ["HttpOnly", "Secure", "SameSite=Lax", "Path=/"]) {
-    assert.ok(gesetzt.includes(merkmal), merkmal + " fehlt");
+    assert.ok(gesetzt.includes(merkmal), `${merkmal} fehlt`);
   }
   assert.ok(clearedSessionCookie().includes("Max-Age=0"));
 });

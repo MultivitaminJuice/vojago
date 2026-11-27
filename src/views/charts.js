@@ -26,7 +26,7 @@ export function miniRoute(trip, w, h) {
   const X = (lon) => ox + (lon - b.minLon) * scale;
   const Y = (lat) => oy + (b.maxLat - lat) * scale; // north up
 
-  const d = "M" + path.map((p) => `${X(p.lon).toFixed(1)},${Y(p.lat).toFixed(1)}`).join(" L");
+  const d = `M${path.map((p) => `${X(p.lon).toFixed(1)},${Y(p.lat).toFixed(1)}`).join(" L")}`;
   svg.appendChild(
     svgEl("path", {
       d,
@@ -94,7 +94,7 @@ export function downsample(values, n) {
   return out;
 }
 
-function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format }) {
+function profileChart(path, w, h, { valueOf: valueAt, rangeMode = "minmax", color, format }) {
   // The curve is stretched to the card width (preserveAspectRatio "none"), so
   // everything with text or a round shape lies on top as plain HTML — inside the
   // stretched SVG, label, dot and value chip were distorted (seen 15 October 2026).
@@ -113,7 +113,7 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
 
   // Scale and label come from the REAL values (highest and lowest stay true);
   // a downsampled series is drawn.
-  const values = path.map(valueOf);
+  const values = path.map(valueAt);
   let min, max;
   if (rangeMode === "zero") {
     min = 0;
@@ -141,7 +141,7 @@ function profileChart(path, w, h, { valueOf, rangeMode = "minmax", color, format
     v,
   }));
 
-  const d = "M" + pts.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" L");
+  const d = `M${pts.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" L")}`;
   svg.appendChild(
     svgEl("path", {
       d: `${d} L${w - pad},${h - pad} L${pad},${h - pad} Z`,

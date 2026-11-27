@@ -63,8 +63,8 @@ export function icon(paths, size = 16) {
   svg.setAttribute("stroke-width", "2");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
-  svg.style.width = size + "px";
-  svg.style.height = size + "px";
+  svg.style.width = `${size}px`;
+  svg.style.height = `${size}px`;
   svg.innerHTML = paths; // constant icon paths from icons.js
   return svg;
 }
