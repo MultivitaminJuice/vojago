@@ -1,14 +1,14 @@
-// Reisetagebuch: die Reise als Folge von Tagen (Kapiteln), durchgehend zu
-// scrollen. Jeder Tag hat einen Kopf, eine Gedankenstütze (Route, Wetter,
-// Verlauf), Stellplatz-Karten, eigene Stationen und Notizen. Technische
-// Angaben stehen eine Ebene tiefer unter "Details".
+// Travel logbook: the trip as a sequence of days (chapters), scrolling
+// continuously. Every day has a heading, a reminder (route, weather, timeline),
+// place cards, its own stops and notes. Technical details sit one level deeper
+// under "Details". UI texts and CSS classes (jt-*) stay German.
 import { el, render, icon, toast, $, $$ } from "../dom.js";
 import { ICON } from "../icons.js";
 import { state, journalTrip, tripPlaces, tripNotes, placePhotos, notePhotos, category, isRangeTrip, diaryPhotos } from "../state.js";
 import { localDayKey, shiftIsoByLocalDays, tripStartIso } from "../day-utils.js";
 import { storePlace, weatherLine } from "../store.js";
 import { ensureTripPath } from "../dataload.js";
-import { tageDerReise } from "../journal-days.js";
+import { tripDays } from "../journal-days.js";
 import { mapView, tileUrl, routePath } from "../mini-map.js";
 import { CARTO_KEY, tileUrl as tileTemplate, validMapStyle } from "../map-style.js";
 import { withoutPhoto, coverPhotoId, withUnplacedPhotos } from "../diary.js";
@@ -17,14 +17,13 @@ import { showPhotos } from "../ui/photo-lightbox.js";
 
 const SOURCE_LABEL = { camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" };
 
-/** Bild-URL, angemeldet oder als Gast — der Gast-Endpunkt braucht den
- * Freigabe-Token, der Eigentümer-Endpunkt die normale Sitzung. */
-const bildUrl = (id) => (state.guest ? sharePhotoUrl(state.guest.token, id) : photoUrl(id));
+/** Image URL, signed in or as a guest — the guest endpoint needs the sharing
+ * token, the owner endpoint the normal session. */
+const imageUrl = (id) => (state.guest ? sharePhotoUrl(state.guest.token, id) : photoUrl(id));
 
-// Eine Reihe pro renderJournal()-Aufruf: alle sichtbaren Fotos der Reise
-// (unter Berücksichtigung des aktuellen Filters), chronologisch — damit
-// Vor/Zurück in der Lightbox auch über eine Notiz/einen Ort hinaus zur
-// nächsten weiterblättert, nicht nur innerhalb einer Karte.
+// One series per renderJournal() call: all visible photos of the trip (taking
+// the current filter into account), in time order — so previous/next in the
+// lightbox pages on past a note or place, not only within one card.
 let tripSlides = [];
 let photoSlideIndex = new Map();
 
@@ -33,11 +32,11 @@ const dateTimeLabel = (iso) => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 };
 
-/** Baut dieselbe Kopf-/Text-/Badge-Struktur wie die echte Logbuch-Karte
- * (.j-head/.j-attrs/.j-cat/.j-foot/.mbadge) — die Infokarte über dem Foto
- * soll aussehen wie ein Ausschnitt aus dem Logbuch, nicht wie ein eigener Stil. */
+/** Builds the same heading/text/badge structure as the real logbook card
+ * (.j-head/.j-attrs/.j-cat/.j-foot/.mbadge) — the info card above the photo
+ * should look like a piece of the logbook, not like a style of its own. */
 const noteCaption = (note) => {
-  const ort = note.besuchId ? state.places.find((p) => p.id === note.besuchId) : null;
+  const linkedPlace = note.besuchId ? state.places.find((p) => p.id === note.besuchId) : null;
   return el("div", {}, [
     el("div.j-head", {}, [
       el("b", { text: noteTitle(note) }),
@@ -47,59 +46,59 @@ const noteCaption = (note) => {
     el("div.j-foot", {}, [
       dateTimeLabel(note.at) ? el("span.mbadge", { text: dateTimeLabel(note.at) }) : null,
       weatherLine(note.weather) ? el("span.mbadge", { text: weatherLine(note.weather) }) : null,
-      ort ? el("span.mbadge", { text: `bei: ${ort.title}` }) : null,
+      linkedPlace ? el("span.mbadge", { text: `bei: ${linkedPlace.title}` }) : null,
     ]),
   ]);
 };
 const placeCaption = (place) => {
-  const kat = place.catId === "uebernachtung"
+  const catLabel = place.catId === "uebernachtung"
     ? `Übernachtung${place.nights > 1 ? ` (${place.nights} Nächte)` : ""}`
     : (category(place.catId)?.name || "Ort");
-  const sterne = place.stars ? "★".repeat(place.stars) + "☆".repeat(5 - place.stars) : "";
+  const starText = place.stars ? "★".repeat(place.stars) + "☆".repeat(5 - place.stars) : "";
   return el("div", {}, [
     el("div.j-head", {}, [
       el("b", { text: place.title }),
-      el("span.j-attrs", {}, [el("span.j-cat", { text: kat })]),
+      el("span.j-attrs", {}, [el("span.j-cat", { text: catLabel })]),
     ]),
     place.note ? el("p", { text: place.note }) : null,
     el("div.j-foot", {}, [
       dateTimeLabel(place.at) ? el("span.mbadge", { text: dateTimeLabel(place.at) }) : null,
-      sterne ? el("span.mbadge", { text: sterne, style: { color: "var(--accent)" } }) : null,
+      starText ? el("span.mbadge", { text: starText, style: { color: "var(--accent)" } }) : null,
       weatherLine(place.weather) ? el("span.mbadge", { text: weatherLine(place.weather) }) : null,
       SOURCE_LABEL[place.source] ? el("span.mbadge", { text: SOURCE_LABEL[place.source] }) : null,
     ]),
   ]);
 };
 
-/** Klick auf die ganze Karte: Eigentümer kommen in den Editor, Gäste haben
- * dort nichts zu bearbeiten (der Klick tat bisher schlicht nichts) — für sie
- * öffnet er stattdessen, falls vorhanden, gleich das erste Foto groß. */
-function kartenKlick(oeffneEditor, fotos) {
+/** A tap on the whole card: owners get the editor; guests have nothing to edit
+ * there (the tap used to do nothing) — for them it opens the first photo large,
+ * if there is one. */
+function cardClick(oeffneEditor, photoMap) {
   if (!state.guest) return oeffneEditor;
-  if (!fotos.length) return () => {};
-  return () => showPhotos(tripSlides, photoSlideIndex.get(fotos[0].id) ?? 0);
+  if (!photoMap.length) return () => {};
+  return () => showPhotos(tripSlides, photoSlideIndex.get(photoMap[0].id) ?? 0);
 }
 
-function fotoStreifen(fotos) {
-  if (!fotos.length) return null;
-  return el("div.j-photos", {}, fotos.map((f) => el("img", {
-    src: bildUrl(f.id), loading: "lazy", alt: "",
-    // Nicht auch noch den Ort/die Notiz öffnen — das Bild antippen soll nur
-    // groß zeigen, nichts zum Bearbeiten aufmachen.
+function photoStrip(photoMap) {
+  if (!photoMap.length) return null;
+  return el("div.j-photos", {}, photoMap.map((f) => el("img", {
+    src: imageUrl(f.id), loading: "lazy", alt: "",
+    // Do not also open the place or note — tapping the image should only show it
+    // large, not open anything for editing.
     on: { click: (e) => { e.stopPropagation(); showPhotos(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
   })));
 }
 
 let openPlace = () => {};
 let openNote = () => {};
-let openTag = () => {};
+let openDay = () => {};
 let logFilters = new Set(["night", "place", "note"]);
-const spurAnfrage = new Map();
+const trackRequested = new Map();
 
 export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
   openPlace = onPlaceClick;
   openNote = onNoteClick;
-  openTag = onTagClick || (() => {});
+  openDay = onTagClick || (() => {});
 
   $$("#log-menue [data-log-filter]").forEach((sw) => {
     sw.addEventListener("click", () => {
@@ -111,19 +110,19 @@ export function initJournal({ onPlaceClick, onNoteClick, onTagClick }) {
     });
   });
 
-  // Das "⋯"-Menü: Hinzufügen und Anzeige-Schalter in einer zweiten Ebene.
-  const knopf = $("#log-mehr-btn");
-  const menue = $("#log-menue");
-  const schliessen = () => { menue?.classList.remove("open"); knopf?.setAttribute("aria-expanded", "false"); };
-  knopf?.addEventListener("click", (e) => {
+  // The "⋯" menu: adding and display switches on a second level.
+  const button = $("#log-mehr-btn");
+  const menu = $("#log-menue");
+  const close = () => { menu?.classList.remove("open"); button?.setAttribute("aria-expanded", "false"); };
+  button?.addEventListener("click", (e) => {
     e.stopPropagation();
-    const offen = !menue.classList.contains("open");
-    menue.classList.toggle("open", offen);
-    knopf.setAttribute("aria-expanded", String(offen));
+    const openSet = !menu.classList.contains("open");
+    menu.classList.toggle("open", openSet);
+    button.setAttribute("aria-expanded", String(openSet));
   });
-  menue?.querySelector("#log-add")?.addEventListener("click", schliessen);
+  menu?.querySelector("#log-add")?.addEventListener("click", close);
   document.addEventListener("click", (e) => {
-    if (menue?.classList.contains("open") && !menue.contains(e.target) && !knopf.contains(e.target)) schliessen();
+    if (menu?.classList.contains("open") && !menu.contains(e.target) && !button.contains(e.target)) close();
   });
 }
 
@@ -148,7 +147,7 @@ const noteTitle = (note) => {
   return text ? (text.length > 48 ? `${text.slice(0, 47).trim()}…` : text) : "Notiz";
 };
 
-/** Alle Einträge einer Reise als flache, chronologische Liste. */
+/** All entries of a trip as a flat list in time order. */
 function entriesOf(trip) {
   const entries = [];
   for (const p of tripPlaces(trip.id)) {
@@ -206,156 +205,156 @@ const svgEl = (name, attrs = {}) => {
   return node;
 };
 
-const QUELLE = { camper: "Camper", handy: "Handy", manuell: "von Hand" };
+const ATTRIBUTION = { camper: "Camper", handy: "Handy", manuell: "von Hand" };
 const kmText = (km) => km.toLocaleString("de-DE", { maximumFractionDigits: km < 100 ? 1 : 0 });
 
-/** Eintrag zählt als eigene Station (nicht nur als Zeile im Verlauf), wenn man etwas dazugeschrieben hat. */
-const istStation = (place) => Boolean(place.note) || placePhotos(place.id).length > 0 || place.stars > 0 || place.catId !== "stopp";
+/** An entry counts as its own stop (not only a line in the timeline) when something was written about it. */
+const isStation = (place) => Boolean(place.note) || placePhotos(place.id).length > 0 || place.stars > 0 || place.catId !== "stopp";
 
-/** Fotos der Lightbox-Reihe hinzufügen (in Anzeigereihenfolge) und die Collage bauen. */
-function fotoCollage(fotos, info) {
-  if (!fotos.length) return null;
-  for (const f of fotos) {
+/** Add photos to the lightbox series (in display order) and build the collage. */
+function photoCollage(photoMap, info) {
+  if (!photoMap.length) return null;
+  for (const f of photoMap) {
     photoSlideIndex.set(f.id, tripSlides.length);
-    tripSlides.push({ url: bildUrl(f.id), info });
+    tripSlides.push({ url: imageUrl(f.id), info });
   }
-  const zeigen = fotos.slice(0, 3);
-  const bild = (f) => el("img", {
-    src: bildUrl(f.id), loading: "lazy", alt: "",
+  const show = photoMap.slice(0, 3);
+  const image = (f) => el("img", {
+    src: imageUrl(f.id), loading: "lazy", alt: "",
     on: { click: (e) => { e.stopPropagation(); showPhotos(tripSlides, photoSlideIndex.get(f.id) ?? 0); } },
   });
-  const mehr = fotos.length - zeigen.length;
-  return el(`div.jt-fotos.jt-fotos-${zeigen.length}`, {}, [
-    ...zeigen.map(bild),
-    mehr > 0 ? el("span.jt-mehr", { text: `+${mehr}` }) : null,
+  const moreButton = photoMap.length - show.length;
+  return el(`div.jt-fotos.jt-fotos-${show.length}`, {}, [
+    ...show.map(image),
+    moreButton > 0 ? el("span.jt-mehr", { text: `+${moreButton}` }) : null,
   ]);
 }
 
-const KARTE_B = 340, KARTE_H = 150;
+const MAP_W = 340, MAP_H = 150;
 
-/** Mini-Karte des Tages: echte Kartenkacheln (Wasser, Wald, Straßen, Ortsnamen) mit der Route darüber. */
-function kartenbild(tag) {
-  const ansicht = mapView(tag.punkte, KARTE_B, KARTE_H);
-  if (!ansicht) return null;
-  const vorlage = tileTemplate(validMapStyle(state.config.mapStyle), CARTO_KEY);
-  const svg = svgEl("svg", { viewBox: `0 0 ${KARTE_B} ${KARTE_H}`, width: KARTE_B, height: KARTE_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
-  const d = routePath(tag.punkte, ansicht.project);
-  // Dunkler Rand unter der Linie, damit sie auf hellem wie dunklem Grund lesbar bleibt.
+/** The day's mini map: real map tiles (water, woods, roads, place names) with the route on top. */
+function mapImage(day) {
+  const view = mapView(day.points, MAP_W, MAP_H);
+  if (!view) return null;
+  const template = tileTemplate(validMapStyle(state.config.mapStyle), CARTO_KEY);
+  const svg = svgEl("svg", { viewBox: `0 0 ${MAP_W} ${MAP_H}`, width: MAP_W, height: MAP_H, class: "jt-route", role: "img", "aria-label": "Route des Tages" });
+  const d = routePath(day.points, view.project);
+  // A dark edge under the line, so it stays readable on light and dark ground.
   svg.appendChild(svgEl("path", { d, fill: "none", stroke: "rgba(8,20,22,.55)", "stroke-width": 6, "stroke-linecap": "round", "stroke-linejoin": "round" }));
   svg.appendChild(svgEl("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 3.2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-  const punkt = (lon, lat, r, fuell) => {
-    const q = ansicht.project(lon, lat);
-    svg.appendChild(svgEl("circle", { cx: q.x.toFixed(1), cy: q.y.toFixed(1), r, fill: fuell, stroke: "rgba(8,20,22,.7)", "stroke-width": 1.5 }));
+  const dot = (lon, lat, r, fill) => {
+    const q = view.project(lon, lat);
+    svg.appendChild(svgEl("circle", { cx: q.x.toFixed(1), cy: q.y.toFixed(1), r, fill: fill, stroke: "rgba(8,20,22,.7)", "stroke-width": 1.5 }));
   };
-  for (const e of tag.eintraege) {
-    if (e.kind === "place" && e.data.catId !== "uebernachtung" && Number.isFinite(e.data.lon)) punkt(e.data.lon, e.data.lat, 3.5, "#c9d6d2");
+  for (const e of day.entries) {
+    if (e.kind === "place" && e.data.catId !== "uebernachtung" && Number.isFinite(e.data.lon)) dot(e.data.lon, e.data.lat, 3.5, "#c9d6d2");
   }
-  const erster = tag.punkte[0], letzter = tag.punkte[tag.punkte.length - 1];
-  punkt(erster.lon, erster.lat, 5, "#fff");
-  punkt(letzter.lon, letzter.lat, 5, "var(--accent)");
+  const first = day.points[0], letzter = day.points[day.points.length - 1];
+  dot(first.lon, first.lat, 5, "#fff");
+  dot(letzter.lon, letzter.lat, 5, "var(--accent)");
 
-  const buehne = el("div.jt-buehne", { style: { width: `${KARTE_B}px`, height: `${KARTE_H}px` } }, [
-    ...ansicht.tiles.map((k) => el(`img.jt-kachel${validMapStyle(state.config.mapStyle) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
-      src: tileUrl(vorlage, k), alt: "", loading: "lazy", draggable: "false",
+  const stage = el("div.jt-buehne", { style: { width: `${MAP_W}px`, height: `${MAP_H}px` } }, [
+    ...view.tiles.map((k) => el(`img.jt-kachel${validMapStyle(state.config.mapStyle) === "dezent" ? ".jt-kachel-dezent" : ""}`, {
+      src: tileUrl(template, k), alt: "", loading: "lazy", draggable: "false",
       style: { left: `${k.left.toFixed(1)}px`, top: `${k.top.toFixed(1)}px` },
     })),
     svg,
   ]);
-  const box = el("div.jt-kartenbild", {}, [buehne, el("span.jt-quelle", { text: "© OpenStreetMap · © CARTO" })]);
-  // Die Bühne hat feste Maße (Kacheln sind Pixel); auf die tatsächliche Kartenbreite skalieren.
+  const box = el("div.jt-kartenbild", {}, [stage, el("span.jt-quelle", { text: "© OpenStreetMap · © CARTO" })]);
+  // The stage has fixed dimensions (tiles are pixels); scaled to the actual map width.
   if (typeof ResizeObserver === "function") {
-    new ResizeObserver(() => { buehne.style.transform = `scale(${box.clientWidth / KARTE_B})`; }).observe(box);
+    new ResizeObserver(() => { stage.style.transform = `scale(${box.clientWidth / MAP_W})`; }).observe(box);
   }
   return box;
 }
 
-/** Verlauf des Tages: Start, Stopps, Übernachtung. Ohne Erzählung offen, sonst eine graue Zeile. */
-function verlaufBlock(tag, offen, km = 0) {
-  if (!tag.verlauf.length) return null;
-  const stopps = tag.verlauf.filter((v) => v.art === "stopp").length;
-  const kopf = [stopps ? `Unterwegs · ${stopps} ${stopps === 1 ? "Stopp" : "Stopps"}` : "Verlauf", km ? `${kmText(km)} km` : ""].filter(Boolean).join(" · ");
-  const zeile = (v) => el("div.jt-vz", {}, [
-    el("span.jt-zeit", { text: timeLabel(v.zeit) }),
-    el(`span.jt-vi${v.art === "nacht" ? ".jt-nacht" : ""}`, {}, icon(v.art === "nacht" ? ICON.moon : v.art === "start" ? ICON.play : ICON.pin, 14)),
-    el("span", { text: v.art === "start" ? (v.titel ? `Los in ${v.titel}` : "Losgefahren") : v.titel }),
+/** The day's timeline: start, stops, overnight stay. Open without a story, otherwise a grey line. */
+function timelineBlock(day, openSet, km = 0) {
+  if (!day.timeline.length) return null;
+  const stopCount = day.timeline.filter((v) => v.kind === "stop").length;
+  const heading = [stopCount ? `Unterwegs · ${stopCount} ${stopCount === 1 ? "Stopp" : "Stopps"}` : "Verlauf", km ? `${kmText(km)} km` : ""].filter(Boolean).join(" · ");
+  const line = (v) => el("div.jt-vz", {}, [
+    el("span.jt-zeit", { text: timeLabel(v.time) }),
+    el(`span.jt-vi${v.kind === "night" ? ".jt-nacht" : ""}`, {}, icon(v.kind === "night" ? ICON.moon : v.kind === "start" ? ICON.play : ICON.pin, 14)),
+    el("span", { text: v.kind === "start" ? (v.title ? `Los in ${v.title}` : "Losgefahren") : v.title }),
   ]);
-  return el("details.jt-verlauf", { open: offen }, [el("summary", { text: kopf }), el("div.jt-vliste", {}, tag.verlauf.map(zeile))]);
+  return el("details.jt-verlauf", { open: openSet }, [el("summary", { text: heading }), el("div.jt-vliste", {}, day.timeline.map(line))]);
 }
 
-// Standardmäßig sind Strecke (außer an Tagen ohne Eintrag) und Stellplatz-/Orts-Karten zu; was man umstellt, merkt sich das Gerät.
-const KARTE_OFFEN_KEY = "vojago.logbuch.karteOffen";
-const KARTE_ZU_KEY = "vojago.logbuch.karteGeschlossen";
-const PLATZ_OFFEN_KEY = "vojago.logbuch.platzOffen";
-const ladeOffen = (key = KARTE_OFFEN_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
-const speichereOffen = (menge, key = KARTE_OFFEN_KEY) => { try { localStorage.setItem(key, JSON.stringify([...menge].slice(-600))); } catch { /* Speicher blockiert */ } };
+// By default the route (except on days without an entry) and the place cards are closed; what you change is remembered on the device.
+const ROUTE_OPEN_KEY = "vojago.logbuch.karteOffen";
+const ROUTE_CLOSED_KEY = "vojago.logbuch.karteGeschlossen";
+const PLACE_OPEN_KEY = "vojago.logbuch.platzOffen";
+const loadOpenSet = (key = ROUTE_OPEN_KEY) => { try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); } };
+const saveOpenSet = (ids, key = ROUTE_OPEN_KEY) => { try { localStorage.setItem(key, JSON.stringify([...ids].slice(-600))); } catch { /* Speicher blockiert */ } };
 
 /**
- * Strecke des Tages: Karte, Wetter, Kilometer und Verlauf. Bleibt auch bei einem
- * erzählten Tag stehen, lässt sich aber einklappen (der Zustand wird je Tag gemerkt).
+ * The day's route: map, weather, kilometres and timeline. It stays on a told
+ * day too but can be collapsed (the state is remembered per day).
  */
-function gedankenstuetze(tag, hatErzaehlung, zeile, tripId, ohneEintrag) {
-  const zeichnung = kartenbild(tag);
-  const wetter = tag.wetter;
-  const verlauf = verlaufBlock(tag, !hatErzaehlung);
-  const info = Boolean(wetter || zeile);
-  if (!zeichnung && !info && !verlauf) return null;
-  const kurz = [wetter ? [wetter.symbol, wetter.temp].filter(Boolean).join(" ") : "", tag.km ? `${kmText(tag.km)} km` : ""].filter(Boolean).join(" · ");
-  const schluessel = `${tripId}|${tag.key}`;
-  const karte = el("details.jt-karte", { open: ladeOffen().has(schluessel) || (ohneEintrag && !ladeOffen(KARTE_ZU_KEY).has(schluessel)) }, [
+function routeCard(day, hasStory, line, tripId, withoutEntry) {
+  const drawing = mapImage(day);
+  const weather = day.weather;
+  const timeline = timelineBlock(day, !hasStory);
+  const info = Boolean(weather || line);
+  if (!drawing && !info && !timeline) return null;
+  const summary = [weather ? [weather.symbol, weather.temp].filter(Boolean).join(" ") : "", day.km ? `${kmText(day.km)} km` : ""].filter(Boolean).join(" · ");
+  const storageKey = `${tripId}|${day.key}`;
+  const card = el("details.jt-karte", { open: loadOpenSet().has(storageKey) || (withoutEntry && !loadOpenSet(ROUTE_CLOSED_KEY).has(storageKey)) }, [
     el("summary.jt-karte-kopf", {}, [
-      el("span", { text: zeichnung ? "Strecke" : "Verlauf" }),
-      kurz ? el("span.jt-leise.jt-karte-kurz", { text: kurz }) : null,
+      el("span", { text: drawing ? "Strecke" : "Verlauf" }),
+      summary ? el("span.jt-leise.jt-karte-kurz", { text: summary }) : null,
     ]),
-    zeichnung,
+    drawing,
     info ? el("div.jt-wetter", {}, [
-      wetter ? el("span", { text: [wetter.symbol, wetter.temp].filter(Boolean).join(" ") }) : null,
-      wetter?.text ? el("span.jt-leise", { text: wetter.text }) : null,
-      zeile ? el("span.jt-leise.jt-strecke", { text: zeile }) : null,
+      weather ? el("span", { text: [weather.symbol, weather.temp].filter(Boolean).join(" ") }) : null,
+      weather?.text ? el("span.jt-leise", { text: weather.text }) : null,
+      line ? el("span.jt-leise.jt-strecke", { text: line }) : null,
     ]) : null,
-    verlauf,
+    timeline,
   ]);
-  karte.addEventListener("toggle", () => {
-    // Ohne Eintrag ist die Strecke von selbst offen — dann merken wir auch, was zugeklappt wurde.
-    const offen = ladeOffen();
-    const zu = ladeOffen(KARTE_ZU_KEY);
-    if (karte.open) { offen.add(schluessel); zu.delete(schluessel); } else { offen.delete(schluessel); zu.add(schluessel); }
-    speichereOffen(offen);
-    speichereOffen(zu, KARTE_ZU_KEY);
+  card.addEventListener("toggle", () => {
+    // Without an entry the route is open by itself — then we remember what was closed.
+    const openSet = loadOpenSet();
+    const closedSet = loadOpenSet(ROUTE_CLOSED_KEY);
+    if (card.open) { openSet.add(storageKey); closedSet.delete(storageKey); } else { openSet.delete(storageKey); closedSet.add(storageKey); }
+    saveOpenSet(openSet);
+    saveOpenSet(closedSet, ROUTE_CLOSED_KEY);
   });
-  return karte;
+  return card;
 }
 
 function stars(n) { return n ? "★".repeat(n) + "☆".repeat(5 - n) : ""; }
 
-/** Anmerkung zum Stellplatz: Text bzw. leise Einladung; ein Tipp öffnet nur ein kleines Textfeld. */
-function anmerkung(place) {
+/** Remark on a place: the text or a quiet invitation; a tap opens only a small text field. */
+function remark(place) {
   const wrap = el("div.jt-anm");
-  const lesen = () => {
+  const showReading = () => {
     if (place.note) {
       const text = el("p.jt-anm-text", { text: place.note });
-      const lang = place.note.length > 140;
-      if (lang) text.classList.add("jt-gekuerzt");
-      render(wrap, [text, lang ? el("button.jt-mehrlink", { type: "button", text: "mehr", on: { click: (e) => { text.classList.remove("jt-gekuerzt"); e.currentTarget.remove(); } } }) : null]);
+      const isLong = place.note.length > 140;
+      if (isLong) text.classList.add("jt-gekuerzt");
+      render(wrap, [text, isLong ? el("button.jt-mehrlink", { type: "button", text: "mehr", on: { click: (e) => { text.classList.remove("jt-gekuerzt"); e.currentTarget.remove(); } } }) : null]);
     } else if (!state.guest) {
-      render(wrap, el("button.jt-anm-leer", { type: "button", text: "Anmerkung zum Stellplatz …", on: { click: schreiben } }));
+      render(wrap, el("button.jt-anm-leer", { type: "button", text: "Anmerkung zum Stellplatz …", on: { click: writeButton } }));
     } else render(wrap, []);
   };
-  const schreiben = () => {
-    const feld = el("textarea.jt-anm-feld", { rows: 2, maxlength: 600, placeholder: "z. B. schöne Aussicht, schwierige Anfahrt, kostet zu viel", "aria-label": "Anmerkung zum Stellplatz" });
-    feld.value = place.note || "";
-    const speichern = async (e) => {
-      const knopf = e.currentTarget;
-      knopf.disabled = true;
-      const ok = await storePlace({ ...place, note: feld.value.trim() });
-      if (ok) toast("Anmerkung gespeichert"); else knopf.disabled = false;
+  const writeButton = () => {
+    const field = el("textarea.jt-anm-feld", { rows: 2, maxlength: 600, placeholder: "z. B. schöne Aussicht, schwierige Anfahrt, kostet zu viel", "aria-label": "Anmerkung zum Stellplatz" });
+    field.value = place.note || "";
+    const saveRemark = async (e) => {
+      const button = e.currentTarget;
+      button.disabled = true;
+      const ok = await storePlace({ ...place, note: field.value.trim() });
+      if (ok) toast("Anmerkung gespeichert"); else button.disabled = false;
     };
-    render(wrap, [feld, el("div.jt-anm-knoepfe", {}, [
-      el("button.jt-btn", { type: "button", text: "Speichern", on: { click: speichern } }),
-      el("button.jt-btn.jt-btn-leise", { type: "button", text: "Abbrechen", on: { click: lesen } }),
+    render(wrap, [field, el("div.jt-anm-knoepfe", {}, [
+      el("button.jt-btn", { type: "button", text: "Speichern", on: { click: saveRemark } }),
+      el("button.jt-btn.jt-btn-leise", { type: "button", text: "Abbrechen", on: { click: showReading } }),
     ])]);
-    feld.focus();
+    field.focus();
   };
-  lesen();
+  showReading();
   return wrap;
 }
 
@@ -367,171 +366,171 @@ function detailsBlock(place) {
     kv("Wetter", weatherLine(place.weather)),
     kv("Bewertung", stars(place.stars)),
     kv("Kategorie", category(place.catId)?.name),
-    kv("Erfasst", place.stopKey ? "automatisch erkannt" : QUELLE[place.source]),
+    kv("Erfasst", place.stopKey ? "automatisch erkannt" : ATTRIBUTION[place.source]),
     kv("Adresse", place.address),
     kv("Koordinaten", Number.isFinite(place.lat) ? `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}` : ""),
     state.guest ? null : el("button.jt-btn", { type: "button", text: "Bearbeiten", on: { click: () => openPlace(place) } }),
   ]);
 }
 
-/** Besuchsnummer desselben Ortes über alle Reisen ("2. Besuch hier"), sonst leer. */
-function besuchsText(place) {
+/** Visit number of the same place across all trips ("2. Besuch hier"), otherwise empty. */
+function visitText(place) {
   if (!place.ortId) return "";
-  const alle = state.places.filter((p) => p.ortId === place.ortId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  const i = alle.findIndex((p) => p.id === place.id);
-  return alle.length > 1 && i >= 0 ? `${i + 1}. Besuch hier` : "";
+  const all = state.places.filter((p) => p.ortId === place.ortId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const i = all.findIndex((p) => p.id === place.id);
+  return all.length > 1 && i >= 0 ? `${i + 1}. Besuch hier` : "";
 }
 
-/** Stellplatz-Karte (Übernachtung) bzw. Station (eigener Stopp/Ort mit Text, Foto oder Bewertung). */
-function platzKarte(entry) {
+/** Place card (overnight stay) or stop (own stop or place with text, photo or rating). */
+function placeCard(entry) {
   const place = entry.data;
-  const nacht = place.catId === "uebernachtung";
-  const folge = entry.kind === "night-continuation";
-  if (folge) {
+  const night = place.catId === "uebernachtung";
+  const sequence = entry.kind === "night-continuation";
+  if (sequence) {
     return el("div.jt-folge", {}, [
       el("span", {}, icon(ICON.moon, 14)),
       el("span", { text: `${place.title} · Nacht ${entry.nightIndex} von ${place.nights}` }),
     ]);
   }
-  const fotos = placePhotos(place.id);
-  // Die Kopfzeile klappt die Karte ein und aus; Bearbeiten steckt unter "Details".
-  const kopf = el("summary.jt-ph", {}, [
-    el(`b${nacht ? ".jt-nacht-titel" : ""}`, {}, [
-      el(`span.jt-ikon${nacht ? ".jt-nacht" : ""}`, {}, icon(nacht ? ICON.moon : ICON.pin, 16)),
+  const photoMap = placePhotos(place.id);
+  // The heading collapses and expands the card; editing sits under "Details".
+  const heading = el("summary.jt-ph", {}, [
+    el(`b${night ? ".jt-nacht-titel" : ""}`, {}, [
+      el(`span.jt-ikon${night ? ".jt-nacht" : ""}`, {}, icon(night ? ICON.moon : ICON.pin, 16)),
       place.title,
     ]),
-    el("span.jt-leise", { text: nacht ? (place.nights > 1 ? `${place.nights} Nächte` : "1 Nacht") : timeLabel(place.at) }),
+    el("span.jt-leise", { text: night ? (place.nights > 1 ? `${place.nights} Nächte` : "1 Nacht") : timeLabel(place.at) }),
   ]);
-  const meta = [stars(place.stars), besuchsText(place)].filter(Boolean);
-  const karte = el(`details.jt-platz${nacht ? ".jt-stellplatz" : ""}`, { open: ladeOffen(PLATZ_OFFEN_KEY).has(place.id) }, [
-    kopf,
+  const meta = [stars(place.stars), visitText(place)].filter(Boolean);
+  const card = el(`details.jt-platz${night ? ".jt-stellplatz" : ""}`, { open: loadOpenSet(PLACE_OPEN_KEY).has(place.id) }, [
+    heading,
     meta.length ? el("div.jt-meta", {}, meta.map((m) => el("span", { text: m, style: m.startsWith("★") ? { color: "var(--accent)" } : {} }))) : null,
-    anmerkung(place),
-    fotoCollage(fotos, placeCaption(place)),
+    remark(place),
+    photoCollage(photoMap, placeCaption(place)),
     detailsBlock(place),
   ]);
-  karte.addEventListener("toggle", (e) => {
-    // Nur das Ein-/Ausklappen der Karte selbst, nicht das der "Details" darin.
-    if (e.target !== karte) return;
-    const offen = ladeOffen(PLATZ_OFFEN_KEY);
-    if (karte.open) offen.add(place.id); else offen.delete(place.id);
-    speichereOffen(offen, PLATZ_OFFEN_KEY);
+  card.addEventListener("toggle", (e) => {
+    // Only the card's own collapsing, not that of the "Details" inside it.
+    if (e.target !== card) return;
+    const openSet = loadOpenSet(PLACE_OPEN_KEY);
+    if (card.open) openSet.add(place.id); else openSet.delete(place.id);
+    saveOpenSet(openSet, PLACE_OPEN_KEY);
   });
-  return karte;
+  return card;
 }
 
-/** Der Titel einer Notiz ist nur dann eine eigene Zeile, wenn er nicht bloß der Textanfang ist. */
-function notizTitelEigen(note) {
-  const titel = String(note.title || "").trim().replace(/…$/, "");
+/** A note's title is only a line of its own when it is not just the start of the text. */
+function noteHasOwnTitle(note) {
+  const title = String(note.title || "").trim().replace(/…$/, "");
   const text = String(note.text || "").trim().replace(/\s+/g, " ");
-  return Boolean(titel) && !text.startsWith(titel);
+  return Boolean(title) && !text.startsWith(title);
 }
 
-const NOTIZ_OFFEN_KEY = "vojago.logbuch.notizOffen";
+const NOTE_OPEN_KEY = "vojago.logbuch.notizOffen";
 
-/** Eine Notiz als einklappbares Zitat: zu nur der Anfang mit Uhrzeit, auf der ganze Text mit Fotos. */
-function notizZitat(note) {
-  const fotos = notePhotos(note.id);
-  const ort = note.besuchId ? state.places.find((p) => p.id === note.besuchId) : null;
-  const kurz = (notizTitelEigen(note) ? noteTitle(note) : String(note.text || "")).trim().replace(/\s+/g, " ");
-  const karte = el("details.jt-notiz", { open: ladeOffen(NOTIZ_OFFEN_KEY).has(note.id) }, [
+/** A note as a collapsible quote: closed only the start with the time, open the whole text with photos. */
+function noteQuote(note) {
+  const photoMap = notePhotos(note.id);
+  const linkedPlace = note.besuchId ? state.places.find((p) => p.id === note.besuchId) : null;
+  const summary = (noteHasOwnTitle(note) ? noteTitle(note) : String(note.text || "")).trim().replace(/\s+/g, " ");
+  const card = el("details.jt-notiz", { open: loadOpenSet(NOTE_OPEN_KEY).has(note.id) }, [
     el("summary.jt-ph", {}, [
-      el("span.jt-n-kurz", { text: kurz || "Notiz" }),
+      el("span.jt-n-kurz", { text: summary || "Notiz" }),
       el("span.jt-leise", { text: timeLabel(note.at) }),
     ]),
-    el("div.jt-n-inhalt", { on: { click: kartenKlick(() => openNote(note), fotos) } }, [
-      notizTitelEigen(note) ? el("b", { text: noteTitle(note) }) : null,
+    el("div.jt-n-inhalt", { on: { click: cardClick(() => openNote(note), photoMap) } }, [
+      noteHasOwnTitle(note) ? el("b", { text: noteTitle(note) }) : null,
       el("p", { text: note.text }),
-      fotoCollage(fotos, noteCaption(note)),
-      ort ? el("div.jt-meta", {}, [el("span", { text: `bei ${ort.title}` })]) : null,
+      photoCollage(photoMap, noteCaption(note)),
+      linkedPlace ? el("div.jt-meta", {}, [el("span", { text: `bei ${linkedPlace.title}` })]) : null,
     ]),
   ]);
-  karte.addEventListener("toggle", () => {
-    const offen = ladeOffen(NOTIZ_OFFEN_KEY);
-    if (karte.open) offen.add(note.id); else offen.delete(note.id);
-    speichereOffen(offen, NOTIZ_OFFEN_KEY);
+  card.addEventListener("toggle", () => {
+    const openSet = loadOpenSet(NOTE_OPEN_KEY);
+    if (card.open) openSet.add(note.id); else openSet.delete(note.id);
+    saveOpenSet(openSet, NOTE_OPEN_KEY);
   });
-  return karte;
+  return card;
 }
 
-/** Lightbox-Beschriftung zu einem Tagebuch-Foto: Tag und Anfang des Textes. */
-function tagebuchCaption(eintrag, tag) {
-  const erster = eintrag.blocks.find((b) => b.t === "text" && b.text.trim());
+/** Lightbox caption for a diary photo: the day and the start of the text. */
+function diaryCaption(diaryEntry, day) {
+  const first = diaryEntry.blocks.find((b) => b.t === "text" && b.text.trim());
   return el("div", {}, [
-    el("div.j-head", {}, [el("b", { text: `Tag ${tag.nummer} · ${dayLabel(tag.key)}` })]),
-    erster ? el("p", { text: erster.text.length > 160 ? `${erster.text.slice(0, 159).trim()}…` : erster.text }) : null,
+    el("div.j-head", {}, [el("b", { text: `Tag ${day.number} · ${dayLabel(day.key)}` })]),
+    first ? el("p", { text: first.text.length > 160 ? `${first.text.slice(0, 159).trim()}…` : first.text }) : null,
   ]);
 }
 
-function titelbild(foto, info) {
+function coverImage(foto, info) {
   photoSlideIndex.set(foto.id, tripSlides.length);
-  tripSlides.push({ url: bildUrl(foto.id), info });
+  tripSlides.push({ url: imageUrl(foto.id), info });
   return el("figure.jt-titel", {}, [el("img", {
-    src: bildUrl(foto.id), alt: "", loading: "lazy",
+    src: imageUrl(foto.id), alt: "", loading: "lazy",
     on: { click: () => showPhotos(tripSlides, photoSlideIndex.get(foto.id) ?? 0) },
   })]);
 }
 
-/** Der erzählte Tag: Titelbild, dann Absätze und Fotos in der Reihenfolge des Textes, am Ende der Autor. */
-function tagebuchBlock(eintrag, tag) {
-  const fotos = new Map(diaryPhotos(eintrag.id).map((f) => [f.id, f]));
-  const info = tagebuchCaption(eintrag, tag);
-  // Fotos, die noch in der Ablage des Editors liegen, erscheinen am Anfang des Tages (eines als Titelbild, mehrere als Collage), bis man sie platziert — nichts geht verloren.
-  const bloecke = withUnplacedPhotos(eintrag.blocks, [...fotos.keys()]);
-  const coverId = coverPhotoId(bloecke.filter((b) => b.t !== "fotos" || b.ids.some((id) => fotos.has(id)))
-    .map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((id) => fotos.has(id)) } : b)));
-  const cover = coverId ? fotos.get(coverId) : null;
-  const rest = withoutPhoto(bloecke, cover?.id);
-  const autor = eintrag.author || "";
+/** The told day: cover photo, then paragraphs and photos in the order of the text, the author at the end. */
+function diaryBlock(diaryEntry, day) {
+  const photoMap = new Map(diaryPhotos(diaryEntry.id).map((f) => [f.id, f]));
+  const info = diaryCaption(diaryEntry, day);
+  // Photos still in the editor's tray appear at the start of the day (one as cover, several as a collage) until they are placed — nothing gets lost.
+  const blockList = withUnplacedPhotos(diaryEntry.blocks, [...photoMap.keys()]);
+  const coverId = coverPhotoId(blockList.filter((b) => b.t !== "fotos" || b.ids.some((id) => photoMap.has(id)))
+    .map((b) => (b.t === "fotos" ? { ...b, ids: b.ids.filter((id) => photoMap.has(id)) } : b)));
+  const cover = coverId ? photoMap.get(coverId) : null;
+  const rest = withoutPhoto(blockList, cover?.id);
+  const authorName = diaryEntry.author || "";
   return el("div.jt-erzaehlt", {}, [
-    cover ? titelbild(cover, info) : null,
+    cover ? coverImage(cover, info) : null,
     ...rest.map((b) => {
       if (b.t === "text") return el("p.jt-text", { text: b.text });
-      return fotoCollage(b.ids.map((id) => fotos.get(id)).filter(Boolean), info);
+      return photoCollage(b.ids.map((id) => photoMap.get(id)).filter(Boolean), info);
     }),
-    autor || !state.guest ? el("div.jt-autor", {}, [
-      autor ? el("span.jt-av", { text: autor.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
-      autor ? el("span", { text: autor }) : null,
-      state.guest ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openTag({ tripId: eintrag.tripId, dayKey: eintrag.dayKey }) } }),
+    authorName || !state.guest ? el("div.jt-autor", {}, [
+      authorName ? el("span.jt-av", { text: authorName.slice(0, 1).toUpperCase(), "aria-hidden": "true" }) : null,
+      authorName ? el("span", { text: authorName }) : null,
+      state.guest ? null : el("button.jt-bearbeiten", { type: "button", text: "Bearbeiten", on: { click: () => openDay({ tripId: diaryEntry.tripId, dayKey: diaryEntry.dayKey }) } }),
     ]) : null,
   ]);
 }
 
-/** Einladung für einen Tag ohne Eintrag. */
-function einladung(tag, t) {
+/** Invitation for a day without an entry. */
+function invitation(day, t) {
   if (state.guest || isRangeTrip(t)) return null;
-  const heute = localDayKey(new Date().toISOString());
-  const gestern = localDayKey(new Date(Date.now() - 86400000).toISOString());
-  const hinweis = tag.key === heute ? "Der heutige Tag wartet auf den Abend."
-    : tag.key === gestern ? "Gestern fehlt noch ein Eintrag."
+  const today = localDayKey(new Date().toISOString());
+  const yesterday = localDayKey(new Date(Date.now() - 86400000).toISOString());
+  const hint = day.key === today ? "Der heutige Tag wartet auf den Abend."
+    : day.key === yesterday ? "Gestern fehlt noch ein Eintrag."
       : "Dazu gibt es noch keinen Eintrag.";
   return el("div.jt-einladung", {}, [
-    el("b", { text: `Wie war Tag ${tag.nummer}?` }),
-    el("div.jt-leise", { text: hinweis }),
-    el("button.jt-btn", { type: "button", text: "Tag erzählen", on: { click: () => openTag({ tripId: t.id, dayKey: tag.key }) } }),
+    el("b", { text: `Wie war Tag ${day.number}?` }),
+    el("div.jt-leise", { text: hint }),
+    el("button.jt-btn", { type: "button", text: "Tag erzählen", on: { click: () => openDay({ tripId: t.id, dayKey: day.key }) } }),
   ]);
 }
 
-function tagKapitel(tag, t, eintrag) {
-  const sichtbar = tag.eintraege.filter(matchesLogFilter);
-  const karten = sichtbar.filter((e) => e.kind === "night-continuation"
-    || (e.kind === "place" && (e.data.catId === "uebernachtung" || istStation(e.data))));
-  const notizen = sichtbar.filter((e) => e.kind === "note");
-  const hatErzaehlung = Boolean(eintrag) || tag.notizen.length > 0;
-  const folgeNur = tag.eintraege.some((e) => e.kind === "night-continuation") && !tag.km;
-  const zeile = tag.km
-    ? (tag.von && tag.nach ? `${kmText(tag.km)} km von ${tag.von} nach ${tag.nach}` : `${kmText(tag.km)} km`)
-    : folgeNur ? "Ruhetag am Stellplatz" : "";
-  const inhalt = [...karten, ...notizen].sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  // Die technische Seite des Tages (Strecke, Stellplätze, Orte, Notizen) dient als Gedankenstütze, solange
-  // noch nichts erzählt ist, und steht dann vor der Einladung; ist der Tag erzählt, kommt sie ans Ende.
-  const technik = [
-    gedankenstuetze(tag, hatErzaehlung, zeile, t.id, !eintrag),
-    ...inhalt.map((e) => (e.kind === "note" ? notizZitat(e.data) : platzKarte(e))),
+function dayChapter(day, t, diaryEntry) {
+  const visible = day.entries.filter(matchesLogFilter);
+  const cards = visible.filter((e) => e.kind === "night-continuation"
+    || (e.kind === "place" && (e.data.catId === "uebernachtung" || isStation(e.data))));
+  const notes = visible.filter((e) => e.kind === "note");
+  const hasStory = Boolean(diaryEntry) || day.notes.length > 0;
+  const onlyContinuation = day.entries.some((e) => e.kind === "night-continuation") && !day.km;
+  const line = day.km
+    ? (day.from && day.to ? `${kmText(day.km)} km von ${day.from} nach ${day.to}` : `${kmText(day.km)} km`)
+    : onlyContinuation ? "Ruhetag am Stellplatz" : "";
+  const content = [...cards, ...notes].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  // The technical side of the day (route, overnight places, places, notes) serves as a reminder while
+  // nothing is told yet and stands before the invitation; once the day is told, it moves to the end.
+  const facts = [
+    routeCard(day, hasStory, line, t.id, !diaryEntry),
+    ...content.map((e) => (e.kind === "note" ? noteQuote(e.data) : placeCard(e))),
   ];
-  return el("section.jt-tag", { dataset: { tag: tag.key } }, [
-    el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${tag.nummer}` }), el("h3", { text: dayLabel(tag.key) })]),
-    ...(eintrag ? [tagebuchBlock(eintrag, tag), ...technik] : [...technik, einladung(tag, t)]),
+  return el("section.jt-tag", { dataset: { day: day.key } }, [
+    el("header.jt-kopf", {}, [el("span.jt-num", { text: `Tag ${day.number}` }), el("h3", { text: dayLabel(day.key) })]),
+    ...(diaryEntry ? [diaryBlock(diaryEntry, day), ...facts] : [...facts, invitation(day, t)]),
   ]);
 }
 
@@ -553,75 +552,76 @@ export function renderJournal() {
   if (context) context.textContent = t.name;
   const allEntries = entriesOf(t);
   renderLogFilterButtons();
-  // Die Spur (Route und Kilometer der Tage) kommt ohne Zutun nur mit der Karte
-  // oder den Tagen in "Reisen" — hier bei Bedarf selbst holen. Danach zeichnet
-  // das "tripPath"/"trips"-Ereignis das Logbuch neu.
-  // Höchstens einmal pro Minute und Reise: liefert der Server eine leere Spur,
-  // löst die Antwort selbst wieder ein Neuzeichnen aus — ohne Bremse eine Schleife.
-  const jetzt = Date.now();
-  if (!t.path?.length && !isRangeTrip(t) && jetzt - (spurAnfrage.get(t.id) || 0) > 60_000) {
-    spurAnfrage.set(t.id, jetzt);
+  // The track (route and kilometres of the days) only comes by itself with the map
+  // or the days in "Reisen" — so load it here when needed. Afterwards the
+  // "tripPath"/"trips" event redraws the logbook.
+  // At most once a minute per trip: if the server returns an empty track, the
+  // answer itself triggers a redraw again — without a brake, a loop.
+  const now = Date.now();
+  if (!t.path?.length && !isRangeTrip(t) && now - (trackRequested.get(t.id) || 0) > 60_000) {
+    trackRequested.set(t.id, now);
     ensureTripPath(t, { silent: true });
   }
-  const fahrten = state.drives.filter((d) => d.tripId === t.id);
-  const tagebuch = new Map(state.diary.filter((e) => e.tripId === t.id).map((e) => [e.dayKey, e]));
-  const tage = tageDerReise({ startIso: tripStartIso(t), eintraege: allEntries, fahrten, path: t.path || [], zusatzTage: [...tagebuch.keys()] });
+  const drives = state.drives.filter((d) => d.tripId === t.id);
+  const diaryByDay = new Map(state.diary.filter((e) => e.tripId === t.id).map((e) => [e.dayKey, e]));
+  const chapters = tripDays({ startIso: tripStartIso(t), entries: allEntries, drives, path: t.path || [], extraDays: [...diaryByDay.keys()] });
 
-  if (!tage.length) {
+  if (!chapters.length) {
     render(container, el("div.callout", {
       text: "Für diese Reise gibt es noch keine Einträge. Orte und Notizen erscheinen hier automatisch, sobald du sie erfasst.",
     }));
     return;
   }
 
-  // Foto-Reihe für die Lightbox neu aufbauen: füllt fotoCollage() beim Zeichnen,
-  // chronologisch über alle sichtbaren Tage hinweg (respektiert den Filter).
+  // Rebuild the lightbox photo series: photoCollage() fills it while drawing,
+  // in time order across all visible days (respecting the filter).
   tripSlides = [];
   photoSlideIndex = new Map();
 
-  const sprung = t.live && tage.length > 1
+  const jumpButton = t.live && chapters.length > 1
     ? el("button.jt-sprung", { type: "button", text: "Zum aktuellen Tag", on: { click: () => {
-      // Nur im Logbuch-Bereich scrollen: scrollIntoView würde auch den
-      // äußeren Bildschirm verschieben und die unten wartenden Blätter freilegen.
-      const ziel = tageKnoten[tageKnoten.length - 1];
-      const ansicht = container.closest(".view");
-      if (!ziel || !ansicht) return;
-      const oben = ansicht.scrollTop + ziel.getBoundingClientRect().top - ansicht.getBoundingClientRect().top - 8;
-      ansicht.scrollTo({ top: Math.max(0, oben), behavior: "smooth" });
+      // Scroll only within the logbook area: scrollIntoView would also move the
+      // outer screen and reveal the sheets waiting below.
+      const target = dayNodes[dayNodes.length - 1];
+      const view = container.closest(".view");
+      if (!target || !view) return;
+      const top = view.scrollTop + target.getBoundingClientRect().top - view.getBoundingClientRect().top - 8;
+      view.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     } } })
     : null;
-  tageKnoten = tage.map((tag) => tagKapitel(tag, t, tagebuch.get(tag.key)));
-  render(container, [sprung]);
-  spaltenZahl = 0;
-  legeTageAus(container);
-  beobachteSpalten(container);
+  dayNodes = chapters.map((day) => dayChapter(day, t, diaryByDay.get(day.key)));
+  render(container, [jumpButton]);
+  columnCount = 0;
+  layOutDays(container);
+  watchColumns(container);
 }
 
-/* ---------- Tage in Spalten (breite Fenster) ----------
-   Eigene Spalten-Container statt CSS-Spalten: In CSS-Spalten stimmt die Lage der Kartenkacheln
-   (verschoben, skaliert) ab der zweiten Spalte nicht. Die Tage verteilen sich der Reihe nach
-   (Tag 1 links, Tag 2 daneben, Tag 3 wieder links …), je Spalte bleiben sie chronologisch. */
-let tageKnoten = [];      // die gezeichneten Tage in Reihenfolge
-let spaltenZahl = 0;
-let spaltenBeobachter = null;
-const SPALTE_MIN = 400;
-const SPALTE_LUECKE = 18;
-const spaltenFuer = (breite) => Math.max(1, Math.min(3, Math.floor((breite + SPALTE_LUECKE) / (SPALTE_MIN + SPALTE_LUECKE))));
+/* ---------- Days in columns (wide windows) ----------
+   Our own column containers instead of CSS columns: in CSS columns the position of
+   the map tiles (shifted, scaled) is wrong from the second column on. The days are
+   dealt out in order (day 1 left, day 2 next to it, day 3 left again …); within a
+   column they stay in time order. */
+let dayNodes = [];      // the drawn days, in order
+let columnCount = 0;
+let columnObserver = null;
+const COLUMN_MIN = 400;
+const COLUMN_GAP = 18;
+const columnsFor = (width) => Math.max(1, Math.min(3, Math.floor((width + COLUMN_GAP) / (COLUMN_MIN + COLUMN_GAP))));
 
-function legeTageAus(container) {
-  const n = spaltenFuer(container.clientWidth);
-  if (n === spaltenZahl) return;
-  spaltenZahl = n;
+function layOutDays(container) {
+  const n = columnsFor(container.clientWidth);
+  if (n === columnCount) return;
+  columnCount = n;
   container.querySelector(":scope > .jt-spalten")?.remove();
-  for (const tag of tageKnoten) tag.remove();
-  if (n === 1) { container.append(...tageKnoten); return; }
-  const spalten = Array.from({ length: n }, () => el("div.jt-spalte"));
-  tageKnoten.forEach((tag, i) => spalten[i % n].append(tag));
-  container.append(el("div.jt-spalten", {}, spalten));
+  for (const day of dayNodes) day.remove();
+  if (n === 1) { container.append(...dayNodes); return; }
+  const columns = Array.from({ length: n }, () => el("div.jt-spalte"));
+  dayNodes.forEach((day, i) => columns[i % n].append(day));
+  container.append(el("div.jt-spalten", {}, columns));
 }
 
-function beobachteSpalten(container) {
-  if (spaltenBeobachter || typeof ResizeObserver === "undefined") return;
-  spaltenBeobachter = new ResizeObserver(() => { if (tageKnoten.length) legeTageAus(container); });
-  spaltenBeobachter.observe(container);
+function watchColumns(container) {
+  if (columnObserver || typeof ResizeObserver === "undefined") return;
+  columnObserver = new ResizeObserver(() => { if (dayNodes.length) layOutDays(container); });
+  columnObserver.observe(container);
 }
