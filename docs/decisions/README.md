@@ -14,4 +14,4 @@ one file each: `ADR-NNN-short-title.md`.
 
 | ID | Title | Status |
 |---|---|---|
-| – | none yet | – |
+| [ADR-001](ADR-001-quality-tools.md) | Quality tools – Biome and `tsc --checkJs` | Proposed |
