@@ -18,16 +18,9 @@ discards exact duplicates (same device and fix time) that a device re-sends.
 
 ## Terms
 
-- **Logbook** — the continuous, automatic record. The user never presses "start".
-- **Drive** — one continuous movement, segmented on the server from positions
-  (`segmentDrives` in `api/lib.js`).
-- **Stop / overnight stay** — a stand. A stand of at least 20 minutes is a
-  *stop*; a long night stand is an *overnight stay* (see below).
-- **Place** — a saved point with category, description, rating and photos.
-  A **visit** is one stay at a place (a place can have many visits).
-- **Trip** — a named time span over the logbook; it bundles drives, stays and
-  places inside it.
-- **Everyday drive** — a drive that belongs to no trip.
+The terms (logbook, drive, stop, overnight stay, place, visit, trip, everyday
+drive, …) with their German UI names are defined in
+[`glossary.md`](glossary.md).
 
 ## Stops and overnight stays
 
