@@ -12,12 +12,17 @@ export function routeTip(p) {
   const valid = time && !Number.isNaN(time.getTime());
   const heading = [];
   if (Number.isFinite(p.day)) heading.push(`Tag ${p.day}`);
-  if (valid) heading.push(`${withoutDot(WEEKDAY.format(time))} ${withoutDot(DATE.format(time))}.`, CLOCK.format(time));
+  if (valid)
+    heading.push(
+      `${withoutDot(WEEKDAY.format(time))} ${withoutDot(DATE.format(time))}.`,
+      CLOCK.format(time),
+    );
 
   const number = (n, digits) => n.toLocaleString("de-DE", { maximumFractionDigits: digits });
   const values = [];
   if (Number.isFinite(p.cum)) values.push(`km ${number(p.cum, p.cum < 100 ? 1 : 0)}`);
-  if (Number.isFinite(p.spd)) values.push(p.spd < 1 ? "steht" : `${number(Math.round(p.spd), 0)} km/h`);
+  if (Number.isFinite(p.spd))
+    values.push(p.spd < 1 ? "steht" : `${number(Math.round(p.spd), 0)} km/h`);
   if (Number.isFinite(p.elev)) values.push(`${number(Math.round(p.elev), 0)} m`);
   return { heading: heading.join(" · "), values: values.join(" · ") };
 }
@@ -39,4 +44,5 @@ export function tipEntries(hits, maxEntries = 5) {
 }
 
 /** The hit nearest to the finger (anchor for the marker and the map). */
-export const nearestHit = (hits) => hits.reduce((b, t) => (!b || t.distanceM < b.distanceM ? t : b), null);
+export const nearestHit = (hits) =>
+  hits.reduce((b, t) => (!b || t.distanceM < b.distanceM ? t : b), null);

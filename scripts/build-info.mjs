@@ -17,7 +17,10 @@ export function versionAnzeige(paketVersion) {
 
 function git(...args) {
   try {
-    return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
   } catch {
     return "";
   }
@@ -28,7 +31,9 @@ export function ermittleBuild({ env = process.env, gitAbfrage = git } = {}) {
   const nummerRoh = env.BUILD_NUMBER || gitAbfrage("rev-list", "--count", "HEAD");
   const nummer = /^\d+$/.test(nummerRoh || "") ? Number(nummerRoh) : null;
   const commitRoh = env.BUILD_COMMIT || gitAbfrage("rev-parse", "--short", "HEAD");
-  const commit = /^[0-9a-f]{4,40}$/i.test(commitRoh || "") ? commitRoh.toLowerCase().slice(0, 7) : null;
+  const commit = /^[0-9a-f]{4,40}$/i.test(commitRoh || "")
+    ? commitRoh.toLowerCase().slice(0, 7)
+    : null;
   return { nummer, commit };
 }
 

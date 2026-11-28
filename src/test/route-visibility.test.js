@@ -20,7 +20,12 @@ const path = [
 
 test("RouteVisibility: the stage filter shows no route when only detours are marked", () => {
   const drives = [
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
 
   const segments = visibleRouteSegments(path, drives, "reise-1");
@@ -32,37 +37,56 @@ test("RouteVisibility: the stage filter shows no route when only detours are mar
 
 test("RouteVisibility: normal stages stay visible", () => {
   const drives = [
-    { tripId: "reise-1", kind: "etappe", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "etappe",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
 
   assert.deepEqual(
     visibleRoutePath(path, drives, "reise-1").map((p) => p.time),
-    [
-      "2026-08-10T10:00:00.000Z",
-      "2026-08-10T11:00:00.000Z",
-    ]
+    ["2026-08-10T10:00:00.000Z", "2026-08-10T11:00:00.000Z"],
   );
 });
 
 test("RouteVisibility: the stage filter shows a marked stage between detours", () => {
   const drives = [
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
-    { tripId: "reise-1", kind: "etappe", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T12:00:00.000Z", to: "2026-08-10T13:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T08:00:00.000Z",
+      to: "2026-08-10T09:00:00.000Z",
+    },
+    {
+      tripId: "reise-1",
+      kind: "etappe",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T12:00:00.000Z",
+      to: "2026-08-10T13:00:00.000Z",
+    },
   ];
 
   assert.deepEqual(
     visibleRoutePath(path, drives, "reise-1", "etappe").map((p) => p.time),
-    [
-      "2026-08-10T10:00:00.000Z",
-      "2026-08-10T11:00:00.000Z",
-    ]
+    ["2026-08-10T10:00:00.000Z", "2026-08-10T11:00:00.000Z"],
   );
 });
 
 test("RouteVisibility: the all filter shows stages and detours", () => {
   const drives = [
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
 
   assert.equal(visibleRoutePath(path, drives, "reise-1", "alle").length, path.length);
@@ -70,16 +94,23 @@ test("RouteVisibility: the all filter shows stages and detours", () => {
 
 test("RouteVisibility: the supply filter shows only detours", () => {
   const drives = [
-    { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "etappe",
+      from: "2026-08-10T08:00:00.000Z",
+      to: "2026-08-10T09:00:00.000Z",
+    },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
 
   assert.deepEqual(
     visibleRoutePath(path, drives, "reise-1", "abstecher").map((p) => p.time),
-    [
-      "2026-08-10T10:00:00.000Z",
-      "2026-08-10T11:00:00.000Z",
-    ]
+    ["2026-08-10T10:00:00.000Z", "2026-08-10T11:00:00.000Z"],
   );
   assert.equal(filteredRouteDrives(drives, "reise-1", "abstecher").length, 1);
   assert.equal(driveMatchesRouteFilter(drives[0], "abstecher"), false);
@@ -88,11 +119,22 @@ test("RouteVisibility: the supply filter shows only detours", () => {
 
 test("RouteVisibility: places and notes follow the drive filter", () => {
   const drives = [
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
 
-  assert.equal(itemMatchesRouteFilter({ at: "2026-08-10T10:30:00.000Z" }, drives, "reise-1", "abstecher"), true);
-  assert.equal(itemMatchesRouteFilter({ at: "2026-08-10T08:30:00.000Z" }, drives, "reise-1", "abstecher"), false);
+  assert.equal(
+    itemMatchesRouteFilter({ at: "2026-08-10T10:30:00.000Z" }, drives, "reise-1", "abstecher"),
+    true,
+  );
+  assert.equal(
+    itemMatchesRouteFilter({ at: "2026-08-10T08:30:00.000Z" }, drives, "reise-1", "abstecher"),
+    false,
+  );
   assert.equal(itemMatchesRouteFilter({}, drives, "reise-1", "abstecher"), false);
 });
 
@@ -100,23 +142,45 @@ test("RouteVisibility: places and notes follow the drive filter", () => {
 // path, so for a running trip the most recent piece of the route was missing.
 test("RouteVisibility: the open end shows points after the last known drive", () => {
   const drives = [
-    { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T10:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "etappe",
+      from: "2026-08-10T08:00:00.000Z",
+      to: "2026-08-10T10:00:00.000Z",
+    },
   ];
-  const ohne = visibleRouteSegments(path, drives, "reise-1").flat().map((p) => p.time);
-  const mit = visibleRouteSegments(path, drives, "reise-1", "etappe", { openEnd: true }).flat().map((p) => p.time);
+  const ohne = visibleRouteSegments(path, drives, "reise-1")
+    .flat()
+    .map((p) => p.time);
+  const mit = visibleRouteSegments(path, drives, "reise-1", "etappe", { openEnd: true })
+    .flat()
+    .map((p) => p.time);
   assert.equal(ohne.at(-1), "2026-08-10T10:00:00.000Z");
   assert.equal(mit.at(-1), "2026-08-10T13:00:00.000Z", "die neueren Punkte sind sichtbar");
 });
 
 test("RouteVisibility: the open end starts only after the last known drive of any kind (a detour stays hidden)", () => {
   const drives = [
-    { tripId: "reise-1", kind: "etappe", from: "2026-08-10T08:00:00.000Z", to: "2026-08-10T09:00:00.000Z" },
-    { tripId: "reise-1", kind: "abstecher", from: "2026-08-10T10:00:00.000Z", to: "2026-08-10T11:00:00.000Z" },
+    {
+      tripId: "reise-1",
+      kind: "etappe",
+      from: "2026-08-10T08:00:00.000Z",
+      to: "2026-08-10T09:00:00.000Z",
+    },
+    {
+      tripId: "reise-1",
+      kind: "abstecher",
+      from: "2026-08-10T10:00:00.000Z",
+      to: "2026-08-10T11:00:00.000Z",
+    },
   ];
   const segmente = visibleRouteSegments(path, drives, "reise-1", "etappe", { openEnd: true });
   assert.deepEqual(
     segmente.map((s) => s.map((p) => p.time.slice(11, 13))),
-    [["08", "09"], ["12", "13"]],
+    [
+      ["08", "09"],
+      ["12", "13"],
+    ],
     "stage visible, detour (10–11) gone, newer points (12–13) visible",
   );
 });

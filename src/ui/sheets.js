@@ -3,8 +3,8 @@
 import { $ } from "../dom.js";
 
 export function createSheet({ id, confirmId, isDirty = () => false, onSave, onClose }) {
-  const sheet = $("#" + id);
-  const bar = confirmId ? $("#" + confirmId) : null;
+  const sheet = $(`#${id}`);
+  const bar = confirmId ? $(`#${confirmId}`) : null;
 
   const close = () => {
     bar?.classList.remove("show");
@@ -18,11 +18,17 @@ export function createSheet({ id, confirmId, isDirty = () => false, onSave, onCl
   };
 
   bar?.querySelector(".discard")?.addEventListener("click", close);
-  bar?.querySelector(".save")?.addEventListener("click", () => { onSave?.(); close(); });
+  bar?.querySelector(".save")?.addEventListener("click", () => {
+    onSave?.();
+    close();
+  });
 
   return {
     element: sheet,
-    open() { bar?.classList.remove("show"); sheet.classList.add("show"); },
+    open() {
+      bar?.classList.remove("show");
+      sheet.classList.add("show");
+    },
     close,
     requestClose,
     isOpen: () => sheet.classList.contains("show"),
@@ -36,6 +42,9 @@ export function wireEscape(sheets) {
     if (e.key !== "Escape") return;
     if (document.activeElement?.matches("input, textarea, select")) return;
     const open = sheets.filter((s) => s.isOpen());
-    if (open.length) { e.preventDefault(); open[open.length - 1].requestClose(); }
+    if (open.length) {
+      e.preventDefault();
+      open[open.length - 1].requestClose();
+    }
   });
 }

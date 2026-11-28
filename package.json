@@ -12,13 +12,20 @@
     "dev": "npm run build && node smoke/static-server.mjs public 4173",
     "test": "node --no-warnings --test api/test/*.test.js src/test/*.test.js",
     "test:smoke": "npm run build && playwright test",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "typecheck": "tsc -p .",
+    "check": "biome check && tsc -p .",
     "setup-local": "node scripts/setup-local.mjs",
     "check:sensitive": "node scripts/check-sensitive.mjs --tree",
     "anonymize": "node scripts/anonymize-fixture.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
+    "@biomejs/biome": "^2.6.9",
     "@playwright/test": "^1.61.1",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "maplibre-gl": "^6.14.0"

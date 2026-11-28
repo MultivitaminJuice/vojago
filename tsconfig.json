@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "es2023",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.js", "src/globals.d.ts", "api/**/*.js"],
+  "exclude": ["src/test", "api/test", "src/demo-roads.js"]
+}

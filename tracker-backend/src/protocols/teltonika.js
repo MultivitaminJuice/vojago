@@ -88,7 +88,7 @@ export function createTeltonikaServer(port) {
         }
         console.log(
           `[teltonika] ${records.length} Datensatz/Datensätze von ${imei} gespeichert ` +
-          `(Codec ${codecId === CODEC8_EXTENDED ? "8E" : "8"})`
+            `(Codec ${codecId === CODEC8_EXTENDED ? "8E" : "8"})`,
         );
         // Einmal je Paket, nicht je Datensatz (siehe auto-import.js für die
         // zusätzliche Drosselung je Gerät) — ein nachgeliefertes Paket kann
@@ -117,7 +117,9 @@ export function createTeltonikaServer(port) {
         // Datensatzzahl) macht den restlichen Pufferinhalt unzuverlässig —
         // kein sicherer Wiedereinstiegspunkt bekannt, also Verbindung
         // trennen statt raten. Das Gerät verbindet sich von selbst neu.
-        console.error(`[teltonika] Protokollfehler von ${adresse} (IMEI ${imei ?? "unbekannt"}): ${err.message}`);
+        console.error(
+          `[teltonika] Protokollfehler von ${adresse} (IMEI ${imei ?? "unbekannt"}): ${err.message}`,
+        );
         socket.destroy();
       }
     });
@@ -127,7 +129,9 @@ export function createTeltonikaServer(port) {
       socket.destroy();
     });
     socket.on("error", (err) => {
-      console.error(`[teltonika] Socket-Fehler von ${adresse} (IMEI ${imei ?? "unbekannt"}): ${err.message}`);
+      console.error(
+        `[teltonika] Socket-Fehler von ${adresse} (IMEI ${imei ?? "unbekannt"}): ${err.message}`,
+      );
     });
     socket.on("close", () => {
       console.log(`[teltonika] Verbindung geschlossen: ${adresse} (IMEI ${imei ?? "unbekannt"})`);

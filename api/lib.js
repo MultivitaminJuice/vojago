@@ -62,13 +62,16 @@ export function isValidId(v, max = 100) {
 
 /** Farbwert für Kategorien: `#rgb`, `#rgba`, `#rrggbb` oder `#rrggbbaa`. */
 export function isHexColor(v) {
-  return typeof v === "string" && /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{4}$|^#[0-9a-fA-F]{6}$|^#[0-9a-fA-F]{8}$/.test(v);
+  return (
+    typeof v === "string" &&
+    /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{4}$|^#[0-9a-fA-F]{6}$|^#[0-9a-fA-F]{8}$/.test(v)
+  );
 }
 
 /** Prüft ein optionales, client-vergebenes `id`-Feld beim Anlegen. */
 function validateOptionalId(body, errors, { max = 100 } = {}) {
   if (body && "id" in body && body.id != null && !isValidId(body.id, max)) {
-    errors.push("id ist ungültig (nur Buchstaben, Ziffern, - und _, max. " + max + " Zeichen)");
+    errors.push(`id ist ungültig (nur Buchstaben, Ziffern, - und _, max. ${max} Zeichen)`);
   }
 }
 
@@ -79,18 +82,26 @@ function validateOptionalId(body, errors, { max = 100 } = {}) {
  */
 export function validateOrt(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("lat")) {
-    if (!isFiniteNumber(body?.lat) || body.lat < -90 || body.lat > 90) errors.push("lat muss zwischen -90 und 90 liegen");
+    if (!isFiniteNumber(body?.lat) || body.lat < -90 || body.lat > 90)
+      errors.push("lat muss zwischen -90 und 90 liegen");
   }
   if (!partial || has("lon")) {
-    if (!isFiniteNumber(body?.lon) || body.lon < -180 || body.lon > 180) errors.push("lon muss zwischen -180 und 180 liegen");
+    if (!isFiniteNumber(body?.lon) || body.lon < -180 || body.lon > 180)
+      errors.push("lon muss zwischen -180 und 180 liegen");
   }
   if (has("title") && !isText(body.title, 200)) errors.push("title zu lang (max. 200)");
-  if (has("address") && body.address != null && !isText(body.address, 200)) errors.push("address zu lang (max. 200)");
-  if (has("note") && body.note != null && !isText(body.note, 4000)) errors.push("note zu lang (max. 4000)");
-  if (has("rating") && body.rating != null && (!Number.isInteger(body.rating) || body.rating < 0 || body.rating > 5)) {
+  if (has("address") && body.address != null && !isText(body.address, 200))
+    errors.push("address zu lang (max. 200)");
+  if (has("note") && body.note != null && !isText(body.note, 4000))
+    errors.push("note zu lang (max. 4000)");
+  if (
+    has("rating") &&
+    body.rating != null &&
+    (!Number.isInteger(body.rating) || body.rating < 0 || body.rating > 5)
+  ) {
     errors.push("rating muss 0–5 sein");
   }
   if (!partial) validateOptionalId(body, errors);
@@ -105,7 +116,7 @@ export function validateOrt(body, { partial = false } = {}) {
  */
 export function validateBesuch(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("ort_id")) {
     if (!isValidId(body?.ort_id)) errors.push("ort_id fehlt oder ist ungültig");
@@ -113,10 +124,15 @@ export function validateBesuch(body, { partial = false } = {}) {
   if (has("source") && !["camper", "handy", "manuell"].includes(body.source)) {
     errors.push("source muss camper, handy oder manuell sein");
   }
-  if (has("nights") && body.nights != null && (!Number.isInteger(body.nights) || body.nights < 1 || body.nights > 60)) {
+  if (
+    has("nights") &&
+    body.nights != null &&
+    (!Number.isInteger(body.nights) || body.nights < 1 || body.nights > 60)
+  ) {
     errors.push("nights muss zwischen 1 und 60 liegen");
   }
-  if (has("stop_key") && body.stop_key != null && !isText(body.stop_key, 200)) errors.push("stop_key zu lang (max. 200)");
+  if (has("stop_key") && body.stop_key != null && !isText(body.stop_key, 200))
+    errors.push("stop_key zu lang (max. 200)");
   if (has("kind") && body.kind != null && !["auto", "manual"].includes(body.kind)) {
     errors.push("kind muss auto oder manual sein");
   }
@@ -130,7 +146,11 @@ export function validateTagebuch(body) {
   const errors = [];
   if (!isValidId(body?.trip_id)) errors.push("trip_id ist ungültig");
   const tag = body?.day_key;
-  if (typeof tag !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tag) || Number.isNaN(Date.parse(`${tag}T12:00:00Z`))) {
+  if (
+    typeof tag !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(tag) ||
+    Number.isNaN(Date.parse(`${tag}T12:00:00Z`))
+  ) {
     errors.push("day_key muss ein Datum JJJJ-MM-TT sein");
   }
   const blocks = [];
@@ -140,12 +160,23 @@ export function validateTagebuch(body) {
     let zeichen = 0;
     for (const b of body.blocks) {
       if (b?.t === "text" && typeof b.text === "string") {
-        if (b.text.length > 20000) { errors.push("Absatz zu lang (max. 20000)"); break; }
+        if (b.text.length > 20000) {
+          errors.push("Absatz zu lang (max. 20000)");
+          break;
+        }
         zeichen += b.text.length;
         blocks.push({ t: "text", text: b.text });
-      } else if (b?.t === "fotos" && Array.isArray(b.ids) && b.ids.length <= 60 && b.ids.every((x) => isValidId(x))) {
+      } else if (
+        b?.t === "fotos" &&
+        Array.isArray(b.ids) &&
+        b.ids.length <= 60 &&
+        b.ids.every((x) => isValidId(x))
+      ) {
         blocks.push({ t: "fotos", ids: b.ids });
-      } else { errors.push("ungültiger Block"); break; }
+      } else {
+        errors.push("ungültiger Block");
+        break;
+      }
     }
     if (zeichen > 60000) errors.push("Eintrag zu lang (max. 60000 Zeichen)");
   }
@@ -154,7 +185,7 @@ export function validateTagebuch(body) {
 
 export function validateNote(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("title")) {
     if (typeof body?.title !== "string" || !body.title.trim()) errors.push("title fehlt");
@@ -164,17 +195,27 @@ export function validateNote(body, { partial = false } = {}) {
     if (typeof body?.text !== "string" || !body.text.trim()) errors.push("text fehlt");
     else if (body.text.length > 8000) errors.push("text zu lang (max. 8000)");
   }
-  if (has("lat") && body.lat != null && (!isFiniteNumber(body.lat) || body.lat < -90 || body.lat > 90)) {
+  if (
+    has("lat") &&
+    body.lat != null &&
+    (!isFiniteNumber(body.lat) || body.lat < -90 || body.lat > 90)
+  ) {
     errors.push("lat muss zwischen -90 und 90 liegen");
   }
-  if (has("lon") && body.lon != null && (!isFiniteNumber(body.lon) || body.lon < -180 || body.lon > 180)) {
+  if (
+    has("lon") &&
+    body.lon != null &&
+    (!isFiniteNumber(body.lon) || body.lon < -180 || body.lon > 180)
+  ) {
     errors.push("lon muss zwischen -180 und 180 liegen");
   }
   if (has("source") && !["camper", "handy", "manuell"].includes(body.source)) {
     errors.push("source muss camper, handy oder manuell sein");
   }
-  if (has("weather") && body.weather != null && !isText(body.weather, 1000)) errors.push("weather zu lang");
-  if (has("besuch_id") && body.besuch_id != null && !isValidId(body.besuch_id)) errors.push("besuch_id ist ungültig");
+  if (has("weather") && body.weather != null && !isText(body.weather, 1000))
+    errors.push("weather zu lang");
+  if (has("besuch_id") && body.besuch_id != null && !isValidId(body.besuch_id))
+    errors.push("besuch_id ist ungültig");
   if (!partial) validateOptionalId(body, errors);
   return { ok: errors.length === 0, errors };
 }
@@ -182,14 +223,23 @@ export function validateNote(body, { partial = false } = {}) {
 /** Prüft eine neue oder geänderte Reise. */
 export function validateTrip(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
   const isDate = (v) => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
   if (!partial && has("name") && !isText(body.name, 120)) errors.push("name zu lang (max. 120)");
-  if (has("name") && body.name != null && !isText(body.name, 120)) errors.push("name zu lang (max. 120)");
-  if (has("start_at") && body.start_at != null && !isDate(body.start_at)) errors.push("start_at ist kein gültiges Datum");
-  if (has("end_at") && body.end_at != null && !isDate(body.end_at)) errors.push("end_at ist kein gültiges Datum");
-  if (has("start_at") && has("end_at") && body.start_at && body.end_at && Date.parse(body.end_at) < Date.parse(body.start_at)) {
+  if (has("name") && body.name != null && !isText(body.name, 120))
+    errors.push("name zu lang (max. 120)");
+  if (has("start_at") && body.start_at != null && !isDate(body.start_at))
+    errors.push("start_at ist kein gültiges Datum");
+  if (has("end_at") && body.end_at != null && !isDate(body.end_at))
+    errors.push("end_at ist kein gültiges Datum");
+  if (
+    has("start_at") &&
+    has("end_at") &&
+    body.start_at &&
+    body.end_at &&
+    Date.parse(body.end_at) < Date.parse(body.start_at)
+  ) {
     errors.push("end_at liegt vor start_at");
   }
   if (has("vehicle_id") && body.vehicle_id != null && !isValidId(body.vehicle_id, 100)) {
@@ -202,7 +252,7 @@ export function validateTrip(body, { partial = false } = {}) {
 /** Prüft eine neue oder geänderte Kategorie. */
 export function validateCategory(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("name")) {
     if (typeof body?.name !== "string" || !body.name.trim()) errors.push("name fehlt");
@@ -211,7 +261,11 @@ export function validateCategory(body, { partial = false } = {}) {
   if (has("color") && body.color != null && !isHexColor(body.color)) {
     errors.push("color muss eine Hex-Farbe sein (z. B. #e8802b)");
   }
-  if (has("sort") && body.sort != null && (!Number.isInteger(body.sort) || body.sort < -1000 || body.sort > 1000)) {
+  if (
+    has("sort") &&
+    body.sort != null &&
+    (!Number.isInteger(body.sort) || body.sort < -1000 || body.sort > 1000)
+  ) {
     errors.push("sort muss eine ganze Zahl zwischen -1000 und 1000 sein");
   }
   if (!partial) validateOptionalId(body, errors, { max: 60 });
@@ -221,7 +275,7 @@ export function validateCategory(body, { partial = false } = {}) {
 /** Prüft ein neues oder geändertes Fahrzeug. */
 export function validateVehicle(body, { partial = false } = {}) {
   const errors = [];
-  const has = (k) => body && Object.prototype.hasOwnProperty.call(body, k);
+  const has = (k) => body && Object.hasOwn(body, k);
 
   if (!partial || has("name")) {
     if (typeof body?.name !== "string" || !body.name.trim()) errors.push("name fehlt");
@@ -287,7 +341,10 @@ const METERS_PER_DEGREE = 111_320;
  * recording stay exactly where they are), and at least one row every
  * `maxSeconds`.
  */
-export function thinPositions(rows, { maxMeters = 2, maxKmh = 2, maxAltitude = 3, maxSeconds = 30, gapSeconds = 20 } = {}) {
+export function thinPositions(
+  rows,
+  { maxMeters = 2, maxKmh = 2, maxAltitude = 3, maxSeconds = 30, gapSeconds = 20 } = {},
+) {
   const n = rows?.length || 0;
   if (n < 3) return rows ? [...rows] : [];
   const keep = new Uint8Array(n);
@@ -328,10 +385,14 @@ export function thinPositions(rows, { maxMeters = 2, maxKmh = 2, maxAltitude = 3
       const f = (rows[i].at - rows[a].at) / span;
       const score = Math.max(
         Math.hypot(x[i] - x[a] - t * dx, y[i] - y[a] - t * dy) / maxMeters,
-        Math.abs(speed(rows[i]) - (speed(rows[a]) + f * (speed(rows[b]) - speed(rows[a])))) / maxKmh,
+        Math.abs(speed(rows[i]) - (speed(rows[a]) + f * (speed(rows[b]) - speed(rows[a])))) /
+          maxKmh,
         Math.abs(alt(rows[i]) - (alt(rows[a]) + f * (alt(rows[b]) - alt(rows[a])))) / maxAltitude,
       );
-      if (score > worst) { worst = score; worstIndex = i; }
+      if (score > worst) {
+        worst = score;
+        worstIndex = i;
+      }
     }
     if (worst > 1 || span > maxSeconds * 1000) {
       if (worst <= 1) worstIndex = (a + b) >> 1; // only the time limit is exceeded
@@ -348,14 +409,19 @@ export function thinPositions(rows, { maxMeters = 2, maxKmh = 2, maxAltitude = 3
  * thinning. Decoded in the app by src/route-wire.js.
  */
 export function compactRoute(rows, total = rows.length) {
-  const round = (v, digits) => { const f = 10 ** digits; return Math.round(v * f) / f; };
+  const round = (v, digits) => {
+    const f = 10 ** digits;
+    return Math.round(v * f) / f;
+  };
   return {
     v: 1,
     total,
     lastAt: rows.length ? rows[rows.length - 1].at : null,
     fields: ["at", "lat", "lon", "altitude", "kmh"],
     points: rows.map((r) => [
-      r.at, round(r.lat, 6), round(r.lon, 6),
+      r.at,
+      round(r.lat, 6),
+      round(r.lon, 6),
       round(Number.isFinite(r.altitude) ? r.altitude : 0, 1),
       round(Number.isFinite(r.speed_kmh) ? r.speed_kmh : 0, 1),
     ]),
@@ -368,7 +434,8 @@ function haversineMeter(a, b) {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 +
+  const h =
+    Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
@@ -441,14 +508,18 @@ function fensterBewegt(rows, i) {
   // Grenze, auch fürs Fenster (wir wissen nicht, was dazwischen passiert ist).
   let links = i - 1;
   while (
-    links > 0 && rows[links - 1].at >= startMs
-    && (rows[links].at - rows[links - 1].at) / 60000 <= MAX_LUECKE_MINUTEN
-  ) links--;
+    links > 0 &&
+    rows[links - 1].at >= startMs &&
+    (rows[links].at - rows[links - 1].at) / 60000 <= MAX_LUECKE_MINUTEN
+  )
+    links--;
   let rechts = i;
   while (
-    rechts < rows.length - 1 && rows[rechts + 1].at <= endeMs
-    && (rows[rechts + 1].at - rows[rechts].at) / 60000 <= MAX_LUECKE_MINUTEN
-  ) rechts++;
+    rechts < rows.length - 1 &&
+    rows[rechts + 1].at <= endeMs &&
+    (rows[rechts + 1].at - rows[rechts].at) / 60000 <= MAX_LUECKE_MINUTEN
+  )
+    rechts++;
   if (haversineMeter(rows[links], rows[rechts]) < BEWEGUNG_FENSTER_MIN_M) return false;
   for (let j = links; j <= rechts; j++) {
     if ((rows[j].speed_kmh || 0) >= BEWEGUNG_FENSTER_MIN_KMH) return true;
@@ -496,7 +567,8 @@ const LUECKE_STEHT_NAH_M = 50;
 function klassifiziereKanten(rows) {
   const kanten = [];
   for (let i = 1; i < rows.length; i++) {
-    const a = rows[i - 1], b = rows[i];
+    const a = rows[i - 1],
+      b = rows[i];
     const lueckeMinuten = (b.at - a.at) / 60000;
     if (!(lueckeMinuten > 0)) continue; // gleicher/rückwärtiger Zeitstempel — überspringen
     if (lueckeMinuten > MAX_LUECKE_MINUTEN) {
@@ -507,10 +579,11 @@ function klassifiziereKanten(rows) {
       // Lücke exakt 120,3 Minuten mit
       // Randgeschwindigkeit genau 2 km/h auf einer Seite).
       const abstandM = haversineMeter(a, b);
-      const vermutlichStand = abstandM < LUECKE_STEHT_NAH_M
-        || ((a.speed_kmh || 0) <= LUECKE_STEHT_MAX_KMH
-          && (b.speed_kmh || 0) <= LUECKE_STEHT_MAX_KMH
-          && abstandM < LUECKE_STEHT_MAX_M);
+      const vermutlichStand =
+        abstandM < LUECKE_STEHT_NAH_M ||
+        ((a.speed_kmh || 0) <= LUECKE_STEHT_MAX_KMH &&
+          (b.speed_kmh || 0) <= LUECKE_STEHT_MAX_KMH &&
+          abstandM < LUECKE_STEHT_MAX_M);
       kanten.push({ a, b, zustand: vermutlichStand ? "steht" : "luecke", distanzM: 0 });
       continue;
     }
@@ -525,7 +598,10 @@ function gruppiereNachZustand(kanten, gesuchterZustand) {
   let lauf = [];
   for (const kante of kanten) {
     if (kante.zustand === gesuchterZustand) lauf.push(kante);
-    else { if (lauf.length) gruppen.push(lauf); lauf = []; }
+    else {
+      if (lauf.length) gruppen.push(lauf);
+      lauf = [];
+    }
   }
   if (lauf.length) gruppen.push(lauf);
   return gruppen;
@@ -536,9 +612,11 @@ function baueFahrt(kanten) {
   const ende = kanten[kanten.length - 1].b;
   const distanzM = kanten.reduce((summe, k) => summe + k.distanzM, 0);
   const dauerMs = ende.at - start.at;
-  const geschwindigkeiten = kanten.flatMap((k) => [k.a.speed_kmh, k.b.speed_kmh]).filter(Number.isFinite);
+  const geschwindigkeiten = kanten
+    .flatMap((k) => [k.a.speed_kmh, k.b.speed_kmh])
+    .filter(Number.isFinite);
   const maxKmh = geschwindigkeiten.length ? Math.max(...geschwindigkeiten) : 0;
-  const avgKmh = dauerMs > 0 ? (distanzM / 1000) / (dauerMs / 3600000) : 0;
+  const avgKmh = dauerMs > 0 ? distanzM / 1000 / (dauerMs / 3600000) : 0;
   return {
     startTime: new Date(start.at).toISOString(),
     endTime: new Date(ende.at).toISOString(),
@@ -568,7 +646,8 @@ function baueStopp(kanten) {
     startTime: new Date(start.at).toISOString(),
     endTime: new Date(ende.at).toISOString(),
     duration: ende.at - start.at,
-    lat, lon,
+    lat,
+    lon,
     address: "",
     // Siehe deviceId-Kommentar in baueFahrt() oben — dieselbe Begründung.
     deviceId: start.device_id ?? null,
@@ -633,9 +712,13 @@ const WETTER_TEXTE = new Map([
 ]);
 
 const WETTER_ZEICHEN = new Map([
-  [[0, 1], "☀️"], [[2], "🌤️"], [[3], "☁️"], [[45, 48], "🌫️"],
+  [[0, 1], "☀️"],
+  [[2], "🌤️"],
+  [[3], "☁️"],
+  [[45, 48], "🌫️"],
   [[51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82], "🌧️"],
-  [[71, 73, 75, 77, 85, 86], "🌨️"], [[95, 96, 99], "⛈️"],
+  [[71, 73, 75, 77, 85, 86], "🌨️"],
+  [[95, 96, 99], "⛈️"],
 ]);
 
 const ausTabelle = (tabelle, code, vorgabe) => {
@@ -660,7 +743,10 @@ export function pickHourIndex(times, at) {
     const t = Date.parse(times[i].length <= 16 ? `${times[i]}:00Z` : times[i]);
     if (!Number.isFinite(t)) continue;
     const d = Math.abs(t - ziel);
-    if (d < abstand) { abstand = d; beste = i; }
+    if (d < abstand) {
+      abstand = d;
+      beste = i;
+    }
   }
   // Mehr als 12 Stunden daneben ist keine Aussage über diesen Zeitpunkt mehr.
   return abstand <= 12 * 3600 * 1000 ? beste : -1;
@@ -683,8 +769,16 @@ export function benenneOrtAusGeocodeAntwort(daten) {
   if (!daten || typeof daten !== "object") return null;
   const adresse = daten.address && typeof daten.address === "object" ? daten.address : {};
   const name = (typeof daten.name === "string" && daten.name.trim()) || null;
-  const naeherung = adresse.tourism || adresse.leisure || adresse.natural
-    || adresse.village || adresse.suburb || adresse.town || adresse.city_district || adresse.city || null;
+  const naeherung =
+    adresse.tourism ||
+    adresse.leisure ||
+    adresse.natural ||
+    adresse.village ||
+    adresse.suburb ||
+    adresse.town ||
+    adresse.city_district ||
+    adresse.city ||
+    null;
   const haupt = name || naeherung;
   if (!haupt) return null;
   // Nominatim führt kleinere Ortschaften als "village", nicht "town"/"city"
@@ -796,7 +890,8 @@ export async function holeWetter(lat, lon, at) {
 export function validateCoords(lat, lon) {
   const errors = [];
   const zahl = (v) => (v === null || v === undefined || String(v).trim() === "" ? NaN : Number(v));
-  const la = zahl(lat), lo = zahl(lon);
+  const la = zahl(lat),
+    lo = zahl(lon);
   if (!Number.isFinite(la) || la < -90 || la > 90) errors.push("lat fehlt oder ist ungültig");
   if (!Number.isFinite(lo) || lo < -180 || lo > 180) errors.push("lon fehlt oder ist ungültig");
   return { ok: errors.length === 0, errors, lat: la, lon: lo };
@@ -868,7 +963,11 @@ async function derive(password, salt, rounds) {
   while (rest > 0) {
     const jetzt = Math.min(MAX_RUNDEN_JE_AUFRUF, rest);
     const key = await crypto.subtle.importKey("raw", material, "PBKDF2", false, ["deriveBits"]);
-    bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: jetzt }, key, 256);
+    bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt, iterations: jetzt },
+      key,
+      256,
+    );
     material = new Uint8Array(bits);
     rest -= jetzt;
   }
@@ -893,8 +992,11 @@ export async function verifyPassword(password, stored) {
 }
 
 /** Zufälliger Sitzungsschlüssel für das Cookie. */
-export const newSessionToken = () => b64(crypto.getRandomValues(new Uint8Array(32)))
-  .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+export const newSessionToken = () =>
+  b64(crypto.getRandomValues(new Uint8Array(32)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 
 /** In der Datenbank liegt nur der Abdruck — nie der Schlüssel selbst. */
 export async function hashToken(token) {

@@ -5,6 +5,17 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 /**
+ * Closest element matching `sel` from an event's target, or null (e.g. for delegated clicks).
+ * @param {Event} event
+ * @param {string} sel
+ * @returns {HTMLElement | null}
+ */
+export const closestTarget = (event, sel) =>
+  event.target instanceof Element
+    ? /** @type {HTMLElement | null} */ (event.target.closest(sel))
+    : null;
+
+/**
  * Build an element.
  * @param {string} tag  e.g. "div.card.wide" or "button#save"
  * @param {object} [attrs] attributes; `text` sets textContent, `style` takes an object,
@@ -21,7 +32,8 @@ export function el(tag, attrs = {}, children = []) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
     if (k === "text") node.textContent = String(v);
-    else if (k === "html") node.innerHTML = v; // only for our own, constant markup snippets
+    else if (k === "html")
+      node.innerHTML = v; // only for our own, constant markup snippets
     else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
     else if (k === "dataset") Object.assign(node.dataset, v);
     else if (k === "on") for (const [ev, fn] of Object.entries(v)) node.addEventListener(ev, fn);
@@ -36,7 +48,9 @@ export function append(parent, children) {
   const list = Array.isArray(children) ? children : [children];
   for (const c of list) {
     if (c == null || c === false) continue;
-    parent.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+    parent.appendChild(
+      typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c,
+    );
   }
   return parent;
 }
@@ -60,8 +74,8 @@ export function icon(paths, size = 16) {
   svg.setAttribute("stroke-width", "2");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
-  svg.style.width = size + "px";
-  svg.style.height = size + "px";
+  svg.style.width = `${size}px`;
+  svg.style.height = `${size}px`;
   svg.innerHTML = paths; // constant icon paths from icons.js
   return svg;
 }

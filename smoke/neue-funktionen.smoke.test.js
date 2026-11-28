@@ -3,13 +3,19 @@ import { expect, test } from "@playwright/test";
 // Die Demo-Daten kommen ohne Server aus: jede API-Antwort ist "nicht angemeldet".
 async function starte(page, breite = 1280) {
   const fehler = [];
-  page.on("console", (message) => { if (message.type() === "error") fehler.push(message.text()); });
+  page.on("console", (message) => {
+    if (message.type() === "error") fehler.push(message.text());
+  });
   page.on("pageerror", (error) => fehler.push(error.message));
   await page.route("**/api/**", (route) => {
     if (route.request().url().endsWith("/api/auth/me")) {
       return route.fulfill({ contentType: "application/json", body: "{" });
     }
-    return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "nicht angemeldet" }) });
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "nicht angemeldet" }),
+    });
   });
   await page.setViewportSize({ width: breite, height: 900 });
   await page.goto("/");
@@ -42,7 +48,9 @@ test("Zeitraum wählen: eigener Kalender statt Browser-Datumsfelder", async ({ p
   expect(fehler).toEqual([]);
 });
 
-test("Einstellungen: Datenlücken markieren ist standardmäßig aus und lässt sich einschalten", async ({ page }) => {
+test("Einstellungen: Datenlücken markieren ist standardmäßig aus und lässt sich einschalten", async ({
+  page,
+}) => {
   const fehler = await starte(page);
 
   await page.getByRole("tab", { name: "Mehr" }).click();
@@ -66,7 +74,9 @@ test("Logbuch: auf breiten Fenstern in Spalten, auf schmalen untereinander", asy
   expect(fehler).toEqual([]);
 });
 
-test("Reisen: Kilometer pro Tag mit Skala, ein Tipp auf den Balken zeigt die Kilometer", async ({ page }) => {
+test("Reisen: Kilometer pro Tag mit Skala, ein Tipp auf den Balken zeigt die Kilometer", async ({
+  page,
+}) => {
   const fehler = await starte(page);
 
   await page.getByRole("tab", { name: "Reisen" }).click();
@@ -81,7 +91,9 @@ test("Reisen: Kilometer pro Tag mit Skala, ein Tipp auf den Balken zeigt die Kil
   expect(fehler).toEqual([]);
 });
 
-test("Tag erzählen: Text schreiben sichert einen Entwurf, es gibt keine Absatz-Knöpfe mehr", async ({ page }) => {
+test("Tag erzählen: Text schreiben sichert einen Entwurf, es gibt keine Absatz-Knöpfe mehr", async ({
+  page,
+}) => {
   const fehler = await starte(page);
 
   await page.getByRole("tab", { name: "Logbuch" }).click();

@@ -4,10 +4,24 @@
 // Month and weekday names are UI and stay German.
 const pad = (n) => String(n).padStart(2, "0");
 
-export const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+export const MONTHS = [
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
+];
 export const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
-export const dayKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+export const dayKey = (date) =>
+  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 /** "2026-10-27" → local date at 0:00, or null. */
 export function parseDay(key) {
@@ -82,7 +96,10 @@ const timeParts = (time, fallback) => {
  * Chosen days (and times, by default the whole day) as ISO times. The end never
  * reaches into the future. Returns null without a start or when the end lies before the start.
  */
-export function rangeToIso({ from, to }, { fromTime = "00:00", toTime = "23:59", now = new Date() } = {}) {
+export function rangeToIso(
+  { from, to },
+  { fromTime = "00:00", toTime = "23:59", now = new Date() } = {},
+) {
   const start = parseDay(from);
   const end = parseDay(to || from);
   if (!start || !end) return null;
@@ -108,7 +125,8 @@ export function rangePreset(name, now = new Date(), all = null) {
   if (name === "today") return { from: dayKey(today), to: dayKey(today) };
   if (name === "yesterday") return { from: dayKey(days(-1)), to: dayKey(days(-1)) };
   if (name === "last7") return { from: dayKey(days(-6)), to: dayKey(today) };
-  if (name === "month") return { from: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), to: dayKey(today) };
+  if (name === "month")
+    return { from: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), to: dayKey(today) };
   const from = all?.from ? new Date(all.from) : days(-30);
   const to = all?.to ? new Date(all.to) : today;
   return { from: dayKey(from), to: dayKey(to) };

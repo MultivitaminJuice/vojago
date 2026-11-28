@@ -18,7 +18,10 @@ export function dayWeather(weatherList) {
     e.n += 1;
     counter.set(x.text, e);
   }
-  const [text, e] = [...counter.entries()].sort((a, b) => b[1].n - a[1].n)[0] || ["", { symbol: "" }];
+  const [text, e] = [...counter.entries()].sort((a, b) => b[1].n - a[1].n)[0] || [
+    "",
+    { symbol: "" },
+  ];
   return { temp: min === max ? `${min}°` : `${min} bis ${max}°`, text, symbol: e.symbol };
 }
 
@@ -26,7 +29,8 @@ export function dayWeather(weatherList) {
 export function dayTimeline(entries, drives) {
   const timeline = [];
   const first = [...drives].sort((a, b) => String(a.from).localeCompare(String(b.from)))[0];
-  if (first?.from) timeline.push({ time: first.from, kind: "start", title: shortAddress(first.startAddress) });
+  if (first?.from)
+    timeline.push({ time: first.from, kind: "start", title: shortAddress(first.startAddress) });
   for (const e of entries) {
     if (e.kind !== "place") continue;
     timeline.push({
@@ -53,8 +57,14 @@ export function tripDays({ startIso, entries, drives, path, extraDays = [] }) {
     if (!days.has(key)) days.set(key, { key, entries: [], drives: [], points: [] });
     return days.get(key);
   };
-  for (const e of entries) { const k = localDayKey(e.at); if (k) day(k).entries.push(e); }
-  for (const d of drives) { const k = localDayKey(d.from); if (k) day(k).drives.push(d); }
+  for (const e of entries) {
+    const k = localDayKey(e.at);
+    if (k) day(k).entries.push(e);
+  }
+  for (const d of drives) {
+    const k = localDayKey(d.from);
+    if (k) day(k).drives.push(d);
+  }
   const extra = new Set(extraDays);
   for (const k of extra) day(k);
 
@@ -88,7 +98,10 @@ export function tripDays({ startIso, entries, drives, path, extraDays = [] }) {
         km: Math.round((t.drives.length ? kmDrives : kmTrack) * 10) / 10,
         from: shortAddress(sorted[0]?.startAddress),
         to: shortAddress(sorted.at(-1)?.endAddress),
-        weather: dayWeather([...places.map((e) => e.data.weather), ...notes.map((e) => e.data.weather)]),
+        weather: dayWeather([
+          ...places.map((e) => e.data.weather),
+          ...notes.map((e) => e.data.weather),
+        ]),
         timeline: dayTimeline(t.entries, t.drives),
       };
     });

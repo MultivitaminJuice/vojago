@@ -15,7 +15,9 @@ let openSheet = () => {};
 let photoGallery = null;
 
 const titleFromText = (text) => {
-  const clean = String(text || "").trim().replace(/\s+/g, " ");
+  const clean = String(text || "")
+    .trim()
+    .replace(/\s+/g, " ");
   if (!clean) return "";
   return clean.length > 48 ? `${clean.slice(0, 47).trim()}…` : clean;
 };
@@ -25,7 +27,9 @@ export function initNoteEditor({ onChange, onUndoOffer, onOpen }) {
   offerUndo = onUndoOffer;
   openSheet = onOpen || (() => {});
   photoGallery = wirePhotoGallery({
-    galleryId: "note-photos", inputId: "note-photo-input", addBtnId: "note-photo-add",
+    galleryId: "note-photos",
+    inputId: "note-photo-input",
+    addBtnId: "note-photo-add",
   });
 
   $("#note-save").addEventListener("click", () => save());
@@ -51,8 +55,16 @@ export function initNoteEditor({ onChange, onUndoOffer, onOpen }) {
 export function captureNote({ fallbackCenter }) {
   const begin = (lon, lat, hint) => {
     openNoteEditor({
-      id: newId("note"), tripId: state.activeTripId, besuchId: null,
-      title: "", text: "", at: new Date().toISOString(), lon, lat, source: "handy", isNew: true,
+      id: newId("note"),
+      tripId: state.activeTripId,
+      besuchId: null,
+      title: "",
+      text: "",
+      at: new Date().toISOString(),
+      lon,
+      lat,
+      source: "handy",
+      isNew: true,
     });
     if (hint) toast(hint);
   };
@@ -61,8 +73,11 @@ export function captureNote({ fallbackCenter }) {
     toast("Standort wird ermittelt …");
     navigator.geolocation.getCurrentPosition(
       (pos) => begin(pos.coords.longitude, pos.coords.latitude, "Standort übernommen"),
-      () => { const c = fallbackCenter(); begin(c.lng, c.lat, "Kein Gerätestandort – Kartenmitte übernommen"); },
-      { enableHighAccuracy: true, timeout: 8000 }
+      () => {
+        const c = fallbackCenter();
+        begin(c.lng, c.lat, "Kein Gerätestandort – Kartenmitte übernommen");
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
     );
     return;
   }
@@ -83,14 +98,31 @@ export function openNoteEditor(note) {
   render($("#note-meta"), [
     el("span", { text: note.source === "handy" ? "🚶 Handy" : "📍 manuell" }),
     el("span", {
-      text: Number.isNaN(when.getTime()) ? "" : when.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      text: Number.isNaN(when.getTime())
+        ? ""
+        : when.toLocaleString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
       style: { color: "var(--ink-faint)", fontFamily: "var(--font-mono)", fontSize: "11px" },
     }),
     el("span", {
       text: `${Number(note.lat).toFixed(4)}, ${Number(note.lon).toFixed(4)}`,
-      style: { marginLeft: "auto", color: "var(--ink-faint)", fontFamily: "var(--font-mono)", fontSize: "11px" },
+      style: {
+        marginLeft: "auto",
+        color: "var(--ink-faint)",
+        fontFamily: "var(--font-mono)",
+        fontSize: "11px",
+      },
     }),
-    note.weather ? el("span", { text: weatherLine(note.weather), style: { flexBasis: "100%", color: "var(--ink-soft)" } }) : null,
+    note.weather
+      ? el("span", {
+          text: weatherLine(note.weather),
+          style: { flexBasis: "100%", color: "var(--ink-soft)" },
+        })
+      : null,
   ]);
 
   const select = $("#note-place");
@@ -100,15 +132,18 @@ export function openNoteEditor(note) {
   ]);
   select.value = note.besuchId || "";
 
-  photoGallery?.update(note.isNew ? null : { noteId: note.id }, note.isNew ? [] : notePhotos(note.id));
+  photoGallery?.update(
+    note.isNew ? null : { noteId: note.id },
+    note.isNew ? [] : notePhotos(note.id),
+  );
 }
 
-export const isDirty = () => Boolean(current) && (
-  $("#note-title").value !== snapshot.title
-  || $("#note-text").value !== snapshot.text
-  || ($("#note-place").value || "") !== snapshot.besuchId
-  || Boolean(current.isNew)
-);
+export const isDirty = () =>
+  Boolean(current) &&
+  ($("#note-title").value !== snapshot.title ||
+    $("#note-text").value !== snapshot.text ||
+    ($("#note-place").value || "") !== snapshot.besuchId ||
+    Boolean(current.isNew));
 
 export function save() {
   if (!current) return;
@@ -120,8 +155,16 @@ export function save() {
     besuchId: $("#note-place").value || null,
   };
   delete note.isNew;
-  if (!note.title) { toast("Titel fehlt"); return; }
-  if (!note.text) { toast("Notiz ist leer – nicht gespeichert"); current = null; afterChange(); return; }
+  if (!note.title) {
+    toast("Titel fehlt");
+    return;
+  }
+  if (!note.text) {
+    toast("Notiz ist leer – nicht gespeichert");
+    current = null;
+    afterChange();
+    return;
+  }
   // Save first, then close (see place-editor.js). The weather at the time is
   // added afterwards (see store.js).
   const saved = storeNote(note, { isNew });
@@ -137,4 +180,6 @@ export function save() {
   });
 }
 
-export const clearEditor = () => { current = null; };
+export const clearEditor = () => {
+  current = null;
+};

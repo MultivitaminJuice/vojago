@@ -9,7 +9,9 @@ let db, parseAllowedDeviceIds, isDeviceAllowed, setLearningUntil;
 
 before(async () => {
   ({ db } = await import("./store.js"));
-  ({ parseAllowedDeviceIds, isDeviceAllowed, setLearningUntil } = await import("./device-allowlist.js"));
+  ({ parseAllowedDeviceIds, isDeviceAllowed, setLearningUntil } = await import(
+    "./device-allowlist.js"
+  ));
 });
 
 after(() => {
@@ -29,7 +31,10 @@ test("parseAllowedDeviceIds: Kommas, Leerraum und leere Einträge werden bereini
 });
 
 test("isDeviceAllowed: unbekannte Geräte werden standardmäßig abgewiesen und gemerkt", () => {
-  assert.equal(isDeviceAllowed("beliebig", { allowed: parseAllowedDeviceIds(""), protocol: "test" }), false);
+  assert.equal(
+    isDeviceAllowed("beliebig", { allowed: parseAllowedDeviceIds(""), protocol: "test" }),
+    false,
+  );
   const row = db.prepare("SELECT * FROM known_devices WHERE device_id = 'beliebig'").get();
   assert.equal(row.accepted, 0);
   assert.equal(row.protocol, "test");
@@ -43,7 +48,9 @@ test("isDeviceAllowed: gesetzte Liste lässt nur exakte Geräte-IDs zu", () => {
 });
 
 test("isDeviceAllowed: Geräte-ID eines Fahrzeugs ist zugelassen", () => {
-  db.prepare("INSERT INTO vehicles (id, name, traccar_device_id, active) VALUES ('v1', 'Camper', 'imei-1', 1)").run();
+  db.prepare(
+    "INSERT INTO vehicles (id, name, traccar_device_id, active) VALUES ('v1', 'Camper', 'imei-1', 1)",
+  ).run();
   assert.equal(isDeviceAllowed("imei-1"), true);
 });
 

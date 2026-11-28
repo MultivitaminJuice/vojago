@@ -35,7 +35,10 @@ function validateOsmand(params) {
       return undefined;
     }
     const v = Number(roh);
-    if (!Number.isFinite(v)) { errors.push(`${name} ist keine Zahl`); return undefined; }
+    if (!Number.isFinite(v)) {
+      errors.push(`${name} ist keine Zahl`);
+      return undefined;
+    }
     if (min !== undefined && v < min) errors.push(`${name} zu klein`);
     if (max !== undefined && v > max) errors.push(`${name} zu groß`);
     return v;
@@ -61,7 +64,20 @@ function validateOsmand(params) {
   const ignition = boolWert("ignition");
   const motion = boolWert("motion");
 
-  return { ok: errors.length === 0, errors, id, lat, lon, timestamp, speed, bearing, altitude, sat, ignition, motion };
+  return {
+    ok: errors.length === 0,
+    errors,
+    id,
+    lat,
+    lon,
+    timestamp,
+    speed,
+    bearing,
+    altitude,
+    sat,
+    ignition,
+    motion,
+  };
 }
 
 /** @param {Request} request */
@@ -74,7 +90,9 @@ export async function handleOsmand(request) {
     try {
       const body = await request.clone().formData();
       params = new URLSearchParams([...url.searchParams, ...body.entries()]);
-    } catch { /* kein Formular-Body, nur Query — auch gültig */ }
+    } catch {
+      /* kein Formular-Body, nur Query — auch gültig */
+    }
   }
 
   const p = validateOsmand(params);

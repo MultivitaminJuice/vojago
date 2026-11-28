@@ -8,7 +8,16 @@
 // the same render functions (renderTrips, renderJournal, the map) unchanged.
 // Response fields (e.g. alleReisen, tagebuch) follow the API.
 import { state, emit } from "./state.js";
-import { toTrip, toPlace, toNote, toPhoto, toDiaryEntry, defaultTrip, positionsToPath, kmPerDay } from "./dataload.js";
+import {
+  toTrip,
+  toPlace,
+  toNote,
+  toPhoto,
+  toDiaryEntry,
+  defaultTrip,
+  positionsToPath,
+  kmPerDay,
+} from "./dataload.js";
 import { pathLengthKm, elevationRange } from "./geo.js";
 import { renumberPathByTripStart } from "./day-utils.js";
 import { fetchShare, fetchShareRoute, fetchSharePositions, fetchShareDrives } from "./api.js";
@@ -19,14 +28,21 @@ let activeToken = null;
 export async function startGuestView(token) {
   activeToken = token;
   const answer = await fetchShare(token);
-  state.guest = { scope: answer.scope, allTrips: answer.alleReisen, label: answer.label || "", token };
+  state.guest = {
+    scope: answer.scope,
+    allTrips: answer.alleReisen,
+    label: answer.label || "",
+    token,
+  };
   state.trips = (answer.trips || []).map(toTrip);
   state.places = (answer.places || []).map(toPlace);
   state.notes = (answer.notes || []).map(toNote);
   state.photos = (answer.photos || []).map(toPhoto);
   state.diary = (answer.tagebuch || []).map(toDiaryEntry);
   if (answer.categories?.length) {
-    state.categories = Object.fromEntries(answer.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]));
+    state.categories = Object.fromEntries(
+      answer.categories.map((c) => [c.id, { name: c.name, color: c.color || "#888" }]),
+    );
   }
   const fallback = defaultTrip(state.trips);
   state.activeTripId = fallback?.live ? fallback.id : null;
@@ -45,7 +61,8 @@ export async function loadGuestLivePosition(trip) {
     const p = Array.isArray(list) ? list[0] : null;
     if (!p || !Number.isFinite(p.longitude) || !Number.isFinite(p.latitude)) return;
     state.livePosition = {
-      lon: p.longitude, lat: p.latitude,
+      lon: p.longitude,
+      lat: p.latitude,
       at: p.fixTime || p.deviceTime || null,
       speed: Number.isFinite(p.speed) ? p.speed * 1.852 : 0,
     };

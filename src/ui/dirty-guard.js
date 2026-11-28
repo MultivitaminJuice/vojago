@@ -17,8 +17,15 @@ export function trackDirty(isDirtyFn, el) {
 
 function anyDirty() {
   for (const entry of tracked) {
-    if (!entry.el.isConnected) { tracked.delete(entry); continue; }
-    try { if (entry.isDirty()) return true; } catch { tracked.delete(entry); }
+    if (!entry.el.isConnected) {
+      tracked.delete(entry);
+      continue;
+    }
+    try {
+      if (entry.isDirty()) return true;
+    } catch {
+      tracked.delete(entry);
+    }
   }
   return false;
 }
@@ -32,5 +39,8 @@ export function mayLeave() {
 }
 
 window.addEventListener("beforeunload", (e) => {
-  if (anyDirty()) { e.preventDefault(); e.returnValue = ""; }
+  if (anyDirty()) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
 });

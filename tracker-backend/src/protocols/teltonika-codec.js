@@ -36,7 +36,7 @@ export function crc16(buf) {
   for (let i = 0; i < buf.length; i++) {
     crc ^= buf[i];
     for (let j = 0; j < 8; j++) {
-      crc = (crc & 1) ? (crc >>> 1) ^ 0xa001 : crc >>> 1;
+      crc = crc & 1 ? (crc >>> 1) ^ 0xa001 : crc >>> 1;
     }
   }
   return crc & 0xffff;
@@ -70,14 +70,22 @@ function decodeIoElement(buf, offset, idBytes, lenBytes) {
 
 /** Eine AVL-Datenzeile lesen (Zeitstempel, GPS, IO-Elemente). */
 function decodeAvlRecord(buf, offset, codecId) {
-  const at = Number(buf.readBigUInt64BE(offset)); offset += 8;
-  const priority = buf.readUInt8(offset); offset += 1;
-  const lon = buf.readInt32BE(offset) / 1e7; offset += 4;
-  const lat = buf.readInt32BE(offset) / 1e7; offset += 4;
-  const altitude = buf.readInt16BE(offset); offset += 2;
-  const course = buf.readUInt16BE(offset); offset += 2;
-  const sats = buf.readUInt8(offset); offset += 1;
-  const speedKmh = buf.readUInt16BE(offset); offset += 2;
+  const at = Number(buf.readBigUInt64BE(offset));
+  offset += 8;
+  const priority = buf.readUInt8(offset);
+  offset += 1;
+  const lon = buf.readInt32BE(offset) / 1e7;
+  offset += 4;
+  const lat = buf.readInt32BE(offset) / 1e7;
+  offset += 4;
+  const altitude = buf.readInt16BE(offset);
+  offset += 2;
+  const course = buf.readUInt16BE(offset);
+  offset += 2;
+  const sats = buf.readUInt8(offset);
+  offset += 1;
+  const speedKmh = buf.readUInt16BE(offset);
+  offset += 2;
 
   // Codec8 Extended nutzt 2-Byte IDs/Zähler statt 1-Byte, plus eine
   // zusätzliche Gruppe variabler Länge (NX) am Ende.
@@ -108,7 +116,8 @@ function decodeAvlRecord(buf, offset, codecId) {
     const nx = liesAnzahl();
     for (let i = 0; i < nx; i++) {
       offset += idBytes;
-      const laenge = buf.readUInt16BE(offset); offset += 2;
+      const laenge = buf.readUInt16BE(offset);
+      offset += 2;
       offset += laenge;
     }
   }
@@ -116,7 +125,14 @@ function decodeAvlRecord(buf, offset, codecId) {
   return {
     offset,
     record: {
-      at, priority, lat, lon, altitude, course, sats, speedKmh,
+      at,
+      priority,
+      lat,
+      lon,
+      altitude,
+      course,
+      sats,
+      speedKmh,
       ignition: io.has(IO_IGNITION) ? Boolean(Number(io.get(IO_IGNITION))) : undefined,
       motion: io.has(IO_MOVEMENT) ? Boolean(Number(io.get(IO_MOVEMENT))) : undefined,
     },
@@ -143,7 +159,9 @@ export function parseAvlPacket(buf) {
   const erwarteteCrc = crc16(daten);
   const tatsaechlicheCrc = buf.readUInt32BE(8 + datenLaenge) & 0xffff;
   if (erwarteteCrc !== tatsaechlicheCrc) {
-    throw new Error(`CRC ungültig: erwartet 0x${erwarteteCrc.toString(16)}, bekommen 0x${tatsaechlicheCrc.toString(16)}`);
+    throw new Error(
+      `CRC ungültig: erwartet 0x${erwarteteCrc.toString(16)}, bekommen 0x${tatsaechlicheCrc.toString(16)}`,
+    );
   }
 
   const codecId = daten.readUInt8(0);
@@ -155,7 +173,8 @@ export function parseAvlPacket(buf) {
     records.push(record);
     offset = neuerOffset;
   }
-  const nod2 = daten.readUInt8(offset); offset += 1;
+  const nod2 = daten.readUInt8(offset);
+  offset += 1;
   if (nod2 !== nod1) throw new Error(`Datensatzzahl stimmt nicht: NOD1=${nod1}, NOD2=${nod2}`);
 
   return { codecId, records, bytesRead: gesamtLaenge };

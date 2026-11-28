@@ -25,22 +25,26 @@ function open() {
 }
 
 function run(mode, fn) {
-  return open().then((db) => new Promise((resolve) => {
-    if (!db) return resolve(null);
-    try {
-      const tx = db.transaction(STORE, mode);
-      const req = fn(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(req?.result ?? null);
-      tx.onerror = () => resolve(null);
-      tx.onabort = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  }));
+  return open().then(
+    (db) =>
+      new Promise((resolve) => {
+        if (!db) return resolve(null);
+        try {
+          const tx = db.transaction(STORE, mode);
+          const req = fn(tx.objectStore(STORE));
+          tx.oncomplete = () => resolve(req?.result ?? null);
+          tx.onerror = () => resolve(null);
+          tx.onabort = () => resolve(null);
+        } catch {
+          resolve(null);
+        }
+      }),
+  );
 }
 
 /** Key of a stored route: trip, device and time range — editing the range or switching the vehicle makes it a different route. */
-export const routeKey = (trip, device) => [trip.id, device, trip.range?.from || "", trip.range?.to || "offen"].join("|");
+export const routeKey = (trip, device) =>
+  [trip.id, device, trip.range?.from || "", trip.range?.to || "offen"].join("|");
 
 export const readRoute = (key) => run("readonly", (s) => s.get(key));
 export const writeRoute = (key, value) => run("readwrite", (s) => s.put(value, key));
@@ -51,12 +55,25 @@ export const deleteRoute = (key) => run("readwrite", (s) => s.delete(key));
 
 /** Path → compact rows for storage: [lon, lat, elev, spd, timeMs, cum]. */
 export function packPath(path) {
-  return (path || []).map((p) => [p.lon, p.lat, p.elev, p.spd, Date.parse(p.time || "") || null, p.cum]);
+  return (path || []).map((p) => [
+    p.lon,
+    p.lat,
+    p.elev,
+    p.spd,
+    Date.parse(p.time || "") || null,
+    p.cum,
+  ]);
 }
 
 /** Inverse of packPath. The day number is set again by the caller (renumberPathByTripStart). */
 export function unpackPath(rows) {
   return (rows || []).map(([lon, lat, elev, spd, at, cum]) => ({
-    lon, lat, elev, spd, time: at ? new Date(at).toISOString() : null, day: 1, cum,
+    lon,
+    lat,
+    elev,
+    spd,
+    time: at ? new Date(at).toISOString() : null,
+    day: 1,
+    cum,
   }));
 }

@@ -1,6 +1,10 @@
 // Colour scales for colouring the route.
 
-const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+const hex = (c) => [
+  parseInt(c.slice(1, 3), 16),
+  parseInt(c.slice(3, 5), 16),
+  parseInt(c.slice(5, 7), 16),
+];
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const rgb = (a) => `rgb(${a[0]},${a[1]},${a[2]})`;
 
@@ -15,10 +19,28 @@ function ramp(stops, t) {
   return rgb(stops[stops.length - 1][1]);
 }
 
-const SPEED = [[0, hex("#3b82c4")], [0.4, hex("#4fb477")], [0.7, hex("#e8c34a")], [1, hex("#e0503a")]];
-const ELEV  = [[0, hex("#2e7d57")], [0.45, hex("#b9a55c")], [0.75, hex("#9c6b3f")], [1, hex("#ece2d6")]];
-const DIST  = [[0, hex("#5b57c9")], [0.5, hex("#c24b86")], [1, hex("#e8802b")]];
-const DAY   = [[0, hex("#e8802b")], [0.5, hex("#d6487e")], [1, hex("#5b57c9")]];
+const SPEED = [
+  [0, hex("#3b82c4")],
+  [0.4, hex("#4fb477")],
+  [0.7, hex("#e8c34a")],
+  [1, hex("#e0503a")],
+];
+const ELEV = [
+  [0, hex("#2e7d57")],
+  [0.45, hex("#b9a55c")],
+  [0.75, hex("#9c6b3f")],
+  [1, hex("#ece2d6")],
+];
+const DIST = [
+  [0, hex("#5b57c9")],
+  [0.5, hex("#c24b86")],
+  [1, hex("#e8802b")],
+];
+const DAY = [
+  [0, hex("#e8802b")],
+  [0.5, hex("#d6487e")],
+  [1, hex("#5b57c9")],
+];
 
 export const SPEED_MAX = 90;
 
@@ -33,14 +55,22 @@ function dayProgress(point, ctx) {
  * original plain look as a deliberate option. */
 export function colorFor(point, metric, ctx) {
   switch (metric) {
-    case "none": return `hsl(${ctx.hue ?? 28},70%,52%)`;
-    case "trip": return Number.isFinite(point.tripHue)
-      ? `hsl(${point.tripHue},70%,52%)`
-      : ctx.rangeMode ? "#8a9a95" : `hsl(${ctx.hue ?? 28},70%,52%)`;
-    case "elev": return ramp(ELEV, (point.elev - ctx.elevMin) / (ctx.elevMax - ctx.elevMin));
-    case "dist": return ramp(DIST, ctx.totalKm ? point.cum / ctx.totalKm : 0);
-    case "day":  return ramp(DAY, dayProgress(point, ctx));
-    default:     return ramp(SPEED, point.spd / SPEED_MAX);
+    case "none":
+      return `hsl(${ctx.hue ?? 28},70%,52%)`;
+    case "trip":
+      return Number.isFinite(point.tripHue)
+        ? `hsl(${point.tripHue},70%,52%)`
+        : ctx.rangeMode
+          ? "#8a9a95"
+          : `hsl(${ctx.hue ?? 28},70%,52%)`;
+    case "elev":
+      return ramp(ELEV, (point.elev - ctx.elevMin) / (ctx.elevMax - ctx.elevMin));
+    case "dist":
+      return ramp(DIST, ctx.totalKm ? point.cum / ctx.totalKm : 0);
+    case "day":
+      return ramp(DAY, dayProgress(point, ctx));
+    default:
+      return ramp(SPEED, point.spd / SPEED_MAX);
   }
 }
 
@@ -48,7 +78,8 @@ export function colorFor(point, metric, ctx) {
  * (no legend — "none" has no scale to explain). Labels are UI and stay German. */
 export function legendFor(metric, ctx) {
   switch (metric) {
-    case "none": return null;
+    case "none":
+      return null;
     case "trip":
       return ctx.trips?.length
         ? {
@@ -60,18 +91,35 @@ export function legendFor(metric, ctx) {
           }
         : null;
     case "elev":
-      return { title: "Höhe · m", gradient: "linear-gradient(90deg,#2e7d57,#b9a55c,#9c6b3f,#ece2d6)",
-               scale: [Math.round(ctx.elevMin), Math.round((ctx.elevMin + ctx.elevMax) / 2), Math.round(ctx.elevMax)] };
+      return {
+        title: "Höhe · m",
+        gradient: "linear-gradient(90deg,#2e7d57,#b9a55c,#9c6b3f,#ece2d6)",
+        scale: [
+          Math.round(ctx.elevMin),
+          Math.round((ctx.elevMin + ctx.elevMax) / 2),
+          Math.round(ctx.elevMax),
+        ],
+      };
     case "dist":
-      return { title: "km ab Start", gradient: "linear-gradient(90deg,#5b57c9,#c24b86,#e8802b)",
-               scale: [0, Math.round(ctx.totalKm / 2), Math.round(ctx.totalKm)] };
+      return {
+        title: "km ab Start",
+        gradient: "linear-gradient(90deg,#5b57c9,#c24b86,#e8802b)",
+        scale: [0, Math.round(ctx.totalKm / 2), Math.round(ctx.totalKm)],
+      };
     case "day":
       // With exactly 2 days the middle showed the same value as the start
       // (Math.ceil(2/2) = 1) — "1 / 1 / 2". Two labels are enough for two days.
-      return { title: "Reisetag", gradient: "linear-gradient(90deg,#e8802b,#d6487e,#5b57c9)",
-               scale: ctx.days > 2 ? [1, Math.ceil(ctx.days / 2), ctx.days] : ctx.days === 2 ? [1, 2] : [1] };
+      return {
+        title: "Reisetag",
+        gradient: "linear-gradient(90deg,#e8802b,#d6487e,#5b57c9)",
+        scale:
+          ctx.days > 2 ? [1, Math.ceil(ctx.days / 2), ctx.days] : ctx.days === 2 ? [1, 2] : [1],
+      };
     default:
-      return { title: "Tempo · km/h", gradient: "linear-gradient(90deg,#3b82c4,#4fb477,#e8c34a,#e0503a)",
-               scale: [0, SPEED_MAX / 2, SPEED_MAX] };
+      return {
+        title: "Tempo · km/h",
+        gradient: "linear-gradient(90deg,#3b82c4,#4fb477,#e8c34a,#e0503a)",
+        scale: [0, SPEED_MAX / 2, SPEED_MAX],
+      };
   }
 }

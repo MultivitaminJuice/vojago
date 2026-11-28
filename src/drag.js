@@ -17,39 +17,70 @@ export function draggable(node, { start, move, end, cancel = () => {} }) {
   let origin = null;
   let blockClick = false;
 
-  const begin = (pos) => { active = true; blockClick = true; start(pos); };
+  const begin = (pos) => {
+    active = true;
+    blockClick = true;
+    start(pos);
+  };
   const pos = (t) => ({ x: t.clientX, y: t.clientY });
 
   // Do not pass the "click" after a (mouse) drag on to the node.
-  node.addEventListener("click", (e) => {
-    if (!blockClick) return;
-    blockClick = false;
-    e.stopImmediatePropagation();
-    e.preventDefault();
-  }, true);
+  node.addEventListener(
+    "click",
+    (e) => {
+      if (!blockClick) return;
+      blockClick = false;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    },
+    true,
+  );
   // A long press on iOS/Android would otherwise open the image menu.
   node.addEventListener("contextmenu", (e) => e.preventDefault());
 
   /* Touch */
-  node.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) { clearTimeout(timer); timer = null; return; }
-    origin = pos(e.touches[0]);
-    blockClick = false;
-    timer = setTimeout(() => { timer = null; navigator.vibrate?.(12); begin(origin); }, HOLD_MS);
-  }, { passive: true });
+  node.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) {
+        clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      origin = pos(e.touches[0]);
+      blockClick = false;
+      timer = setTimeout(() => {
+        timer = null;
+        navigator.vibrate?.(12);
+        begin(origin);
+      }, HOLD_MS);
+    },
+    { passive: true },
+  );
 
-  node.addEventListener("touchmove", (e) => {
-    const p = pos(e.touches[0]);
-    if (active) { e.preventDefault(); move(p); return; }
-    if (timer && Math.hypot(p.x - origin.x, p.y - origin.y) > WOBBLE_PX) { clearTimeout(timer); timer = null; }
-  }, { passive: false });
+  node.addEventListener(
+    "touchmove",
+    (e) => {
+      const p = pos(e.touches[0]);
+      if (active) {
+        e.preventDefault();
+        move(p);
+        return;
+      }
+      if (timer && Math.hypot(p.x - origin.x, p.y - origin.y) > WOBBLE_PX) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    },
+    { passive: false },
+  );
 
   node.addEventListener("touchend", (e) => {
     clearTimeout(timer);
     timer = null;
     if (!active) return;
     active = false;
-    e.preventDefault();   // no "click" after the drag
+    e.preventDefault(); // no "click" after the drag
     blockClick = false;
     end(pos(e.changedTouches[0]));
   });
@@ -71,7 +102,10 @@ export function draggable(node, { start, move, end, cancel = () => {} }) {
     const moved = (ev) => {
       const p = pos(ev);
       if (!active && Math.hypot(p.x - origin.x, p.y - origin.y) > MOUSE_THRESHOLD_PX) begin(p);
-      if (active) { ev.preventDefault(); move(p); }
+      if (active) {
+        ev.preventDefault();
+        move(p);
+      }
     };
     const released = (ev) => {
       document.removeEventListener("mousemove", moved);

@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { nightWindowHours, checkAutomaticOvernight, standingHours, classifyStand } from "../overnight-rules.js";
+import {
+  nightWindowHours,
+  checkAutomaticOvernight,
+  standingHours,
+  classifyStand,
+} from "../overnight-rules.js";
 
 const local = (day, hour, minute = 0) => new Date(2026, 7, day, hour, minute).toISOString();
 

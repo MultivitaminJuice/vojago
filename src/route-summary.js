@@ -93,13 +93,16 @@ function movingMinutes(path) {
 
 function distanceBetweenKm(a, b) {
   if (!a || !b) return Infinity;
-  const lat1 = Number(a.lat), lon1 = Number(a.lon);
-  const lat2 = Number(b.lat), lon2 = Number(b.lon);
+  const lat1 = Number(a.lat),
+    lon1 = Number(a.lon);
+  const lat2 = Number(b.lat),
+    lon2 = Number(b.lon);
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const h = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
@@ -111,10 +114,11 @@ function overnightPlaceCount(places) {
       groups.push(place);
       continue;
     }
-    const known = groups.some((group) =>
-      Number.isFinite(Number(group.lat)) &&
-      Number.isFinite(Number(group.lon)) &&
-      distanceBetweenKm(place, group) <= OVERNIGHT_PLACE_RADIUS_KM
+    const known = groups.some(
+      (group) =>
+        Number.isFinite(Number(group.lat)) &&
+        Number.isFinite(Number(group.lon)) &&
+        distanceBetweenKm(place, group) <= OVERNIGHT_PLACE_RADIUS_KM,
     );
     if (!known) groups.push(place);
   }
@@ -124,25 +128,48 @@ function overnightPlaceCount(places) {
 /** A day is listed only when something happened: drives, driving time or a visible track. */
 function hasDayActivity(summary) {
   if (!summary) return false;
-  return summary.drives.length > 0 ||
+  return (
+    summary.drives.length > 0 ||
     summary.stats.driveMinutes > 0 ||
-    summary.stats.distanceKm >= VISIBLE_TRACK_DAY_MIN_KM;
+    summary.stats.distanceKm >= VISIBLE_TRACK_DAY_MIN_KM
+  );
 }
 
-function commonSummary({ type, id, title, parentId = null, hue = 28, live = false, path = [], from = null, to = null, drives = [], places = [], notes = [], fallbackKm = 0 }) {
+function commonSummary({
+  type,
+  id,
+  title,
+  parentId = null,
+  hue = 28,
+  live = false,
+  path = [],
+  from = null,
+  to = null,
+  drives = [],
+  places = [],
+  notes = [],
+  fallbackKm = 0,
+}) {
   const routePath = normalisePath(path);
   const routeKm = pathDistance(routePath);
-  const km = type === "fahrt" && drives[0]?.km != null
-    ? drives[0].km
-    : routeKm || (Number.isFinite(fallbackKm) ? fallbackKm : 0);
+  const km =
+    type === "fahrt" && drives[0]?.km != null
+      ? drives[0].km
+      : routeKm || (Number.isFinite(fallbackKm) ? fallbackKm : 0);
   const pathDriveMinutes = movingMinutes(routePath);
-  const driveMinutes = pathDriveMinutes || numberSum(drives, "minutes") || (type === "fahrt" ? minutesBetween(from, to) : 0);
+  const driveMinutes =
+    pathDriveMinutes ||
+    numberSum(drives, "minutes") ||
+    (type === "fahrt" ? minutesBetween(from, to) : 0);
   const avgKmh = driveMinutes > 0 ? km / (driveMinutes / 60) : 0;
   const pathMax = routePath.length ? Math.max(0, ...routePath.map((p) => p.spd || 0)) : 0;
   const driveMax = Math.max(0, ...drives.map((d) => d.maxKmh || 0));
   const elev = routePath.length ? elevationRange(routePath) : { min: 0, max: 0 };
   const overnightPlaces = places.filter((p) => p.catId === "uebernachtung");
-  const nights = overnightPlaces.reduce((sum, p) => sum + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1), 0);
+  const nights = overnightPlaces.reduce(
+    (sum, p) => sum + (Number.isInteger(p.nights) && p.nights > 0 ? p.nights : 1),
+    0,
+  );
   const days = new Set(routePath.map((p) => p.day).filter(Number.isFinite));
 
   return {
@@ -189,7 +216,7 @@ export function summarizeTrip(trip, { drives = [], places = [], notes = [] } = {
     live,
     path: trip.path || [],
     from: trip.start || trip.range?.from || range.from,
-    to: live ? null : (explicitTo || range.to),
+    to: live ? null : explicitTo || range.to,
     fallbackKm: trip.km,
     drives,
     places,
@@ -202,9 +229,24 @@ export function summarizeDay(trip, day, { drives = [], places = [], notes = [] }
   const path = (trip.path || []).filter((p) => p.day === day);
   const range = pathRange(path);
   const fallbackDate = isoDate(range.from) || dayKeyForTripDay(trip, day);
-  const dayDrives = drives.filter((d) => tripDayNumberForIso(d.from, trip) === day || isoDate(d.from) === fallbackDate || inRange(d.from, range.from, range.to));
-  const dayPlaces = places.filter((p) => tripDayNumberForIso(p.at, trip) === day || isoDate(p.at) === fallbackDate || inRange(p.at, range.from, range.to));
-  const dayNotes = notes.filter((n) => tripDayNumberForIso(n.at, trip) === day || isoDate(n.at) === fallbackDate || inRange(n.at, range.from, range.to));
+  const dayDrives = drives.filter(
+    (d) =>
+      tripDayNumberForIso(d.from, trip) === day ||
+      isoDate(d.from) === fallbackDate ||
+      inRange(d.from, range.from, range.to),
+  );
+  const dayPlaces = places.filter(
+    (p) =>
+      tripDayNumberForIso(p.at, trip) === day ||
+      isoDate(p.at) === fallbackDate ||
+      inRange(p.at, range.from, range.to),
+  );
+  const dayNotes = notes.filter(
+    (n) =>
+      tripDayNumberForIso(n.at, trip) === day ||
+      isoDate(n.at) === fallbackDate ||
+      inRange(n.at, range.from, range.to),
+  );
   return commonSummary({
     type: "tag",
     id: `${trip.id}:day:${day}`,
@@ -212,8 +254,19 @@ export function summarizeDay(trip, day, { drives = [], places = [], notes = [] }
     title: `Tag ${day}`,
     hue: trip.hue,
     path,
-    from: range.from || dayDrives[0]?.from || dayPlaces[0]?.at || dayNotes[0]?.at || (fallbackDate ? `${fallbackDate}T00:00:00` : null),
-    to: range.to || dayDrives.at(-1)?.to || dayDrives.at(-1)?.from || dayPlaces.at(-1)?.at || dayNotes.at(-1)?.at || (fallbackDate ? `${fallbackDate}T23:59:59` : null),
+    from:
+      range.from ||
+      dayDrives[0]?.from ||
+      dayPlaces[0]?.at ||
+      dayNotes[0]?.at ||
+      (fallbackDate ? `${fallbackDate}T00:00:00` : null),
+    to:
+      range.to ||
+      dayDrives.at(-1)?.to ||
+      dayDrives.at(-1)?.from ||
+      dayPlaces.at(-1)?.at ||
+      dayNotes.at(-1)?.at ||
+      (fallbackDate ? `${fallbackDate}T23:59:59` : null),
     drives: dayDrives,
     places: dayPlaces,
     notes: dayNotes,
@@ -223,7 +276,9 @@ export function summarizeDay(trip, day, { drives = [], places = [], notes = [] }
 
 export function summarizeTripDays(trip, options = {}) {
   if (!trip?.start && !trip?.range?.from) {
-    const fallbackDays = [...new Set((trip?.path || []).map((p) => p.day).filter(Number.isFinite))].sort((a, b) => a - b);
+    const fallbackDays = [
+      ...new Set((trip?.path || []).map((p) => p.day).filter(Number.isFinite)),
+    ].sort((a, b) => a - b);
     return fallbackDays.map((day) => summarizeDay(trip, day, options)).filter(Boolean);
   }
   const extraKeys = [
@@ -235,9 +290,7 @@ export function summarizeTripDays(trip, options = {}) {
   const days = tripDayKeys(trip, { extraKeys })
     .map((key) => tripDayNumberForIso(`${key}T12:00:00`, trip))
     .filter(Number.isFinite);
-  return days
-    .map((day) => summarizeDay(trip, day, options))
-    .filter(hasDayActivity);
+  return days.map((day) => summarizeDay(trip, day, options)).filter(hasDayActivity);
 }
 
 export function summarizeDrive(drive, { path = [] } = {}) {

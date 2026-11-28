@@ -3,9 +3,45 @@ import "./styles.css";
 
 import { $, $$, el, render, toast, icon } from "./dom.js";
 import { ICON } from "./icons.js";
-import { state, loadConfig, saveConfig, setMetric, showTripOnMap, showRangeOnMap, clearAdhoc, subscribe, category, trip, activeTrip, nightsOf, tripPlaces, isRangeTrip, mapTrip, rangeTrips, journalTrip } from "./state.js";
-import { loadData, status as dataStatus, ensureTripPath, buildRangeTrip, loadDrives, loadLivePosition, restoreLivePosition, restoreSnapshot, restoreStoredRoutes } from "./dataload.js";
-import { authState, login as anmelden, setupAccount, setSignedIn, forgotPassword, resetPassword, verifyEmail } from "./api.js";
+import {
+  state,
+  loadConfig,
+  saveConfig,
+  setMetric,
+  showTripOnMap,
+  showRangeOnMap,
+  clearAdhoc,
+  subscribe,
+  category,
+  trip,
+  activeTrip,
+  nightsOf,
+  tripPlaces,
+  isRangeTrip,
+  mapTrip,
+  rangeTrips,
+  journalTrip,
+} from "./state.js";
+import {
+  loadData,
+  status as dataStatus,
+  ensureTripPath,
+  buildRangeTrip,
+  loadDrives,
+  loadLivePosition,
+  restoreLivePosition,
+  restoreSnapshot,
+  restoreStoredRoutes,
+} from "./dataload.js";
+import {
+  authState,
+  login as anmelden,
+  setupAccount,
+  setSignedIn,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+} from "./api.js";
 import { startGuestView, showGuestTrip, loadGuestLivePosition, loadGuestRoute } from "./guest.js";
 import { weatherLine } from "./store.js";
 import { distanceKm } from "./geo.js";
@@ -13,16 +49,60 @@ import { mayLeave } from "./ui/dirty-guard.js";
 import * as mapview from "./mapview.js";
 import { createSheet, wireEscape } from "./ui/sheets.js";
 import { sharePlace, shareTrip } from "./ui/share.js";
-import { initTrips, renderTrips, renderTripDetail, detailNeuZeichnen, startNewTripFromContext, stelleKartenRueckkehrWieder, resetReiseAnsicht, kartenNavigation, kartenSchritt } from "./views/trips.js";
-import { initPlaces, renderPlaces, renderCategoryChips, buildFilterOptions, photoGradient, resetPlaceFilters } from "./views/places.js";
-import { initPlaceEditor, openPlaceEditor, renderCategoryPicker, isDirty as editorDirty, save as saveEditor, clearEditor } from "./views/place-editor.js";
+import {
+  initTrips,
+  renderTrips,
+  renderTripDetail,
+  detailNeuZeichnen,
+  startNewTripFromContext,
+  stelleKartenRueckkehrWieder,
+  resetReiseAnsicht,
+  kartenNavigation,
+  kartenSchritt,
+} from "./views/trips.js";
+import {
+  initPlaces,
+  renderPlaces,
+  renderCategoryChips,
+  buildFilterOptions,
+  photoGradient,
+  resetPlaceFilters,
+} from "./views/places.js";
+import {
+  initPlaceEditor,
+  openPlaceEditor,
+  renderCategoryPicker,
+  isDirty as editorDirty,
+  save as saveEditor,
+  clearEditor,
+} from "./views/place-editor.js";
 import { initJournal, renderJournal } from "./views/journal.js";
-import { initDiaryEditor, openDiaryEditor, isDirty as diaryDirty, save as saveDiary, clearEditor as clearDiary } from "./views/diary-editor.js";
-import { initNoteEditor, captureNote, openNoteEditor, isDirty as noteDirty, save as saveNote, clearEditor as clearNote } from "./views/note-editor.js";
+import {
+  initDiaryEditor,
+  openDiaryEditor,
+  isDirty as diaryDirty,
+  save as saveDiary,
+  clearEditor as clearDiary,
+} from "./views/diary-editor.js";
+import {
+  initNoteEditor,
+  captureNote,
+  openNoteEditor,
+  isDirty as noteDirty,
+  save as saveNote,
+  clearEditor as clearNote,
+} from "./views/note-editor.js";
 import { initGuard, loadGuard, renderGuardInfo } from "./views/guard.js";
 import { liveAgeText } from "./live-age.js";
 import { applyTheme } from "./theme.js";
-import { initSettings, renderVehicles, renderCategories, syncPreferences, refreshAccountState, renderRouteInfo } from "./views/settings.js";
+import {
+  initSettings,
+  renderVehicles,
+  renderCategories,
+  syncPreferences,
+  refreshAccountState,
+  renderRouteInfo,
+} from "./views/settings.js";
 import { debugLog } from "./debug.js";
 import { calendar } from "./ui/calendar.js";
 import { rangePreset, rangeToIso, rangeFromDates, dateText } from "./calendar.js";
@@ -41,16 +121,25 @@ for (const ereignis of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(ereignis, (e) => e.preventDefault(), { passive: false });
 }
 let letzteBeruehrung = 0;
-document.addEventListener("touchend", (e) => {
-  const jetzt = Date.now();
-  // Doppeltipp zoomt sonst die Seite — auf der Karte übernimmt MapLibre.
-  if (jetzt - letzteBeruehrung < 350 && !e.target.closest(".maparea")) e.preventDefault();
-  letzteBeruehrung = jetzt;
-}, { passive: false });
-document.addEventListener("wheel", (e) => {
-  // Strg/Cmd + Mausrad zoomt sonst die Seite.
-  if (e.ctrlKey || e.metaKey) e.preventDefault();
-}, { passive: false });
+document.addEventListener(
+  "touchend",
+  (e) => {
+    const jetzt = Date.now();
+    // Doppeltipp zoomt sonst die Seite — auf der Karte übernimmt MapLibre.
+    if (jetzt - letzteBeruehrung < 350 && !(/** @type {Element} */ (e.target).closest(".maparea")))
+      e.preventDefault();
+    letzteBeruehrung = jetzt;
+  },
+  { passive: false },
+);
+document.addEventListener(
+  "wheel",
+  (e) => {
+    // Strg/Cmd + Mausrad zoomt sonst die Seite.
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  },
+  { passive: false },
+);
 
 /* ---------- Sichtbare Höhe selbst messen ----------
    Im App-Betrieb auf iOS entspricht die eingebaute Einheit (100dvh) nicht
@@ -63,18 +152,26 @@ function messeHoehe() {
   const inner = window.innerHeight || 0;
   const client = document.documentElement.clientHeight || 0;
   const screenH = window.screen?.height || 0;
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   const tastaturOffen = vv && inner && vv < inner - 120;
   const basis = tastaturOffen ? vv : Math.max(vv, inner, client);
   // iOS-PWAs mit transparenter Statusleiste melden teils nur den Bereich unter
   // der Statusleiste als Viewport. Der Screenshot/Displaybereich ist dann um
   // die obere Safe-Area hoeher; `screen.height` liefert diese volle CSS-Hoehe.
-  const hoehe = !tastaturOffen && standalone && screenH > basis && screenH - basis < 160
-    ? screenH
-    : basis;
+  const hoehe =
+    !tastaturOffen && standalone && screenH > basis && screenH - basis < 160 ? screenH : basis;
   if (!hoehe) return;
   document.documentElement.style.setProperty("--app-h", `${Math.ceil(hoehe)}px`);
-  debugLog("viewport.measured", { vv, inner, client, screenH, standalone, applied: Math.ceil(hoehe), keyboard: tastaturOffen });
+  debugLog("viewport.measured", {
+    vv,
+    inner,
+    client,
+    screenH,
+    standalone,
+    applied: Math.ceil(hoehe),
+    keyboard: tastaturOffen,
+  });
   requestAnimationFrame(mapview.resize);
 }
 messeHoehe();
@@ -85,13 +182,18 @@ setTimeout(messeHoehe, 300);
 window.addEventListener("resize", messeHoehe);
 window.addEventListener("orientationchange", () => setTimeout(messeHoehe, 250));
 window.addEventListener("pageshow", messeHoehe);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) messeHoehe(); });
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) messeHoehe();
+});
 window.visualViewport?.addEventListener("resize", messeHoehe);
 window.visualViewport?.addEventListener("scroll", messeHoehe);
 
 const tabs = $$(".tabbar button[data-view]");
 const views = {
-  map: $("#view-map"), reise: $("#view-reise"), logbuch: $("#view-logbuch"), mehr: $("#view-mehr"),
+  map: $("#view-map"),
+  reise: $("#view-reise"),
+  logbuch: $("#view-logbuch"),
+  mehr: $("#view-mehr"),
 };
 let mapSchonGeoeffnet = false;
 
@@ -115,7 +217,10 @@ const tabsGesperrt = new Set();
 function aktualisiereKarteJetzt() {
   if (state.guest) {
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) { loadGuestLivePosition(t); loadGuestRoute(t); }
+    if (t) {
+      loadGuestLivePosition(t);
+      loadGuestRoute(t);
+    }
     return;
   }
   if (state.config.demo) return;
@@ -139,7 +244,9 @@ function go(name) {
   // in den Orte-Editor nicht mehr gemeint — sonst würde ein späteres
   // "Auf Karte zeigen" eines anderen Orts plötzlich hierher zurückführen.
   if (name !== "map") placeRueckkehrKontext = null;
-  tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === name)));
+  tabs.forEach((t) => {
+    t.setAttribute("aria-selected", String(t.dataset.view === name));
+  });
   for (const [key, node] of Object.entries(views)) node.classList.toggle("active", key === name);
   // Jede .view scrollt unabhängig (position:absolute + eigenes overflow-y)
   // und merkt sich ihre Scroll-Position, solange sie nur ausgeblendet statt
@@ -150,7 +257,10 @@ function go(name) {
   // nach oben, kein Sonderfall je Tab nötig.
   if (views[name]) views[name].scrollTop = 0;
   if (name === "map") {
-    if (erneutGeklickt) { clearAdhoc(); mapview.resetLiveCentering(); }
+    if (erneutGeklickt) {
+      clearAdhoc();
+      mapview.resetLiveCentering();
+    }
     requestAnimationFrame(() => {
       mapview.resize();
       if (!mapSchonGeoeffnet || erneutGeklickt) {
@@ -179,7 +289,9 @@ function go(name) {
   }
   if (name === "mehr") showMorePanel("wache");
 }
-tabs.forEach((t) => t.addEventListener("click", () => go(t.dataset.view)));
+tabs.forEach((t) => {
+  t.addEventListener("click", () => go(t.dataset.view));
+});
 
 /** Sperrt einen Tab für die Gast-Ansicht: bleibt an seinem Platz, wirkt aber
  * inaktiv (kein Klick, gedimmt); `ohneBeschriftung` entfernt zusätzlich den
@@ -210,28 +322,34 @@ let currentTripId = null;
 let placeRueckkehrKontext = null;
 
 const tripSheet = createSheet({
-  id: "trip-sheet", confirmId: "trip-confirm",
+  id: "trip-sheet",
+  confirmId: "trip-confirm",
   isDirty: () => Boolean(tripDetailEdit?.isDirty()),
   onSave: () => tripDetailEdit?.commit(),
-  onClose: () => { tripDetailEdit = null; },
+  onClose: () => {
+    tripDetailEdit = null;
+  },
 });
 
 const editSheet = createSheet({
-  id: "edit-sheet", confirmId: "edit-confirm",
+  id: "edit-sheet",
+  confirmId: "edit-confirm",
   isDirty: editorDirty,
   onSave: saveEditor,
   onClose: clearEditor,
 });
 
 const noteSheet = createSheet({
-  id: "note-sheet", confirmId: "note-confirm",
+  id: "note-sheet",
+  confirmId: "note-confirm",
   isDirty: noteDirty,
   onSave: saveNote,
   onClose: clearNote,
 });
 
 const tagSheet = createSheet({
-  id: "tag-sheet", confirmId: "tag-confirm",
+  id: "tag-sheet",
+  confirmId: "tag-confirm",
   isDirty: diaryDirty,
   onSave: saveDiary,
   onClose: clearDiary,
@@ -248,7 +366,10 @@ const alleSheets = [tripSheet, editSheet, noteSheet, tagSheet];
 function schliesseAndere(ziel) {
   for (const s of alleSheets) {
     if (s === ziel || !s.isOpen()) continue;
-    if (s.isDirty()) { s.requestClose(); return false; }
+    if (s.isDirty()) {
+      s.requestClose();
+      return false;
+    }
     s.close();
   }
   return true;
@@ -260,26 +381,37 @@ $("#sheet-back").addEventListener("click", tripSheet.requestClose);
 $("#edit-back").addEventListener("click", editSheet.requestClose);
 $("#note-back").addEventListener("click", noteSheet.requestClose);
 $("#tag-back").addEventListener("click", tagSheet.requestClose);
-$$("[data-share]").forEach((b) => b.addEventListener("click", () => {
-  const t = currentTripId ? trip(currentTripId) : null;
-  if (!t) return;
-  shareTrip(t, { nights: nightsOf(t.id).length, places: tripPlaces(t.id).length });
-}));
+$$("[data-share]").forEach((b) => {
+  b.addEventListener("click", () => {
+    const t = currentTripId ? trip(currentTripId) : null;
+    if (!t) return;
+    shareTrip(t, { nights: nightsOf(t.id).length, places: tripPlaces(t.id).length });
+  });
+});
 
 function openTripDetail(id) {
   // Gast-Ansicht: keine bearbeitbare Detail-Ansicht, nur auf der Karte
   // zeigen — das ist bei "alle Reisen" der einzige Weg, zwischen Reisen zu
   // wechseln (siehe Tabbar-Aufbau weiter unten).
-  if (state.guest) { showGuestTrip(id); go("map"); return; }
+  if (state.guest) {
+    showGuestTrip(id);
+    go("map");
+    return;
+  }
   if (!schliesseAndere(tripSheet)) return;
   currentTripId = id;
   tripDetailEdit = renderTripDetail(id, {
     // Bewusst nicht über openEditor(): Aus der Reise-Detailansicht heraus
     // bleibt diese im Hintergrund offen, damit „Zurück" wieder dorthin führt
     // (siehe initPlaceEditor.onChange unten) — kein Fall der Geschwister-Regel.
-    onStopClick: (place) => { editSheet.open(); openPlaceEditor(place); },
+    onStopClick: (place) => {
+      editSheet.open();
+      openPlaceEditor(place);
+    },
     onClose: tripSheet.close,
-    onEdit: (edit) => { tripDetailEdit = edit; },
+    onEdit: (edit) => {
+      tripDetailEdit = edit;
+    },
   });
   tripSheet.open();
   const t = trip(id);
@@ -309,7 +441,7 @@ $(".places-fold")?.addEventListener("toggle", (event) => {
 
 initPlaceEditor({
   onUndoOffer: (msg, restore) => offerUndo(msg, restore),
-  onChange: ({ closed }) => {
+  onChange: () => {
     editSheet.close();
     renderLogbookPlacesIfOpen();
     renderTrips();
@@ -319,13 +451,17 @@ initPlaceEditor({
   onShowOnMap: (place) => {
     // Bei offenen Änderungen erst fragen (wie der normale Zurück-Knopf),
     // statt sie stillschweigend zu verwerfen.
-    if (editSheet.isDirty()) { editSheet.requestClose(); return; }
+    if (editSheet.isDirty()) {
+      editSheet.requestClose();
+      return;
+    }
     editSheet.close();
     // Ausgangszustand merken, damit "Zurück" ihn wiederherstellt (Nutzerfund,
     // 6. September 2026: blieb bisher auf der Karte stehen, statt wie bei
     // Fahrten/Tagen zur vorherigen Ansicht UND zum vorherigen Reiter
     // zurückzukehren — man kam ja z. B. vom Logbuch, nicht von der Karte).
-    const vorherigerTab = tabs.find((t) => t.getAttribute("aria-selected") === "true")?.dataset.view;
+    const vorherigerTab = tabs.find((t) => t.getAttribute("aria-selected") === "true")?.dataset
+      .view;
     placeRueckkehrKontext = { place, vorherigeMapTripId: state.mapTripId, vorherigerTab };
     if (place.tripId && place.tripId !== state.mapTripId) showTripOnMap(place.tripId);
     go("map");
@@ -344,21 +480,31 @@ function openNote(note) {
 initNoteEditor({
   onOpen: () => noteSheet.open(),
   onUndoOffer: (msg, restore) => offerUndo(msg, restore),
-  onChange: () => { noteSheet.close(); renderJournal(); mapview.draw(); },
+  onChange: () => {
+    noteSheet.close();
+    renderJournal();
+    mapview.draw();
+  },
 });
 
 function openTag(opts) {
   if (state.guest) return; // Gäste lesen nur
   const t = journalTrip();
   const tripId = opts?.tripId || t?.id;
-  if (!tripId || isRangeTrip(trip(tripId))) { toast("Das Tagebuch gibt es für einzelne Reisen"); return; }
+  if (!tripId || isRangeTrip(trip(tripId))) {
+    toast("Das Tagebuch gibt es für einzelne Reisen");
+    return;
+  }
   if (!schliesseAndere(tagSheet)) return;
   openDiaryEditor({ tripId, dayKey: opts?.dayKey || null });
 }
 
 initDiaryEditor({
   onOpen: () => tagSheet.open(),
-  onChange: () => { tagSheet.close(); renderJournal(); },
+  onChange: () => {
+    tagSheet.close();
+    renderJournal();
+  },
 });
 
 initJournal({
@@ -369,13 +515,17 @@ initJournal({
 
 // Notizen entstehen im Tagebuch — dort gehören sie hin.
 const logCreatePicker = $("#log-create-picker");
-const closeLogCreatePicker = () => { if (logCreatePicker) logCreatePicker.hidden = true; };
+const closeLogCreatePicker = () => {
+  if (logCreatePicker) logCreatePicker.hidden = true;
+};
 $("#log-add")?.addEventListener("click", (e) => {
   e.stopPropagation();
   if (logCreatePicker) logCreatePicker.hidden = false;
 });
 $("#log-create-close")?.addEventListener("click", closeLogCreatePicker);
-logCreatePicker?.addEventListener("click", (e) => { if (e.target === logCreatePicker) closeLogCreatePicker(); });
+logCreatePicker?.addEventListener("click", (e) => {
+  if (e.target === logCreatePicker) closeLogCreatePicker();
+});
 
 $("#add-tag")?.addEventListener("click", () => {
   closeLogCreatePicker();
@@ -398,13 +548,22 @@ initGuard({
 });
 
 initSettings({
-  onCategoriesChange: () => { renderCategoryPicker(); renderLogbookPlacesIfOpen(); mapview.draw(); },
+  onCategoriesChange: () => {
+    renderCategoryPicker();
+    renderLogbookPlacesIfOpen();
+    mapview.draw();
+  },
   onSourceChange: async () => {
     renderStatusBar();
     await loadData();
-    renderTrips(); renderLogbookPlacesIfOpen(); renderCategoryPicker();
-    renderVehicles(); renderCategories(); renderVehicleLine();
-    renderStatusPill(); renderStatusBar();
+    renderTrips();
+    renderLogbookPlacesIfOpen();
+    renderCategoryPicker();
+    renderVehicles();
+    renderCategories();
+    renderVehicleLine();
+    renderStatusPill();
+    renderStatusBar();
     mapview.resetLiveCentering();
     mapview.draw({ fit: true });
     loadLivePosition();
@@ -414,36 +573,67 @@ initSettings({
 const moreTabs = $$("#more-tabs [data-more-panel]");
 const morePanels = $$("#view-mehr .more-panel");
 function showMorePanel(name) {
-  const aktuell = moreTabs.find((b) => b.getAttribute("aria-pressed") === "true")?.dataset.morePanel;
+  const aktuell = moreTabs.find((b) => b.getAttribute("aria-pressed") === "true")?.dataset
+    .morePanel;
   if (aktuell && aktuell !== name && !mayLeave()) return;
-  moreTabs.forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.morePanel === name)));
-  morePanels.forEach((panel) => { panel.hidden = panel.dataset.morePanel !== name; });
+  moreTabs.forEach((btn) => {
+    btn.setAttribute("aria-pressed", String(btn.dataset.morePanel === name));
+  });
+  morePanels.forEach((panel) => {
+    panel.hidden = panel.dataset.morePanel !== name;
+  });
   // Zonen/Protokoll frisch laden, sobald die Wache geöffnet wird — sonst
   // sähe man neue Zonen-Ereignisse erst nach einem vollen Neuladen der App.
   if (name === "wache") loadGuard();
 }
-moreTabs.forEach((btn) => btn.addEventListener("click", () => showMorePanel(btn.dataset.morePanel)));
+moreTabs.forEach((btn) => {
+  btn.addEventListener("click", () => showMorePanel(btn.dataset.morePanel));
+});
 showMorePanel("wache");
-const oeffneEinstellungen = () => { go("mehr"); showMorePanel("settings"); };
+const oeffneEinstellungen = () => {
+  go("mehr");
+  showMorePanel("settings");
+};
 
-const contextButtons = ["trip-context-map", "trip-context-reise", "trip-context-logbuch"].map((id) => $("#" + id)).filter(Boolean);
+const contextButtons = ["trip-context-map", "trip-context-reise", "trip-context-logbuch"]
+  .map((id) => $(`#${id}`))
+  .filter(Boolean);
 const tripPicker = $("#trip-picker");
 const tripPickerList = $("#trip-picker-list");
 const rangePicker = $("#range-picker");
 const datumKurz = (iso) => {
   const d = iso ? new Date(iso) : null;
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
+  return d && !Number.isNaN(d.getTime())
+    ? d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : "—";
 };
 const kmKurz = (n) => `${Number(n || 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} km`;
-const RANGE_LABEL = { today: "Heute", yesterday: "Gestern", last7: "letzte 7 Tage", month: "dieser Monat", all: "Alles" };
-let rangeCal = null;   // calendar in the "Zeitraum wählen" dialog (built on first open)
+const RANGE_LABEL = {
+  today: "Heute",
+  yesterday: "Gestern",
+  last7: "letzte 7 Tage",
+  month: "dieser Monat",
+  all: "Alles",
+};
+let rangeCal = null; // calendar in the "Zeitraum wählen" dialog (built on first open)
 
 /** A preset as a selection of whole days; "all" spans every trip. */
 function presetSelection(preset) {
-  const starts = state.trips.map((t) => Date.parse(t.range?.from || t.start || "")).filter(Number.isFinite);
-  const ends = state.trips.map((t) => Date.parse(t.range?.to || t.end || new Date().toISOString())).filter(Number.isFinite);
-  const all = starts.length ? { from: Math.min(...starts), to: ends.length ? Math.max(...ends) : Date.now() } : null;
-  return { ...rangePreset(preset, new Date(), all), fromTime: "00:00", toTime: "23:59", label: RANGE_LABEL[preset] || "Zeitraum" };
+  const starts = state.trips
+    .map((t) => Date.parse(t.range?.from || t.start || ""))
+    .filter(Number.isFinite);
+  const ends = state.trips
+    .map((t) => Date.parse(t.range?.to || t.end || new Date().toISOString()))
+    .filter(Number.isFinite);
+  const all = starts.length
+    ? { from: Math.min(...starts), to: ends.length ? Math.max(...ends) : Date.now() }
+    : null;
+  return {
+    ...rangePreset(preset, new Date(), all),
+    fromTime: "00:00",
+    toTime: "23:59",
+    label: RANGE_LABEL[preset] || "Zeitraum",
+  };
 }
 
 /** Show a selection in the calendar, the summary and the time fields. */
@@ -464,8 +654,10 @@ function renderRangeSummary() {
   const feld = $("#range-summe");
   const knopf = $("#range-apply");
   if (feld) {
-    feld.textContent = !from ? "Tippe zuerst den ersten Tag, dann den letzten."
-      : !to || to === from ? `${dateText(from)} · ein Tag (tippe einen späteren Tag für mehrere)`
+    feld.textContent = !from
+      ? "Tippe zuerst den ersten Tag, dann den letzten."
+      : !to || to === from
+        ? `${dateText(from)} · ein Tag (tippe einen späteren Tag für mehrere)`
         : `${dateText(from)} – ${dateText(to)}`;
   }
   if (knopf) knopf.disabled = !from;
@@ -508,7 +700,12 @@ function tripPeriodLabel(t) {
  * sichtbare Schritt. */
 function wacheVerlassen() {
   if (!state.guardArmed || !state.guardAnchor || !state.livePosition) return false;
-  const kmWeg = distanceKm(state.guardAnchor.lon, state.guardAnchor.lat, state.livePosition.lon, state.livePosition.lat);
+  const kmWeg = distanceKm(
+    state.guardAnchor.lon,
+    state.guardAnchor.lat,
+    state.livePosition.lon,
+    state.livePosition.lat,
+  );
   return kmWeg * 1000 > state.guardRadius;
 }
 
@@ -519,7 +716,14 @@ function renderTripContextButton(button, selected, { pulse = false } = {}) {
   const istZeitraum = isRangeTrip(selected);
   const bewacht = selected?.live && state.guardArmed;
   render(button, [
-    el("span.trip-live-dot" + (selected?.live ? ".live" : "") + (istZeitraum ? ".range" : "") + (pulse ? ".pulse" : "") + (bewacht ? ".guarded" : "") + (bewacht && wacheVerlassen() ? ".outside" : "")),
+    el(
+      "span.trip-live-dot" +
+        (selected?.live ? ".live" : "") +
+        (istZeitraum ? ".range" : "") +
+        (pulse ? ".pulse" : "") +
+        (bewacht ? ".guarded" : "") +
+        (bewacht && wacheVerlassen() ? ".outside" : ""),
+    ),
     el("span.trip-context-copy", {}, [
       el("b", { text: selected?.name || "Keine Reise" }),
       el("small", { text: selected ? tripPeriodLabel(selected) : "Antippen zum Auswählen" }),
@@ -549,7 +753,10 @@ function openRangePicker() {
     $("#range-calendar")?.appendChild(rangeCal.node);
   }
   const preset = state.rangeTrip?.range
-    ? rangeFromDates(new Date(state.rangeTrip.range.from), new Date(state.rangeTrip.range.to || new Date()))
+    ? rangeFromDates(
+        new Date(state.rangeTrip.range.from),
+        new Date(state.rangeTrip.range.to || new Date()),
+      )
     : presetSelection("last7");
   setRangeSelection(preset);
   if (rangePicker) rangePicker.hidden = false;
@@ -560,7 +767,10 @@ function closeRangePicker() {
 }
 
 async function applyRangeContext(label = null) {
-  const bereich = rangeToIso(rangeCal?.selection() || {}, { fromTime: $("#range-von-zeit")?.value, toTime: $("#range-bis-zeit")?.value });
+  const bereich = rangeToIso(rangeCal?.selection() || {}, {
+    fromTime: $("#range-von-zeit")?.value,
+    toTime: $("#range-bis-zeit")?.value,
+  });
   if (!bereich) {
     toast("Bitte einen gültigen Zeitraum wählen");
     return;
@@ -569,7 +779,10 @@ async function applyRangeContext(label = null) {
   closeRangePicker();
   try {
     const rangeTrip = await buildRangeTrip({ from, to, label: label || "Zeitraum" });
-    if (!rangeTrip) { toast("Für diesen Zeitraum fehlen Gerätedaten"); return; }
+    if (!rangeTrip) {
+      toast("Für diesen Zeitraum fehlen Gerätedaten");
+      return;
+    }
     showRangeOnMap(rangeTrip);
     await loadDrives({ from, to });
     renderTripContexts();
@@ -581,43 +794,59 @@ async function applyRangeContext(label = null) {
 
 function renderTripPicker() {
   if (!tripPickerList) return;
-  const selected = state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
+  const selected =
+    state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
   render(tripPickerList, [
-    state.guest ? null : el("button.trip-picker-row", {
-      "aria-pressed": String(isRangeTrip(selected)),
-      on: { click: () => switchTripContext("__range") },
-    }, [
-      el("i", { text: "Z" }),
-      el("span", {}, [
-        el("b", { text: "Zeitraum wählen" }),
-        el("small", { text: state.rangeTrip ? tripPeriodLabel(state.rangeTrip) : "Reisen und Statistik über mehrere Reisen" }),
-      ]),
-      state.rangeTrip ? el("em", { text: kmKurz(state.rangeTrip.km) }) : null,
-    ]),
-    ...state.trips.map((t) => el("button.trip-picker-row", {
-      "aria-pressed": String(selected?.id === t.id),
-      on: { click: () => switchTripContext(t.id) },
-    }, [
-      el("i", { style: { background: `hsl(${t.hue},70%,52%)` } }),
-      el("span", {}, [
-        el("b", { text: t.name }),
-        el("small", { text: tripPeriodLabel(t) }),
-      ]),
-      el("em", { text: kmKurz(t.km) }),
-    ])),
-    state.guest ? null : el("button.trip-picker-row.trip-picker-new", {
-      on: { click: (e) => switchTripContext("__new", e.currentTarget) },
-    }, [
-      el("i", { text: "+" }),
-      el("span", {}, [
-        el("b", { text: "Neue Reise starten" }),
-      ]),
-    ]),
+    state.guest
+      ? null
+      : el(
+          "button.trip-picker-row",
+          {
+            "aria-pressed": String(isRangeTrip(selected)),
+            on: { click: () => switchTripContext("__range") },
+          },
+          [
+            el("i", { text: "Z" }),
+            el("span", {}, [
+              el("b", { text: "Zeitraum wählen" }),
+              el("small", {
+                text: state.rangeTrip
+                  ? tripPeriodLabel(state.rangeTrip)
+                  : "Reisen und Statistik über mehrere Reisen",
+              }),
+            ]),
+            state.rangeTrip ? el("em", { text: kmKurz(state.rangeTrip.km) }) : null,
+          ],
+        ),
+    ...state.trips.map((t) =>
+      el(
+        "button.trip-picker-row",
+        {
+          "aria-pressed": String(selected?.id === t.id),
+          on: { click: () => switchTripContext(t.id) },
+        },
+        [
+          el("i", { style: { background: `hsl(${t.hue},70%,52%)` } }),
+          el("span", {}, [el("b", { text: t.name }), el("small", { text: tripPeriodLabel(t) })]),
+          el("em", { text: kmKurz(t.km) }),
+        ],
+      ),
+    ),
+    state.guest
+      ? null
+      : el(
+          "button.trip-picker-row.trip-picker-new",
+          {
+            on: { click: (e) => switchTripContext("__new", e.currentTarget) },
+          },
+          [el("i", { text: "+" }), el("span", {}, [el("b", { text: "Neue Reise starten" })])],
+        ),
   ]);
 }
 
 function renderTripContexts({ pulse = false } = {}) {
-  const selected = state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
+  const selected =
+    state.rangeTrip || trip(state.mapTripId) || activeTrip() || state.trips[0] || null;
   for (const button of contextButtons) renderTripContextButton(button, selected, { pulse });
 }
 
@@ -635,8 +864,14 @@ function renderMapFocusBar() {
   // darüber) — Platz für Vorheriger/Nächster.
   const tagNav = placeRueckkehrKontext ? null : kartenNavigation();
   const label = $("#map-focus-label");
-  if (label) label.textContent = placeRueckkehrKontext ? (placeRueckkehrKontext.place.title || "Ort") : (tagNav?.titel || focused.name || "Kartenausschnitt");
-  for (const [id, hat] of [["#map-focus-prev", tagNav?.hasPrevious], ["#map-focus-next", tagNav?.hasNext]]) {
+  if (label)
+    label.textContent = placeRueckkehrKontext
+      ? placeRueckkehrKontext.place.title || "Ort"
+      : tagNav?.titel || focused.name || "Kartenausschnitt";
+  for (const [id, hat] of [
+    ["#map-focus-prev", tagNav?.hasPrevious],
+    ["#map-focus-next", tagNav?.hasNext],
+  ]) {
     const knopf = $(id);
     if (!knopf) continue;
     knopf.hidden = !tagNav;
@@ -672,16 +907,26 @@ $("#map-focus-back")?.addEventListener("click", () => {
   // "Zurück" wirklich dorthin zurück, statt nur die Karte auf die ganze
   // Reise zurückzusetzen — erwartetes Zurück-Verhalten (17./18. August
   // 2026, Nutzerrückmeldung): Ansicht UND Fokus wiederherstellen.
-  if (stelleKartenRueckkehrWieder()) { clearAdhoc(); go("reise"); return; }
+  if (stelleKartenRueckkehrWieder()) {
+    clearAdhoc();
+    go("reise");
+    return;
+  }
   const ziel = state.mapTripId || activeTrip()?.id || state.trips[0]?.id;
   if (ziel) showTripOnMap(ziel);
 });
 
-contextButtons.forEach((button) => button.addEventListener("click", openTripPicker));
+contextButtons.forEach((button) => {
+  button.addEventListener("click", openTripPicker);
+});
 $("#trip-picker-close")?.addEventListener("click", closeTripPicker);
-tripPicker?.addEventListener("click", (e) => { if (e.target === tripPicker) closeTripPicker(); });
+tripPicker?.addEventListener("click", (e) => {
+  if (e.target === tripPicker) closeTripPicker();
+});
 $("#range-picker-close")?.addEventListener("click", closeRangePicker);
-rangePicker?.addEventListener("click", (e) => { if (e.target === rangePicker) closeRangePicker(); });
+rangePicker?.addEventListener("click", (e) => {
+  if (e.target === rangePicker) closeRangePicker();
+});
 $$("#range-picker [data-range-preset]").forEach((button) => {
   button.addEventListener("click", () => {
     const preset = presetSelection(button.dataset.rangePreset);
@@ -702,25 +947,43 @@ function setNavCollapsed(collapsed) {
   screen?.classList.toggle("nav-collapsed", collapsed);
   navToggle?.setAttribute("aria-label", collapsed ? "Menü ausklappen" : "Menü einklappen");
   navToggle?.setAttribute("title", collapsed ? "Menü ausklappen" : "Menü einklappen");
-  try { localStorage.setItem(navCollapsedKey, collapsed ? "1" : "0"); } catch { /* egal */ }
+  try {
+    localStorage.setItem(navCollapsedKey, collapsed ? "1" : "0");
+  } catch {
+    /* egal */
+  }
 }
 
 setNavCollapsed(localStorage.getItem(navCollapsedKey) === "1");
-navToggle?.addEventListener("click", () => setNavCollapsed(!screen?.classList.contains("nav-collapsed")));
+navToggle?.addEventListener("click", () =>
+  setNavCollapsed(!screen?.classList.contains("nav-collapsed")),
+);
 
 function setMapContextCollapsed(collapsed) {
   mapContextBar?.classList.toggle("is-collapsed", collapsed);
   if (mapContextToggle) {
-    mapContextToggle.setAttribute("aria-label", collapsed ? "Obere Auswahl ausklappen" : "Obere Auswahl einklappen");
-    mapContextToggle.setAttribute("title", collapsed ? "Obere Auswahl ausklappen" : "Obere Auswahl einklappen");
+    mapContextToggle.setAttribute(
+      "aria-label",
+      collapsed ? "Obere Auswahl ausklappen" : "Obere Auswahl einklappen",
+    );
+    mapContextToggle.setAttribute(
+      "title",
+      collapsed ? "Obere Auswahl ausklappen" : "Obere Auswahl einklappen",
+    );
     render(mapContextToggle, [icon(collapsed ? ICON.chevronDown : ICON.chevronUp, 18)]);
   }
-  try { localStorage.setItem(mapContextCollapsedKey, collapsed ? "1" : "0"); } catch { /* egal */ }
+  try {
+    localStorage.setItem(mapContextCollapsedKey, collapsed ? "1" : "0");
+  } catch {
+    /* egal */
+  }
   setTimeout(() => mapview.resize(), 80);
 }
 
 setMapContextCollapsed(localStorage.getItem(mapContextCollapsedKey) === "1");
-mapContextToggle?.addEventListener("click", () => setMapContextCollapsed(!mapContextBar?.classList.contains("is-collapsed")));
+mapContextToggle?.addEventListener("click", () =>
+  setMapContextCollapsed(!mapContextBar?.classList.contains("is-collapsed")),
+);
 
 /* ---------- Karte ---------- */
 mapview.initMap({ onPlaceSelect: showPopover, onNoteSelect: showNotePopover });
@@ -728,7 +991,15 @@ mapview.initMap({ onPlaceSelect: showPopover, onNoteSelect: showNotePopover });
 const metricBtn = $("#metric-btn");
 const metricMenu = $("#metric-menu");
 const metricLabel = $("#metric-label");
-const metricName = (metric) => ({ none: "Einfarbig", trip: "Reisen", day: "Tag", speed: "Tempo", elev: "Höhe", dist: "Strecke" }[metric] || "Tag");
+const metricName = (metric) =>
+  ({
+    none: "Einfarbig",
+    trip: "Reisen",
+    day: "Tag",
+    speed: "Tempo",
+    elev: "Höhe",
+    dist: "Strecke",
+  })[metric] || "Tag";
 const closeMetricMenu = () => {
   metricMenu?.classList.remove("open");
   metricBtn?.setAttribute("aria-expanded", "false");
@@ -780,16 +1051,29 @@ layersBtn.addEventListener("click", (e) => {
   layersBtn.setAttribute("aria-expanded", String(open));
 });
 document.addEventListener("click", (e) => {
-  if (metricMenu?.classList.contains("open") && !metricMenu.contains(e.target) && !metricBtn.contains(e.target)) {
+  if (
+    metricMenu?.classList.contains("open") &&
+    !metricMenu.contains(e.target) &&
+    !metricBtn.contains(e.target)
+  ) {
     closeMetricMenu();
   }
-  if (layersMenu.classList.contains("open") && !layersMenu.contains(e.target) && !layersBtn.contains(e.target)) {
+  if (
+    layersMenu.classList.contains("open") &&
+    !layersMenu.contains(e.target) &&
+    !layersBtn.contains(e.target)
+  ) {
     closeLayersMenu();
   }
 });
 
-for (const [id, key] of [["lc-overnight", "nights"], ["lc-places", "places"], ["lc-notes", "notes"], ["lc-km", "km"]]) {
-  const sw = $("#" + id);
+for (const [id, key] of [
+  ["lc-overnight", "nights"],
+  ["lc-places", "places"],
+  ["lc-notes", "notes"],
+  ["lc-km", "km"],
+]) {
+  const sw = $(`#${id}`);
   sw.addEventListener("click", () => {
     const on = sw.getAttribute("aria-checked") !== "true";
     sw.setAttribute("aria-checked", String(on));
@@ -810,8 +1094,13 @@ terrainSwitch.addEventListener("click", () => {
   mapview.setTerrain(on);
 });
 function renderLayerSwitches() {
-  for (const [id, key] of [["lc-overnight", "nights"], ["lc-places", "places"], ["lc-notes", "notes"], ["lc-km", "km"]]) {
-    const sw = $("#" + id);
+  for (const [id, key] of [
+    ["lc-overnight", "nights"],
+    ["lc-places", "places"],
+    ["lc-notes", "notes"],
+    ["lc-km", "km"],
+  ]) {
+    const sw = $(`#${id}`);
     if (sw) sw.setAttribute("aria-checked", String(Boolean(state.layers[key])));
   }
 }
@@ -832,16 +1121,25 @@ function showPopover(place) {
   $("#pop-photo").style.background = photoGradient(place.hue);
   $("#pop-swatch").style.background = cat.color;
   $("#pop-title").textContent = place.title;
-  $("#pop-cat").textContent = `${cat.name} · ${"★".repeat(place.stars)}${"☆".repeat(5 - place.stars)}`;
+  $("#pop-cat").textContent =
+    `${cat.name} · ${"★".repeat(place.stars)}${"☆".repeat(5 - place.stars)}`;
   $("#pop-note").textContent = place.note;
   $("#pop-coords").textContent = `◎ ${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
-  $("#pop-date").textContent = `${place.date} · ${{ camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" }[place.source] || ""}`;
+  $("#pop-date").textContent =
+    `${place.date} · ${{ camper: "🚐 Camper", handy: "🚶 Handy", manuell: "📍 manuell" }[place.source] || ""}`;
   popover.classList.add("show");
 }
 
 const notizZeitpunkt = (iso) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 };
 
 function showNotePopover(note) {
@@ -852,14 +1150,18 @@ function showNotePopover(note) {
   $("#pop-title").textContent = note.title || "Notiz";
   $("#pop-cat").textContent = note.weather ? weatherLine(note.weather) : "";
   $("#pop-note").textContent = note.text;
-  $("#pop-coords").textContent = note.lat != null && note.lon != null
-    ? `◎ ${Number(note.lat).toFixed(4)}, ${Number(note.lon).toFixed(4)}` : "";
+  $("#pop-coords").textContent =
+    note.lat != null && note.lon != null
+      ? `◎ ${Number(note.lat).toFixed(4)}, ${Number(note.lon).toFixed(4)}`
+      : "";
   $("#pop-date").textContent = notizZeitpunkt(note.at);
   popover.classList.add("show");
 }
 
 $("#pop-close").addEventListener("click", () => popover.classList.remove("show"));
-$("#pop-share").addEventListener("click", () => { if (popoverPlace) sharePlace(popoverPlace); });
+$("#pop-share").addEventListener("click", () => {
+  if (popoverPlace) sharePlace(popoverPlace);
+});
 $("#pop-edit").addEventListener("click", () => {
   popover.classList.remove("show");
   if (popoverNote) openNote(popoverNote);
@@ -873,11 +1175,14 @@ function renderVehicleLine() {
   line.textContent = vehicle ? vehicle.name + (state.vehicles.length > 1 ? " ▾" : "") : "";
   line.classList.toggle("hidden", !state.showVehicleName || !vehicle);
 }
-$("#vehline").addEventListener("click", (e) => { e.stopPropagation(); if (!state.guest) oeffneEinstellungen(); });
+$("#vehline").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!state.guest) oeffneEinstellungen();
+});
 
 // N3 — Marke ist die Startseite: aktuelle Reise auf der Karte, ganz eingepasst
 $("#home-btn").addEventListener("click", () => {
-  const ziel = state.activeTripId || (state.trips[0] && state.trips[0].id);
+  const ziel = state.activeTripId || state.trips[0]?.id;
   if (ziel && ziel !== state.mapTripId) showTripOnMap(ziel);
   else mapview.fitTrip();
   go("reise");
@@ -886,7 +1191,12 @@ $("#home-btn").addEventListener("click", () => {
 function liveZeitpunktText(iso) {
   const d = iso ? new Date(iso) : null;
   return d && !Number.isNaN(d.getTime())
-    ? d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    ? d.toLocaleString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : "keine GPS-Meldung";
 }
 
@@ -897,9 +1207,15 @@ function renderStatusPill() {
   render(pill, [el("span.dot"), liveText]);
   const gpsAlter = Date.now() - Date.parse(state.livePosition?.at || "");
   const frisch = Number.isFinite(gpsAlter) && gpsAlter <= 5 * 60 * 1000;
-  pill.querySelector(".dot").style.background = state.config.demo ? "var(--warn)" : frisch ? "var(--good)" : "var(--warn)";
+  pill.querySelector(".dot").style.background = state.config.demo
+    ? "var(--warn)"
+    : frisch
+      ? "var(--good)"
+      : "var(--warn)";
   pill.title = state.config.demo
-    ? (state.account ? `Angemeldet als ${state.account.username} — es werden aber Beispieldaten gezeigt` : "Beispieldaten — in den Einstellungen umschaltbar")
+    ? state.account
+      ? `Angemeldet als ${state.account.username} — es werden aber Beispieldaten gezeigt`
+      : "Beispieldaten — in den Einstellungen umschaltbar"
     : `Letzte GPS-Meldung: ${liveZeitpunktText(state.livePosition?.at)}`;
 }
 
@@ -942,7 +1258,16 @@ export function offerUndo(message, restore) {
   clearTimeout(undoTimer);
   render(undoBar, [
     el("span", { text: message }),
-    el("button", { text: "Rückgängig", on: { click: () => { clearTimeout(undoTimer); undoBar.classList.remove("show"); restore(); } } }),
+    el("button", {
+      text: "Rückgängig",
+      on: {
+        click: () => {
+          clearTimeout(undoTimer);
+          undoBar.classList.remove("show");
+          restore();
+        },
+      },
+    }),
   ]);
   undoBar.classList.add("show");
   undoTimer = setTimeout(() => undoBar.classList.remove("show"), 6000);
@@ -954,21 +1279,60 @@ subscribe((topic) => {
   if (topic === "routeInfo") renderRouteInfo();
   // Beim Wechsel der gezeigten Reise gehört eine offene Ortskarte nicht mehr dazu
   if (topic === "mapTrip" || topic === "trips") popover.classList.remove("show");
-  if (topic === "mapTrip") { renderTripContexts(); renderMapFocusBar(); renderTrips(); renderJournal(); renderLogbookPlacesIfOpen(); }
+  if (topic === "mapTrip") {
+    renderTripContexts();
+    renderMapFocusBar();
+    renderTrips();
+    renderJournal();
+    renderLogbookPlacesIfOpen();
+  }
   if (topic === "metric") renderMetricButtons();
   if (topic === "metric" || topic === "mapTrip") mapview.draw({ fit: topic === "mapTrip" });
-  if (topic === "trips") { renderTripContexts(); renderMetricButtons(); renderLayerSwitches(); mapview.draw({ fit: true }); buildFilterOptions(); renderJournal(); }
+  if (topic === "trips") {
+    renderTripContexts();
+    renderMetricButtons();
+    renderLayerSwitches();
+    mapview.draw({ fit: true });
+    buildFilterOptions();
+    renderJournal();
+  }
   // Die Spur der laufenden Reise wächst im Hintergrund nach (siehe Intervall
   // unten) — anders als bei "trips" hier ohne Neueinpassen, sonst würde die
   // Karte alle paar Minuten unter der Hand wegspringen.
-  if (topic === "tripPath") { renderTripContexts({ pulse: true }); renderMapFocusBar(); mapview.draw(); renderTrips(); detailNeuZeichnen(); renderJournal(); }
-  if (topic === "places") { renderLogbookPlacesIfOpen(); renderTrips(); }
-  if (topic === "places" || topic === "notes") { mapview.draw(); renderJournal(); }
+  if (topic === "tripPath") {
+    renderTripContexts({ pulse: true });
+    renderMapFocusBar();
+    mapview.draw();
+    renderTrips();
+    detailNeuZeichnen();
+    renderJournal();
+  }
+  if (topic === "places") {
+    renderLogbookPlacesIfOpen();
+    renderTrips();
+  }
+  if (topic === "places" || topic === "notes") {
+    mapview.draw();
+    renderJournal();
+  }
   // renderTripContexts() auch hier: die Live-LED prüft bei jedem neuen
   // Positionsabruf erneut, ob die Wache-Zone gerade verlassen wurde.
-  if (topic === "livePosition") { renderStatusPill(); mapview.draw(); renderTripContexts(); renderGuardInfo(); }
-  if (topic === "drives") { renderTrips(); mapview.draw(); renderJournal(); }
-  if (topic === "routeDriveFilter") { renderTrips(); renderTripContexts(); mapview.draw({ fit: true }); }
+  if (topic === "livePosition") {
+    renderStatusPill();
+    mapview.draw();
+    renderTripContexts();
+    renderGuardInfo();
+  }
+  if (topic === "drives") {
+    renderTrips();
+    mapview.draw();
+    renderJournal();
+  }
+  if (topic === "routeDriveFilter") {
+    renderTrips();
+    renderTripContexts();
+    mapview.draw({ fit: true });
+  }
   if (topic === "vehicles") renderVehicleLine();
   if (topic === "config") renderStatusPill();
   // Wache scharf + mindestens eine aktive Zone: die grüne Live-LED der
@@ -977,9 +1341,11 @@ subscribe((topic) => {
   if (topic === "guard") {
     renderTripContexts();
     // Der überwachte Bereich als Kreis auf der Karte — nur solange scharf.
-    mapview.setGuardZone(state.guardArmed && state.guardAnchor && state.guardZoneRadius
-      ? { lat: state.guardAnchor.lat, lon: state.guardAnchor.lon, radiusM: state.guardZoneRadius }
-      : null);
+    mapview.setGuardZone(
+      state.guardArmed && state.guardAnchor && state.guardZoneRadius
+        ? { lat: state.guardAnchor.lat, lon: state.guardAnchor.lon, radiusM: state.guardZoneRadius }
+        : null,
+    );
   }
 });
 
@@ -996,9 +1362,21 @@ const gate = $("#gate");
 let gateModus = "login";
 
 const GATE_TEXTE = {
-  login: { titel: "Anmelden", sub: "Melde dich an, um deine Reisen und Orte zu sehen.", knopf: "Anmelden" },
-  setup: { titel: "Konto anlegen", sub: "Noch kein Konto vorhanden. Lege eines an — es gilt dann auf allen Geräten.", knopf: "Konto anlegen" },
-  forgot: { titel: "Passwort vergessen", sub: "Gib deinen Benutzernamen ein — falls eine E-Mail hinterlegt ist, bekommst du einen Link.", knopf: "Link senden" },
+  login: {
+    titel: "Anmelden",
+    sub: "Melde dich an, um deine Reisen und Orte zu sehen.",
+    knopf: "Anmelden",
+  },
+  setup: {
+    titel: "Konto anlegen",
+    sub: "Noch kein Konto vorhanden. Lege eines an — es gilt dann auf allen Geräten.",
+    knopf: "Konto anlegen",
+  },
+  forgot: {
+    titel: "Passwort vergessen",
+    sub: "Gib deinen Benutzernamen ein — falls eine E-Mail hinterlegt ist, bekommst du einen Link.",
+    knopf: "Link senden",
+  },
 };
 
 function anwendenGateModus() {
@@ -1009,10 +1387,14 @@ function anwendenGateModus() {
   $("#gate-password-wrap").hidden = gateModus === "forgot";
   $("#gate-repeat-wrap").hidden = gateModus !== "setup";
   $("#gate-email-wrap").hidden = gateModus !== "setup";
-  $("#gate-password").setAttribute("autocomplete", gateModus === "login" ? "current-password" : "new-password");
+  $("#gate-password").setAttribute(
+    "autocomplete",
+    gateModus === "login" ? "current-password" : "new-password",
+  );
   // Vor Kontoanlage ergibt "Passwort vergessen" keinen Sinn — es gibt ja noch keins.
   $("#gate-forgot").hidden = gateModus === "setup";
-  $("#gate-forgot").textContent = gateModus === "forgot" ? "Zurück zur Anmeldung" : "Passwort vergessen?";
+  $("#gate-forgot").textContent =
+    gateModus === "forgot" ? "Zurück zur Anmeldung" : "Passwort vergessen?";
 }
 
 function zeigeGate(einrichtung) {
@@ -1035,14 +1417,16 @@ const gateInfo = (text) => {
 
 $("#gate-forgot").addEventListener("click", () => {
   gateModus = gateModus === "forgot" ? "login" : "forgot";
-  gateFehler(""); gateInfo("");
+  gateFehler("");
+  gateInfo("");
   anwendenGateModus();
 });
 
 async function gateAbsenden() {
   const benutzer = $("#gate-user").value.trim();
   const passwort = $("#gate-password").value;
-  gateFehler(""); gateInfo("");
+  gateFehler("");
+  gateInfo("");
 
   if (gateModus === "setup" && passwort !== $("#gate-repeat").value) {
     gateFehler("Die beiden Passwörter stimmen nicht überein.");
@@ -1069,7 +1453,12 @@ async function gateAbsenden() {
     // Kontostand nachladen — sonst geht eine schon hinterlegte E-Mail in
     // der Anzeige verloren (state.account würde sie sonst überschreiben).
     const zustand = await authState();
-    state.account = { username: zustand.username, email: zustand.email, emailVerified: zustand.emailVerified, isAdmin: Boolean(zustand.isAdmin) };
+    state.account = {
+      username: zustand.username,
+      email: zustand.email,
+      emailVerified: zustand.emailVerified,
+      isAdmin: Boolean(zustand.isAdmin),
+    };
     state.config.demo = false;
     saveConfig();
     gate.hidden = true;
@@ -1088,13 +1477,17 @@ async function gateAbsenden() {
 $("#gate-eye").addEventListener("click", () => {
   const felder = [$("#gate-password"), $("#gate-repeat")];
   const zeigen = felder[0].type === "password";
-  felder.forEach((f) => { f.type = zeigen ? "text" : "password"; });
+  felder.forEach((f) => {
+    f.type = zeigen ? "text" : "password";
+  });
   $("#gate-eye").textContent = zeigen ? "verbergen" : "anzeigen";
 });
 
 $("#gate-submit").addEventListener("click", gateAbsenden);
 for (const feld of ["gate-user", "gate-password", "gate-repeat", "gate-email"]) {
-  $("#" + feld).addEventListener("keydown", (e) => { if (e.key === "Enter") gateAbsenden(); });
+  $(`#${feld}`).addEventListener("keydown", (e) => {
+    if (e.key === "Enter") gateAbsenden();
+  });
 }
 $("#gate-demo").addEventListener("click", () => {
   state.config.demo = true;
@@ -1116,7 +1509,9 @@ if (resetToken) {
   $("#reset-eye").addEventListener("click", () => {
     const felder = [$("#reset-password"), $("#reset-repeat")];
     const zeigen = felder[0].type === "password";
-    felder.forEach((f) => { f.type = zeigen ? "text" : "password"; });
+    felder.forEach((f) => {
+      f.type = zeigen ? "text" : "password";
+    });
     $("#reset-eye").textContent = zeigen ? "verbergen" : "anzeigen";
   });
 
@@ -1129,8 +1524,14 @@ if (resetToken) {
   async function resetAbsenden() {
     const passwort = $("#reset-password").value;
     resetFehler("");
-    if (passwort.length < 10) { resetFehler("Das Passwort braucht mindestens 10 Zeichen."); return; }
-    if (passwort !== $("#reset-repeat").value) { resetFehler("Die beiden Passwörter stimmen nicht überein."); return; }
+    if (passwort.length < 10) {
+      resetFehler("Das Passwort braucht mindestens 10 Zeichen.");
+      return;
+    }
+    if (passwort !== $("#reset-repeat").value) {
+      resetFehler("Die beiden Passwörter stimmen nicht überein.");
+      return;
+    }
 
     const knopf = $("#reset-submit");
     knopf.disabled = true;
@@ -1140,7 +1541,12 @@ if (resetToken) {
       // Wie beim Login: den vollen Kontostand nachladen, sonst verschwindet
       // eine schon hinterlegte E-Mail aus der Anzeige.
       const zustand = await authState();
-      state.account = { username: zustand.username, email: zustand.email, emailVerified: zustand.emailVerified, isAdmin: Boolean(zustand.isAdmin) };
+      state.account = {
+        username: zustand.username,
+        email: zustand.email,
+        emailVerified: zustand.emailVerified,
+        isAdmin: Boolean(zustand.isAdmin),
+      };
       state.config.demo = false;
       saveConfig();
       resetGate.hidden = true;
@@ -1155,7 +1561,9 @@ if (resetToken) {
   }
   $("#reset-submit").addEventListener("click", resetAbsenden);
   for (const feld of ["reset-password", "reset-repeat"]) {
-    $("#" + feld).addEventListener("keydown", (e) => { if (e.key === "Enter") resetAbsenden(); });
+    $(`#${feld}`).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") resetAbsenden();
+    });
   }
 }
 
@@ -1169,7 +1577,10 @@ if (verifyToken) {
   verifyEmail(verifyToken)
     .then(() => {
       // Falls schon angemeldet, sofort in der Anzeige nachziehen.
-      if (state.account) { state.account = { ...state.account, emailVerified: true }; refreshAccountState(); }
+      if (state.account) {
+        state.account = { ...state.account, emailVerified: true };
+        refreshAccountState();
+      }
       toast("E-Mail bestätigt");
     })
     .catch((err) => toast(err.message || "Bestätigungslink ungültig oder abgelaufen"));
@@ -1181,7 +1592,7 @@ async function starteDaten() {
   renderTrips();
   renderLogbookPlacesIfOpen();
   renderCategoryPicker();
-  renderVehicles();      // Einstellungen kennen die Daten erst jetzt
+  renderVehicles(); // Einstellungen kennen die Daten erst jetzt
   renderCategories();
   renderVehicleLine();
   renderStatusBar();
@@ -1248,18 +1659,26 @@ if (gastToken) {
     const t = state.trips.find((tr) => tr.id === state.mapTripId);
     if (t) loadGuestLivePosition(t);
   }, 30000);
-  setInterval(() => {
-    if (document.hidden) return;
-    const t = state.trips.find((tr) => tr.id === state.mapTripId);
-    if (t) loadGuestRoute(t);
-  }, 5 * 60 * 1000);
+  setInterval(
+    () => {
+      if (document.hidden) return;
+      const t = state.trips.find((tr) => tr.id === state.mapTripId);
+      if (t) loadGuestRoute(t);
+    },
+    5 * 60 * 1000,
+  );
 } else {
   /* Beim Start klären: Konto vorhanden? Angemeldet? */
   authState()
     .then((zustand) => {
       setSignedIn(Boolean(zustand.angemeldet));
       if (zustand.angemeldet) {
-        state.account = { username: zustand.username, email: zustand.email, emailVerified: zustand.emailVerified, isAdmin: Boolean(zustand.isAdmin) };
+        state.account = {
+          username: zustand.username,
+          email: zustand.email,
+          emailVerified: zustand.emailVerified,
+          isAdmin: Boolean(zustand.isAdmin),
+        };
         return starteDaten();
       }
       // Nicht angemeldet: Beispieldaten zeigen, Anmeldung davor legen —
@@ -1327,4 +1746,3 @@ document.addEventListener("visibilitychange", () => {
   aktualisiereLaufendeSpur();
   aktualisiereKarteJetzt();
 });
-

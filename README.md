@@ -234,6 +234,7 @@ out of git: see [`docs/local-setup.md`](docs/local-setup.md)
 The CI workflow runs on pushes to `main` and on pull requests:
 
 - `npm ci`
+- `npm run check` (Biome format and lint, `tsc --checkJs`)
 - `npm test`
 - `npm run build`
 - `npm run test:smoke`

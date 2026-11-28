@@ -16,7 +16,9 @@ const APP_NAME = "VOJAĜO";
 const APP_DESC = "Explore & Track — dein Camper-Begleiter";
 const THEME = "#e8802b";
 const BG = "#0c1a1c";
-const VERSION = versionAnzeige(JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
+const VERSION = versionAnzeige(
+  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version,
+);
 
 /* ---------- Icon: schlichtes PNG (Akzentfläche mit Vogel-Schwinge) ---------- */
 function png(size) {
@@ -24,7 +26,9 @@ function png(size) {
   const [ar, ag, ab] = [0xe8, 0x80, 0x2b];
   const raw = Buffer.alloc(size * (size * 3 + 1));
   let p = 0;
-  const cx = size / 2, cy = size / 2, r = size * 0.42;
+  const cx = size / 2,
+    cy = size / 2,
+    r = size * 0.42;
   for (let y = 0; y < size; y++) {
     raw[p++] = 0; // Filter: none
     for (let x = 0; x < size; x++) {
@@ -33,7 +37,8 @@ function png(size) {
       const t = (x - cx) / r;
       const wing = cy + Math.sin(t * 2.2) * r * 0.22 - r * 0.05;
       const onWing = inCircle && Math.abs(y - wing) < size * 0.055 && Math.abs(t) < 0.82;
-      const on2 = inCircle && Math.abs(y - (wing + r * 0.30)) < size * 0.045 && t > -0.85 && t < 0.15;
+      const on2 =
+        inCircle && Math.abs(y - (wing + r * 0.3)) < size * 0.045 && t > -0.85 && t < 0.15;
       const isInk = onWing || on2;
       raw[p++] = inCircle ? (isInk ? br : ar) : br;
       raw[p++] = inCircle ? (isInk ? bg : ag) : bg;
@@ -42,19 +47,34 @@ function png(size) {
   }
   const crcTable = (() => {
     const t = new Int32Array(256);
-    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; }
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c;
+    }
     return t;
   })();
-  const crc = (buf) => { let c = -1; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+  const crc = (buf) => {
+    let c = -1;
+    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+    return (c ^ -1) >>> 0;
+  };
   const chunk = (type, data) => {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
     const td = Buffer.concat([Buffer.from(type, "ascii"), data]);
-    const cc = Buffer.alloc(4); cc.writeUInt32BE(crc(td));
+    const cc = Buffer.alloc(4);
+    cc.writeUInt32BE(crc(td));
     return Buffer.concat([len, td, cc]);
   };
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr),
@@ -66,22 +86,29 @@ writeFileSync(new URL("icon-192.png", out), png(192));
 writeFileSync(new URL("icon-512.png", out), png(512));
 
 /* ---------- Manifest ---------- */
-writeFileSync(new URL("manifest.webmanifest", out), JSON.stringify({
-  name: APP_NAME + " — Explore & Track",
-  short_name: APP_NAME,
-  description: APP_DESC,
-  start_url: "/",
-  scope: "/",
-  display: "standalone",
-  orientation: "portrait",
-  background_color: BG,
-  theme_color: THEME,
-  icons: [
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-  ],
-}, null, 2));
+writeFileSync(
+  new URL("manifest.webmanifest", out),
+  JSON.stringify(
+    {
+      name: `${APP_NAME} — Explore & Track`,
+      short_name: APP_NAME,
+      description: APP_DESC,
+      start_url: "/",
+      scope: "/",
+      display: "standalone",
+      orientation: "portrait",
+      background_color: BG,
+      theme_color: THEME,
+      icons: [
+        { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      ],
+    },
+    null,
+    2,
+  ),
+);
 
 /* ---------- Kartenbibliothek mitliefern ----------
    MapLibre wird als eigenständige Datei ausgeliefert statt mitgebündelt:
@@ -111,7 +138,10 @@ await esbuild({
    Damit lädt der Browser nach jedem Deploy wirklich die neue Fassung und
    nicht die alte aus seinem Zwischenspeicher. */
 const kurzHash = (datei) =>
-  createHash("sha256").update(readFileSync(new URL(datei, out))).digest("hex").slice(0, 10);
+  createHash("sha256")
+    .update(readFileSync(new URL(datei, out)))
+    .digest("hex")
+    .slice(0, 10);
 const BUILD = kurzHash("app.js") + kurzHash("app.css");
 
 /* ---------- index.html ---------- */
@@ -164,7 +194,9 @@ if ("serviceWorker" in navigator) {
 writeFileSync(new URL("index.html", out), html);
 
 /* ---------- Service Worker ---------- */
-writeFileSync(new URL("sw.js", out), `// VOJAĜO Service Worker
+writeFileSync(
+  new URL("sw.js", out),
+  `// VOJAĜO Service Worker
 const CACHE = "vojago-${BUILD}";
 const ASSETS = ["/", "/index.html", "/app.js?v=${BUILD}", "/app.css?v=${BUILD}", "/maplibre-gl.mjs", "/maplibre-gl-worker.mjs", "/maplibre-gl.css", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 self.addEventListener("install", (e) => {
@@ -211,7 +243,9 @@ self.addEventListener("notificationclick", (e) => {
     })
   );
 });
-`);
+`,
+);
 
-
-console.log(`public/ gebaut — index.html (${html.length} Z.), app.js, app.css, manifest, sw.js, icons`);
+console.log(
+  `public/ gebaut — index.html (${html.length} Z.), app.js, app.css, manifest, sw.js, icons`,
+);

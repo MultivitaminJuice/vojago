@@ -21,7 +21,11 @@ async function handleRequest(request) {
   const url = new URL(request.url);
 
   if (url.pathname === "/health") {
-    return Response.json({ ok: true, service: "vojago-tracker-backend", positions: positionCount() });
+    return Response.json({
+      ok: true,
+      service: "vojago-tracker-backend",
+      positions: positionCount(),
+    });
   }
 
   if (url.pathname === "/positions") {
@@ -79,11 +83,17 @@ setInterval(() => {
 // nach, was während einer Downtime liegen geblieben ist, oder wenn sich
 // z. B. eine Geräte-Zuordnung geändert hat, ohne dass seither neue
 // Positionen für dieses Gerät eintrafen.
-fuehreAutoImportAus({ planen: true }).catch((err) => console.error("[auto-import] Start-Durchlauf fehlgeschlagen:", err));
+fuehreAutoImportAus({ planen: true }).catch((err) =>
+  console.error("[auto-import] Start-Durchlauf fehlgeschlagen:", err),
+);
 
 // Wache: Zustand der letzten Meldung nachprüfen (siehe alarms.js, Stille nach
 // der letzten Meldung) — holt eine Rückkehr nach, die vor einem Neustart offen blieb.
-try { pruefeAlleZonenzustaende(); } catch (err) { console.error("[alarms] Start-Prüfung fehlgeschlagen:", err); }
+try {
+  pruefeAlleZonenzustaende();
+} catch (err) {
+  console.error("[alarms] Start-Prüfung fehlgeschlagen:", err);
+}
 
 const server = createServer(async (nodeReq, nodeRes) => {
   try {

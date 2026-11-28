@@ -10,8 +10,13 @@ test("Version: ein abschließendes .0 entfällt, sonst bleibt sie", () => {
 });
 
 test("Build: BUILD_NUMBER/BUILD_COMMIT aus der Umgebung haben Vorrang vor git", () => {
-  const git = () => { throw new Error("git darf nicht gefragt werden"); };
-  const b = ermittleBuild({ env: { BUILD_NUMBER: "142", BUILD_COMMIT: "A1B2C3D4E5F6" }, gitAbfrage: git });
+  const git = () => {
+    throw new Error("git darf nicht gefragt werden");
+  };
+  const b = ermittleBuild({
+    env: { BUILD_NUMBER: "142", BUILD_COMMIT: "A1B2C3D4E5F6" },
+    gitAbfrage: git,
+  });
   assert.deepEqual(b, { nummer: 142, commit: "a1b2c3d" });
 });
 
@@ -28,7 +33,10 @@ test("Build: weder Umgebung noch git — keine Nummer, kein Commit (Rückfall au
 });
 
 test("Build: ungültige Werte werden ignoriert, nie in die Seite übernommen", () => {
-  const b = ermittleBuild({ env: { BUILD_NUMBER: "<script>", BUILD_COMMIT: "../../etc" }, gitAbfrage: () => "" });
+  const b = ermittleBuild({
+    env: { BUILD_NUMBER: "<script>", BUILD_COMMIT: "../../etc" },
+    gitAbfrage: () => "",
+  });
   assert.deepEqual(b, { nummer: null, commit: null });
 });
 

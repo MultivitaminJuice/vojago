@@ -51,7 +51,7 @@ function draw() {
  */
 function fitWidth() {
   if (overlay.hidden || !img.naturalWidth) return;
-  infoBox.style.maxWidth = img.getBoundingClientRect().width + 2 * STAGE_PAD_X + "px";
+  infoBox.style.maxWidth = `${img.getBoundingClientRect().width + 2 * STAGE_PAD_X}px`;
 }
 
 function step(delta) {
@@ -63,43 +63,89 @@ function step(delta) {
 /** Swipe gestures on the image: left/right pages, down closes — the usual
  * handling from photo apps. Short movements (a tap) do nothing, see SWIPE_MIN_PX. */
 function wireSwipe() {
-  let startX = 0, startY = 0, tracking = false;
-  stage.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) return;
-    tracking = true;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-  }, { passive: true });
-  stage.addEventListener("touchend", (e) => {
-    if (!tracking) return;
+  let startX = 0,
+    startY = 0,
     tracking = false;
-    const dx = (e.changedTouches[0]?.clientX ?? startX) - startX;
-    const dy = (e.changedTouches[0]?.clientY ?? startY) - startY;
-    if (Math.abs(dx) < SWIPE_MIN_PX && Math.abs(dy) < SWIPE_MIN_PX) return; // it was a tap
-    if (Math.abs(dy) > Math.abs(dx) * 1.3) {
-      if (dy > 0) close(); // swipe down = close
-    } else {
-      step(dx < 0 ? 1 : -1); // left = next, right = previous
-    }
-  }, { passive: true });
+  stage.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      tracking = true;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    },
+    { passive: true },
+  );
+  stage.addEventListener(
+    "touchend",
+    (e) => {
+      if (!tracking) return;
+      tracking = false;
+      const dx = (e.changedTouches[0]?.clientX ?? startX) - startX;
+      const dy = (e.changedTouches[0]?.clientY ?? startY) - startY;
+      if (Math.abs(dx) < SWIPE_MIN_PX && Math.abs(dy) < SWIPE_MIN_PX) return; // it was a tap
+      if (Math.abs(dy) > Math.abs(dx) * 1.3) {
+        if (dy > 0) close(); // swipe down = close
+      } else {
+        step(dx < 0 ? 1 : -1); // left = next, right = previous
+      }
+    },
+    { passive: true },
+  );
 }
 
 function build() {
   img = el("img", { alt: "" });
   infoBody = el("div.lightbox-info-body");
   counter = el("span.lightbox-count");
-  prevBtn = el("button.lightbox-nav.prev", { "aria-label": "Vorheriges Foto", text: "‹", on: { click: (e) => { e.stopPropagation(); step(-1); } } });
-  nextBtn = el("button.lightbox-nav.next", { "aria-label": "Nächstes Foto", text: "›", on: { click: (e) => { e.stopPropagation(); step(1); } } });
-  stage = el("div.lightbox-stage", { on: { click: (e) => { if (e.target === stage) close(); } } }, [prevBtn, img, nextBtn, counter]);
+  prevBtn = el("button.lightbox-nav.prev", {
+    "aria-label": "Vorheriges Foto",
+    text: "‹",
+    on: {
+      click: (e) => {
+        e.stopPropagation();
+        step(-1);
+      },
+    },
+  });
+  nextBtn = el("button.lightbox-nav.next", {
+    "aria-label": "Nächstes Foto",
+    text: "›",
+    on: {
+      click: (e) => {
+        e.stopPropagation();
+        step(1);
+      },
+    },
+  });
+  stage = el(
+    "div.lightbox-stage",
+    {
+      on: {
+        click: (e) => {
+          if (e.target === stage) close();
+        },
+      },
+    },
+    [prevBtn, img, nextBtn, counter],
+  );
   infoBox = el("div.lightbox-info", {}, [
     el("button.lightbox-close", { "aria-label": "Schließen", text: "✕", on: { click: close } }),
     infoBody,
   ]);
   const panel = el("div.lightbox-panel", {}, [infoBox, stage]);
-  overlay = el("div.lightbox", {
-    hidden: true,
-    on: { click: (e) => { if (e.target === overlay) close(); } },
-  }, [panel]);
+  overlay = el(
+    "div.lightbox",
+    {
+      hidden: true,
+      on: {
+        click: (e) => {
+          if (e.target === overlay) close();
+        },
+      },
+    },
+    [panel],
+  );
   document.body.appendChild(overlay);
   wireSwipe();
   img.addEventListener("load", fitWidth);

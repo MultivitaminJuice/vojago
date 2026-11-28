@@ -49,7 +49,9 @@ export function createStaticHandler(basisVerzeichnis) {
         try {
           const inhalt = await readFile(join(basis, "index.html"));
           return new Response(inhalt, { headers: { "content-type": "text/html; charset=utf-8" } });
-        } catch { /* fällt unten auf 404 durch */ }
+        } catch {
+          /* fällt unten auf 404 durch */
+        }
       }
       return new Response("nicht gefunden", { status: 404 });
     }

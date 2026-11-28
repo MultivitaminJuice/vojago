@@ -19,14 +19,18 @@ import { sendePushAnAlle } from "./push.js";
  * keine Millisekunden) — alarm_log.occurred_at ist TEXT, gemischte Formate
  * würden beim Sortieren (ORDER BY occurred_at) durcheinandergeraten. */
 function alsSqliteDatum(unixMs) {
-  return new Date(unixMs).toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+  return new Date(unixMs)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d+Z$/, "");
 }
 
 function haversineMeter(a, b) {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-  const h = Math.sin(dLat / 2) ** 2 +
+  const h =
+    Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
@@ -36,10 +40,10 @@ function haversineMeter(a, b) {
 // Einfügereihenfolge: nachgelieferte Pakete treffen nicht in zeitlicher
 // Reihenfolge ein (echter Fund, 11. Oktober 2026).
 const holeVorherigePositionen = db.prepare(
-  "SELECT lat, lon FROM positions WHERE device_id = ? AND at < ? ORDER BY at DESC LIMIT 2"
+  "SELECT lat, lon FROM positions WHERE device_id = ? AND at < ? ORDER BY at DESC LIMIT 2",
 );
 const holeLetztePosition = db.prepare(
-  "SELECT at, lat, lon FROM positions WHERE device_id = ? ORDER BY at DESC LIMIT 1"
+  "SELECT at, lat, lon FROM positions WHERE device_id = ? ORDER BY at DESC LIMIT 1",
 );
 // Gezielt der Wache-Anker, NICHT "irgendeine aktive Zone": In der Tabelle
 // liegen aus der früheren Zonen-Verwaltung noch alte Einträge (z. B.
@@ -54,11 +58,13 @@ const holeAktivenAnker = db.prepare("SELECT * FROM geofences WHERE id = ? AND ac
 const holeLetztenZustand = db.prepare(
   `SELECT message FROM alarm_log
    WHERE type = 'geofence' AND (message LIKE 'Fahrzeug hat den überwachten Bereich%' OR message LIKE 'Wache scharf%')
-   ORDER BY id DESC LIMIT 1`
+   ORDER BY id DESC LIMIT 1`,
 );
-const holeGeofenceEinstellung = db.prepare("SELECT enabled FROM alarm_settings WHERE key = 'geofence'");
+const holeGeofenceEinstellung = db.prepare(
+  "SELECT enabled FROM alarm_settings WHERE key = 'geofence'",
+);
 const schreibeAlarm = db.prepare(
-  "INSERT INTO alarm_log (type, severity, message, occurred_at) VALUES (?,?,?,?)"
+  "INSERT INTO alarm_log (type, severity, message, occurred_at) VALUES (?,?,?,?)",
 );
 
 /**
@@ -98,8 +104,11 @@ export function pruefeZonenwechsel(position) {
   // "Wieder betreten" nur nach einem gemeldeten "verlassen" — sonst würde der
   // Ausreißer selbst (raus-rein-rein) als Verlassen gelten und die
   // Rückkehr fälschlich gemeldet.
-  const betreten = !drinnenDavor && drinnenVorher && drinnenJetzt
-    && /verlassen/.test(holeLetztenZustand.get()?.message || "");
+  const betreten =
+    !drinnenDavor &&
+    drinnenVorher &&
+    drinnenJetzt &&
+    /verlassen/.test(holeLetztenZustand.get()?.message || "");
   if (!verlassen && !betreten) return;
 
   meldeWechsel(verlassen ? "verlassen" : "betreten", position.at, true);
@@ -139,7 +148,11 @@ function planeRuhePruefung(deviceId) {
   clearTimeout(ruheTimerJeGeraet.get(deviceId));
   const timer = setTimeout(() => {
     ruheTimerJeGeraet.delete(deviceId);
-    try { pruefeZonenzustandNachRuhe(deviceId); } catch (err) { console.error("[alarms] Ruheprüfung fehlgeschlagen:", err); }
+    try {
+      pruefeZonenzustandNachRuhe(deviceId);
+    } catch (err) {
+      console.error("[alarms] Ruheprüfung fehlgeschlagen:", err);
+    }
   }, RUHE_BIS_BESTAETIGUNG_MS);
   timer.unref?.();
   ruheTimerJeGeraet.set(deviceId, timer);
@@ -167,6 +180,10 @@ export function pruefeZonenzustandNachRuhe(deviceId, jetzt = Date.now()) {
 
 /** Beim Serverstart: für jedes Gerät mit Positionen den Zustand nachprüfen. */
 export function pruefeAlleZonenzustaende() {
-  const geraete = db.prepare("SELECT DISTINCT traccar_device_id AS id FROM vehicles WHERE traccar_device_id IS NOT NULL AND traccar_device_id != ''").all();
+  const geraete = db
+    .prepare(
+      "SELECT DISTINCT traccar_device_id AS id FROM vehicles WHERE traccar_device_id IS NOT NULL AND traccar_device_id != ''",
+    )
+    .all();
   for (const { id } of geraete) pruefeZonenzustandNachRuhe(id);
 }
