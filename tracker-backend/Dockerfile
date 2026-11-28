@@ -30,8 +30,8 @@ FROM node:22-slim
 ENV TZ=Europe/Berlin
 
 WORKDIR /app
-COPY tracker-backend/package.json ./tracker-backend/package.json
-RUN cd tracker-backend && npm install --omit=dev
+COPY tracker-backend/package.json tracker-backend/package-lock.json ./tracker-backend/
+RUN cd tracker-backend && npm ci --omit=dev
 
 COPY db ./db
 COPY tracker-backend/src ./tracker-backend/src
@@ -43,6 +43,10 @@ COPY src/overnight-rules.js ./src/overnight-rules.js
 # docker-compose.yml TRACKER_DB_PATH ohnehin auf /data/vojago.db, geteilt
 # mit dem app-Container — dieser Vorgabewert gilt nur für einen
 # eigenständigen `docker run` ohne Compose.)
+# Run as the unprivileged "node" user from the base image (SEC-9); see app-backend/README.md
+# for the one-time chown of an existing volume.
+RUN mkdir -p /app/tracker-backend/data /data && chown -R node:node /app/tracker-backend/data /data
+USER node
 VOLUME ["/app/tracker-backend/data"]
 ENV TRACKER_DB_PATH=/app/tracker-backend/data/tracker.db
 

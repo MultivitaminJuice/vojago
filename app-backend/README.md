@@ -65,3 +65,20 @@ for the SQLite file and the photos. See
 ```bash
 docker compose up -d --build
 ```
+
+### One-time step: switching an existing installation to the non-root images
+
+Both images run as the unprivileged `node` user of the `node:22-slim` base image (SEC-9).
+A new volume gets the right owner automatically. A volume created by an older image
+belongs to `root`, and the containers can then no longer write the database or photos.
+Change its owner once, before the first start of the new images:
+
+1. Download a backup in the app (see [`docs/backup-restore.md`](../docs/backup-restore.md)).
+2. Stop the stack without deleting the volume: `docker compose down`
+3. Find the volume name (it starts with the compose project name):
+   `docker volume ls --filter name=vojago-data`
+4. Hand it to the `node` user, using the base image that is already on the host:
+   `docker run --rm -u root -v <volume-name>:/data node:22-slim chown -R node:node /data`
+5. Start the new images: `docker compose up -d --build`
+6. Check: the app loads, login works, a photo can be added, and the `ingest` log shows
+   new positions being stored.
