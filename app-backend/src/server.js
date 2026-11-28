@@ -15,6 +15,7 @@ import { R2Shim } from "./r2-shim.js";
 import { createStaticHandler } from "./static.js";
 import { createBackup } from "./backup.js";
 import { clientAddress, parseTrustedProxies } from "./client-ip.js";
+import { readCsp, securityHeaders } from "./security-headers.js";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.APP_HTTP_PORT || 8080);
@@ -26,6 +27,9 @@ const PUBLIC_PFAD = process.env.APP_PUBLIC_PATH || join(hier, "..", "..", "publi
 const db = new D1Shim(DB_PFAD);
 const fotos = new R2Shim(FOTOS_PFAD);
 const serveStatic = createStaticHandler(PUBLIC_PFAD);
+const CSP = readCsp(join(PUBLIC_PFAD, "csp.txt"));
+if (!CSP) console.error("[app-backend] public/csp.txt missing: no Content-Security-Policy is sent");
+const SECURITY_HEADERS = securityHeaders(CSP);
 
 // Environment handed to api/router.js. DB and PHOTOS are thin adapters over
 // better-sqlite3 and the local file system.
@@ -74,6 +78,7 @@ function alsWebRequest(nodeReq) {
 
 async function sendeWebResponse(response, nodeRes) {
   nodeRes.statusCode = response.status;
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) nodeRes.setHeader(k, v);
   for (const [k, v] of response.headers) nodeRes.setHeader(k, v);
   const body = response.body ? Buffer.from(await response.arrayBuffer()) : null;
   nodeRes.end(body);
