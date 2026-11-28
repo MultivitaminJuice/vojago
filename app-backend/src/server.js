@@ -14,9 +14,11 @@ import { D1Shim } from "./d1-shim.js";
 import { R2Shim } from "./r2-shim.js";
 import { createStaticHandler } from "./static.js";
 import { createBackup } from "./backup.js";
+import { clientAddress, parseTrustedProxies } from "./client-ip.js";
 
 const hier = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.APP_HTTP_PORT || 8080);
+const TRUSTED_PROXIES = parseTrustedProxies(process.env.TRUSTED_PROXY_IPS);
 const DB_PFAD = process.env.APP_DB_PATH || join(hier, "..", "data", "vojago.db");
 const FOTOS_PFAD = process.env.APP_PHOTOS_PATH || join(hier, "..", "data", "fotos");
 const PUBLIC_PFAD = process.env.APP_PUBLIC_PATH || join(hier, "..", "..", "public");
@@ -53,8 +55,14 @@ function alsWebRequest(nodeReq) {
   const url = `http://${nodeReq.headers.host || `localhost:${PORT}`}${nodeReq.url}`;
   const headers = new Headers();
   for (const [k, v] of Object.entries(nodeReq.headers)) {
+    if (k === "cf-connecting-ip") continue; // set below from a trusted source only (SEC-8)
     if (v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
   }
+  const caller = clientAddress(
+    { peer: nodeReq.socket.remoteAddress, forwarded: nodeReq.headers["cf-connecting-ip"] },
+    TRUSTED_PROXIES,
+  );
+  if (caller) headers.set("cf-connecting-ip", caller);
   const hatBody = nodeReq.method !== "GET" && nodeReq.method !== "HEAD";
   return new Request(url, {
     method: nodeReq.method,

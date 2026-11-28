@@ -51,7 +51,8 @@ Health check: `curl http://localhost:8080/api/auth/me`
 | `APP_PUBLIC_PATH` | directory of the built PWA | `../public` |
 | `APP_SCHEMA_PATH` | path to `db/schema.sql`, for other directory layouts | `../../db/schema.sql` relative to `src/` |
 | `APP_URL` | public base address for password-reset and e-mail-verification links; without it the request origin is used | — |
-| `ALLOWED_ORIGINS` | only if the API is called from another origin | — |
+| `ALLOWED_ORIGINS` | only if the API is called from another origin; writes from any other site are refused with 403 | — |
+| `TRUSTED_PROXY_IPS` | addresses of proxies (e.g. the cloudflared container) whose `cf-connecting-ip` header names the caller for rate limiting. Empty: no proxy is trusted; all requests through the tunnel then share one login limit. A forged header from any other address is ignored. | — |
 | `RESEND_API_KEY`, `MAIL_FROM` | sending mail through Resend; without a key no mail is sent | — |
 | `VAPID_PUBLIC_KEY` | public Web Push key handed to the browser | — |
 

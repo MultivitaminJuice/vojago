@@ -41,6 +41,10 @@ services:
       # Portainer als Stack-Umgebungsvariable setzen, falls die Domain später
       # wechselt; der Vorgabewert ist die aktuelle Produktionsadresse.
       APP_URL: ${APP_URL:-https://vojago.example.com}
+      # Addresses of proxies whose cf-connecting-ip header is trusted for the login rate
+      # limit (e.g. the cloudflared container). Empty: no proxy is trusted, every request
+      # counts by its connection address (app-backend/README.md).
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
       # Push-Benachrichtigung (Wache) — nur der öffentliche Schlüssel, den
       # der Browser fürs Abo braucht (GET /api/push-public-key). Ohne
       # gesetzten Wert meldet der Endpunkt ehrlich "nicht eingerichtet"

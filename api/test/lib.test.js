@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import {
   corsHeaders,
   isCrossSiteWrite,
+  DUMMY_PASSWORD_HASH,
+  PBKDF2_ROUNDS,
   allowedOrigins,
   safeEqual,
   validateOrt,
@@ -790,4 +792,8 @@ test("isCrossSiteWrite: only state-changing requests from other sites are refuse
     ),
     true,
   );
+});
+
+test("DUMMY_PASSWORD_HASH costs as many rounds as a real hash (SEC-8)", () => {
+  assert.equal(DUMMY_PASSWORD_HASH.split("$")[1], String(PBKDF2_ROUNDS));
 });

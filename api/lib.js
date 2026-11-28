@@ -983,6 +983,12 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
  */
 export const PBKDF2_ROUNDS = 300000;
 
+/**
+ * Hash checked for unknown user names, so that a login takes as long as for a real user
+ * and the response time does not reveal which names exist (SEC-8, LL-019).
+ */
+export const DUMMY_PASSWORD_HASH = `pbkdf2$${PBKDF2_ROUNDS}$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`;
+
 /** Cloudflare lehnt mehr als 100.000 Runden je Aufruf ab (harte Grenze). */
 const MAX_RUNDEN_JE_AUFRUF = 100000;
 
