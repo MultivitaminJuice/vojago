@@ -81,9 +81,7 @@ Before "done": `docs/working-principles.md` § Tests, GitHub, deploy, plus
 |---|---|---|
 | `TOK-COL-3` [C] | Project accent `#ae5913` with white text (`#ffffff`), the same in light and dark theme; accent only as a fill, never as text; links in text colour with underline. | `ES/ux-ui/design-tokens.md` TOK-COL-3, fixed 2026-11-27 |
 | `NAM-1` | UI texts are German; code, comments, docs and commits are English. *(This is the rule itself, listed for clarity.)* | `docs/working-principles.md`, `ES/global/coding-standards.md` |
-
-Proposed, not yet accepted: ADR-001 checks all files with `tsc --checkJs` at once but without
-`strict`, instead of file by file as in ES-ADR-007.
+| ES-ADR-007 (`TYP-1`) | `tsc --checkJs` checks all files in `src/` and `api/` at once, but without `strict`, instead of file by file with `// @ts-check`. | ADR-001, accepted 2026-11-28 |
 
 No other exception is decided. Open point that needs a decision by the user before it
 becomes an exception: stored German enum values and table names.

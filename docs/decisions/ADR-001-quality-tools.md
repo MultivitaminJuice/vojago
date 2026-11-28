@@ -4,9 +4,9 @@
 |---|---|
 | ID | ADR-001 |
 | Title | Quality tools – Biome and `tsc --checkJs` |
-| Status | Proposed |
-| Date | 2026-11-27 (created) · accepted: – |
-| Approval | open |
+| Status | Accepted |
+| Date | 2026-11-27 (created) · accepted: 2026-11-28 |
+| Approval | given on 2026-11-28 by the project owner (in chat) |
 | Supersedes | – |
 | Superseded by | – |
 | Related | `MNT-1`, `TYP-1`, `TYP-2`, `TST-5`, `LL-005`, ES-ADR-006, ES-ADR-007, ES-ADR-011 |
