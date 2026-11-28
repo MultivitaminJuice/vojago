@@ -51,7 +51,8 @@ Health check: `curl http://localhost:8080/api/auth/me`
 | `APP_PUBLIC_PATH` | directory of the built PWA | `../public` |
 | `APP_SCHEMA_PATH` | path to `db/schema.sql`, for other directory layouts | `../../db/schema.sql` relative to `src/` |
 | `APP_URL` | public base address for password-reset and e-mail-verification links; without it the request origin is used | — |
-| `ALLOWED_ORIGINS` | only if the API is called from another origin | — |
+| `ALLOWED_ORIGINS` | only if the API is called from another origin; writes from any other site are refused with 403 | — |
+| `TRUSTED_PROXY_IPS` | addresses of proxies (e.g. the cloudflared container) whose `cf-connecting-ip` header names the caller for rate limiting. Empty: no proxy is trusted; all requests through the tunnel then share one login limit. A forged header from any other address is ignored. | — |
 | `RESEND_API_KEY`, `MAIL_FROM` | sending mail through Resend; without a key no mail is sent | — |
 | `VAPID_PUBLIC_KEY` | public Web Push key handed to the browser | — |
 
@@ -64,3 +65,20 @@ for the SQLite file and the photos. See
 ```bash
 docker compose up -d --build
 ```
+
+### One-time step: switching an existing installation to the non-root images
+
+Both images run as the unprivileged `node` user of the `node:22-slim` base image (SEC-9).
+A new volume gets the right owner automatically. A volume created by an older image
+belongs to `root`, and the containers can then no longer write the database or photos.
+Change its owner once, before the first start of the new images:
+
+1. Download a backup in the app (see [`docs/backup-restore.md`](../docs/backup-restore.md)).
+2. Stop the stack without deleting the volume: `docker compose down`
+3. Find the volume name (it starts with the compose project name):
+   `docker volume ls --filter name=vojago-data`
+4. Hand it to the `node` user, using the base image that is already on the host:
+   `docker run --rm -u root -v <volume-name>:/data node:22-slim chown -R node:node /data`
+5. Start the new images: `docker compose up -d --build`
+6. Check: the app loads, login works, a photo can be added, and the `ingest` log shows
+   new positions being stored.

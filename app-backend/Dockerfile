@@ -16,7 +16,7 @@
 FROM node:22-slim AS site-builder
 WORKDIR /build
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 COPY src ./src
 COPY scripts ./scripts
 # Kartenschlüssel (CARTO) kommt beim Bauen aus der Umgebung, nicht aus dem
@@ -41,8 +41,8 @@ RUN npm run build
 FROM node:22-slim
 
 WORKDIR /app
-COPY app-backend/package.json ./app-backend/package.json
-RUN cd app-backend && npm install --omit=dev
+COPY app-backend/package.json app-backend/package-lock.json ./app-backend/
+RUN cd app-backend && npm ci --omit=dev
 
 COPY db ./db
 COPY api ./api
@@ -51,6 +51,10 @@ COPY app-backend/src ./app-backend/src
 
 # Die Datenbank (geteilt mit dem ingest-Container) und die Fotos liegen in
 # einem Volume, nicht im Image.
+# Run as the unprivileged "node" user from the base image (SEC-9). A new volume takes
+# this ownership; an existing one needs a one-time chown (app-backend/README.md).
+RUN mkdir -p /data/fotos && chown -R node:node /data
+USER node
 VOLUME ["/data"]
 ENV APP_DB_PATH=/data/vojago.db
 ENV APP_PHOTOS_PATH=/data/fotos

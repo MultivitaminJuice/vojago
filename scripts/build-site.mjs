@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { build as esbuild } from "esbuild";
 import { deflateSync } from "node:zlib";
 import { versionAnzeige, ermittleBuild, buildAnzeige } from "./build-info.mjs";
+import { buildCsp } from "./csp.mjs";
 
 const out = new URL("../public/", import.meta.url);
 mkdirSync(out, { recursive: true });
@@ -192,6 +193,8 @@ if ("serviceWorker" in navigator) {
 </html>
 `;
 writeFileSync(new URL("index.html", out), html);
+// The policy carries the hashes of the inline scripts above (SEC-9).
+writeFileSync(new URL("csp.txt", out), `${buildCsp(html)}\n`);
 
 /* ---------- Service Worker ---------- */
 writeFileSync(

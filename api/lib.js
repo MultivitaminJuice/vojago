@@ -14,6 +14,42 @@ export const allowedOrigins = (env) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** Origin of APP_URL, or null when it is not set or not a URL. */
+function appOrigin(env) {
+  try {
+    return env.APP_URL ? new URL(env.APP_URL).origin : null;
+  } catch {
+    return null; // a broken APP_URL is reported elsewhere; here it only means "not trusted"
+  }
+}
+
+/**
+ * CSRF guard (SEC-6): true when a state-changing request comes from another site.
+ * The browser's own `Sec-Fetch-Site: same-origin` is trusted first. Otherwise an `Origin`
+ * header must be the request's own host, APP_URL or one of ALLOWED_ORIGINS. Requests with
+ * neither header do not come from a current browser page and are not a CSRF risk.
+ * @param {Request} request
+ * @param {{ APP_URL?: string, ALLOWED_ORIGINS?: string }} env
+ */
+export function isCrossSiteWrite(request, env) {
+  if (SAFE_METHODS.has(request.method)) return false;
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite === "same-origin") return false;
+  const origin = request.headers.get("origin");
+  if (!origin) return fetchSite === "cross-site" || fetchSite === "same-site";
+  let originHost = "";
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return true; // "null" or garbage: not a page of ours
+  }
+  if (originHost === new URL(request.url).host) return false;
+  if (origin === appOrigin(env)) return false;
+  return !allowedOrigins(env).includes(origin);
+}
+
 export function corsHeaders(request, env) {
   const origin = request.headers.get("origin");
   const headers = {
@@ -946,6 +982,12 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
  * Anhebung lässt bestehende Passwörter also gültig.
  */
 export const PBKDF2_ROUNDS = 300000;
+
+/**
+ * Hash checked for unknown user names, so that a login takes as long as for a real user
+ * and the response time does not reveal which names exist (SEC-8, LL-019).
+ */
+export const DUMMY_PASSWORD_HASH = `pbkdf2$${PBKDF2_ROUNDS}$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`;
 
 /** Cloudflare lehnt mehr als 100.000 Runden je Aufruf ab (harte Grenze). */
 const MAX_RUNDEN_JE_AUFRUF = 100000;

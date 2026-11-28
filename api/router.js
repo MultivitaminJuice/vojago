@@ -15,6 +15,8 @@
  */
 import {
   corsHeaders,
+  isCrossSiteWrite,
+  DUMMY_PASSWORD_HASH,
   validateOrt,
   validateBesuch,
   validateTrip,
@@ -430,8 +432,16 @@ async function route(request, env) {
 
   if (seg[0] !== "api") return reply(request, env, { error: "nicht gefunden" }, 404);
 
-  // Lastbegrenzung je Aufrufer
-  const caller = request.headers.get("cf-connecting-ip") || "unbekannt";
+  // CSRF guard for every state-changing request (SEC-6), before any other work.
+  if (isCrossSiteWrite(request, env)) {
+    return reply(request, env, { error: "Anfrage von fremder Seite abgelehnt" }, 403);
+  }
+
+  // Rate limit per caller (SEC-8). `cf-connecting-ip` is set by the host, never by the
+  // client: app-backend overwrites it (app-backend/src/client-ip.js), Cloudflare sets it
+  // itself. Without it the caller cannot be told apart, so the request is refused.
+  const caller = request.headers.get("cf-connecting-ip");
+  if (!caller) return reply(request, env, { error: "Absender nicht erkennbar" }, 400);
   const quota = takeToken(caller);
   if (!quota.ok) {
     return new Response(JSON.stringify({ error: "zu viele Anfragen" }), {
@@ -524,7 +534,7 @@ async function route(request, env) {
     }
 
     if (schritt === "login" && request.method === "POST") {
-      const kennung = request.headers.get("cf-connecting-ip") || "unbekannt";
+      const kennung = caller;
       if (!takeLogin(kennung).ok) {
         return reply(
           request,
@@ -546,10 +556,7 @@ async function route(request, env) {
       // Auch ohne Treffer rechnen, damit die Antwortzeit nichts verrät.
       const passt = benutzer
         ? await verifyPassword(b.password, benutzer.password_hash)
-        : await verifyPassword(
-            b.password,
-            "pbkdf2$210000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          );
+        : await verifyPassword(b.password, DUMMY_PASSWORD_HASH);
       if (!benutzer || !passt)
         return reply(request, env, { error: "Benutzername oder Passwort stimmen nicht" }, 401);
 
@@ -566,7 +573,7 @@ async function route(request, env) {
     // da. Antwortet absichtlich immer gleich (kein Verrat, ob der
     // Benutzername existiert oder eine Mail hinterlegt ist).
     if (schritt === "forgot" && request.method === "POST") {
-      const kennung = request.headers.get("cf-connecting-ip") || "unbekannt";
+      const kennung = caller;
       if (!takeLogin(kennung).ok) {
         return reply(request, env, { error: "Zu viele Versuche. Bitte später erneut." }, 429);
       }
@@ -800,7 +807,7 @@ async function route(request, env) {
   // dem Anmelde-Gate: das ist ja der Zweck, Dritte ohne eigenes Konto an
   // einzelnen oder allen Reisen teilhaben zu lassen.
   if (seg[1] === "share" && seg[2]) {
-    const kennung = request.headers.get("cf-connecting-ip") || "unbekannt";
+    const kennung = caller;
     if (!takeShare(kennung).ok) {
       return reply(request, env, { error: "Zu viele Anfragen. Bitte später erneut." }, 429);
     }
