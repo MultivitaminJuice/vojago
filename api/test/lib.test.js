@@ -5,6 +5,7 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import assert from "node:assert/strict";
 import {
   corsHeaders,
+  isCrossSiteWrite,
   allowedOrigins,
   safeEqual,
   validateOrt,
@@ -764,4 +765,29 @@ test("validateTagebuch: Reise, Kalendertag und Blöcke werden geprüft und norma
     { ...gut, blocks: Array.from({ length: 81 }, () => ({ t: "text", text: "a" })) },
   ])
     assert.equal(validateTagebuch(kaputt).ok, false, JSON.stringify(kaputt).slice(0, 60));
+});
+
+test("isCrossSiteWrite: only state-changing requests from other sites are refused (SEC-6)", () => {
+  const req = (method, headers = {}) =>
+    new Request("http://app:8080/api/places", { method, headers });
+  const env = { APP_URL: "https://vojago.example.com", ALLOWED_ORIGINS: "https://other.example" };
+
+  assert.equal(isCrossSiteWrite(req("GET", { origin: "https://evil.example" }), env), false);
+  assert.equal(isCrossSiteWrite(req("POST", { "sec-fetch-site": "same-origin" }), env), false);
+  assert.equal(isCrossSiteWrite(req("POST", { origin: "http://app:8080" }), env), false);
+  assert.equal(isCrossSiteWrite(req("POST", { origin: "https://vojago.example.com" }), env), false);
+  assert.equal(isCrossSiteWrite(req("PATCH", { origin: "https://other.example" }), env), false);
+  assert.equal(isCrossSiteWrite(req("POST"), env), false, "no browser headers: not a CSRF risk");
+
+  assert.equal(isCrossSiteWrite(req("POST", { origin: "https://evil.example" }), env), true);
+  assert.equal(isCrossSiteWrite(req("DELETE", { origin: "null" }), env), true);
+  assert.equal(isCrossSiteWrite(req("POST", { "sec-fetch-site": "cross-site" }), env), true);
+  assert.equal(isCrossSiteWrite(req("POST", { "sec-fetch-site": "same-site" }), env), true);
+  assert.equal(
+    isCrossSiteWrite(
+      req("POST", { "sec-fetch-site": "cross-site", origin: "https://evil.example" }),
+      env,
+    ),
+    true,
+  );
 });

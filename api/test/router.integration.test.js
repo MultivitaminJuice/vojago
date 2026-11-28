@@ -1762,3 +1762,22 @@ test("/api/backup: admins get the archive, others 403, without a backup function
   const anonym = await api(env, "GET", "/api/backup", { headers: ip });
   assert.equal(anonym.status, 401);
 });
+
+test("API-Integration: schreibende Anfragen von fremden Seiten werden abgelehnt (SEC-6)", async (t) => {
+  const env = makeEnv();
+  t.after(() => env.DB.close());
+  const cookie = await setupAndLogin(env);
+
+  const fremd = await api(env, "POST", "/api/auth/logout", {
+    cookie,
+    headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+  });
+  assert.equal(fremd.status, 403);
+  assert.equal((await api(env, "GET", "/api/auth/me", { cookie })).data?.angemeldet, true);
+
+  const eigen = await api(env, "POST", "/api/auth/logout", {
+    cookie,
+    headers: { origin: "https://vojago.test", "sec-fetch-site": "same-origin" },
+  });
+  assert.equal(eigen.status, 200);
+});

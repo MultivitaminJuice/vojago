@@ -15,6 +15,7 @@
  */
 import {
   corsHeaders,
+  isCrossSiteWrite,
   validateOrt,
   validateBesuch,
   validateTrip,
@@ -429,6 +430,11 @@ async function route(request, env) {
   const seg = path.split("/").filter(Boolean);
 
   if (seg[0] !== "api") return reply(request, env, { error: "nicht gefunden" }, 404);
+
+  // CSRF guard for every state-changing request (SEC-6), before any other work.
+  if (isCrossSiteWrite(request, env)) {
+    return reply(request, env, { error: "Anfrage von fremder Seite abgelehnt" }, 403);
+  }
 
   // Lastbegrenzung je Aufrufer
   const caller = request.headers.get("cf-connecting-ip") || "unbekannt";
